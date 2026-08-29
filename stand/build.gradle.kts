@@ -17,6 +17,25 @@ val publishTasks =
  * what arrived can, and every gap the publish convention closes was found exactly this way, in a real
  * repository, long after a green build.
  */
+// EMPTIED BEFORE EVERY RUN, or the evidence outlives the run that produced it.
+//
+// A directory repository accumulates. Yesterday's artefacts sitting beside today's would let this
+// check pass on a run that published nothing at all — and the version-discovery above would see two
+// versions and blame the convention. On CI the checkout is fresh and neither happens, which is
+// exactly why it has to be arranged here: a check that only works on a machine that has never run it
+// before is a check that stops working the moment anyone uses it.
+val cleanStandRepo =
+    tasks.register<Delete>("cleanStandRepo") {
+        description = "Empties the stand repository so a run cannot pass on last run's artefacts"
+        delete(layout.buildDirectory.dir("repo"))
+    }
+
+subprojects {
+    tasks.matching { it.name == "publishAllPublicationsToStandRepository" }.configureEach {
+        dependsOn(cleanStandRepo)
+    }
+}
+
 val verifyPublications =
     tasks.register("verifyPublications") {
         group = "verification"
@@ -24,12 +43,58 @@ val verifyPublications =
         dependsOn(publishTasks)
 
         val repoDir = layout.buildDirectory.dir("repo")
-        val version = project.version.toString()
         val groupPath = "ru/workinprogress/stand"
+
+        // WHAT THE VERSION IS, ACCORDING TO THE PUBLISH RATHER THAN ACCORDING TO THIS TASK.
+        //
+        // The first version of this took the root project's version and built the expected paths from
+        // it. That is the same number in two places, and CI found the second one: the publish workflow
+        // passes `-PVERSION`, `sborka.base` puts it on every MODULE, and the stand's root — which
+        // applies no convention — kept the head from `gradle.properties`. Every artefact then read as
+        // missing, in a run that had published all of them correctly.
+        //
+        // So the version is DISCOVERED from what arrived, and the expectation is checked against it
+        // separately below. That also catches something the arithmetic could not: two versions in the
+        // directory at once.
+        val expectedVersion = providers.gradleProperty("VERSION").orNull
         outputs.upToDateWhen { false }
 
         doLast {
             val root = repoDir.get().asFile
+            val moduleNames = listOf("jvm-lib", "platform", "kmp-lib", "kmp-lib-jvm", "kmp-lib-linuxx64")
+
+            val versionsPerModule =
+                moduleNames.associateWith { module ->
+                    File(root, "$groupPath/$module")
+                        .listFiles()
+                        .orEmpty()
+                        .filter { it.isDirectory }
+                        .map { it.name }
+                        .sorted()
+                }
+
+            val absent = versionsPerModule.filterValues { it.isEmpty() }.keys
+            check(absent.isEmpty()) {
+                "these modules published nothing at all, though every publish task reported success: " +
+                    absent.sorted().joinToString()
+            }
+
+            val versions = versionsPerModule.values.flatten().distinct()
+            check(versions.size == 1) {
+                "the modules landed under more than one version — $versions. Two releases in one " +
+                    "directory is what a version set on the publication but not on the project looks " +
+                    "like from the outside."
+            }
+            val version = versions.single()
+
+            if (expectedVersion != null) {
+                check(version == expectedVersion) {
+                    "-PVERSION was $expectedVersion and the artefacts arrived as $version. The archive " +
+                        "tasks take their file names from the PROJECT version, so a version set on the " +
+                        "publication alone ships files named after the fallback under the coordinate " +
+                        "carrying the real one."
+                }
+            }
 
             fun artefact(
                 module: String,
@@ -46,8 +111,7 @@ val verifyPublications =
                     // The platform: no sources to give away, only the component carrying constraints.
                     artefact("platform", ".pom"),
                     // The multiplatform module: a root publication plus one per target, and the file
-                    // names carry the FULL version — a jar named after a fallback version under a
-                    // coordinate carrying the real one resolves correctly and is still wrong.
+                    // names carry the FULL version.
                     artefact("kmp-lib", ".module"),
                     artefact("kmp-lib-jvm", ".jar"),
                     artefact("kmp-lib-jvm", ".module"),
@@ -61,7 +125,7 @@ val verifyPublications =
             }
 
             // THE POM SAYS WHO OWNS IT. Derived from one property in `gradle.properties` rather than
-            // pasted into each repository, and the three scm strings are the part that got pasted
+            // pasted into every repository, and the three scm strings are the part that got pasted
             // wrong.
             val pom = artefact("jvm-lib", ".pom").readText()
             listOf(
@@ -85,7 +149,9 @@ val verifyPublications =
                     "loading, with a message naming a bytecode version rather than the library."
             }
 
-            logger.lifecycle("verifyPublications: ${required.size} artefacts, the pom and the jvm floor all check out")
+            logger.lifecycle(
+                "verifyPublications: ${required.size} artefacts at $version, the pom and the jvm floor all check out",
+            )
         }
     }
 
