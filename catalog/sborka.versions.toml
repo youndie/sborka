@@ -1,0 +1,70 @@
+# What more than one repository has to agree on, and nothing else.
+#
+# The test for admission is not "several repositories use it" but "it going out of step between them
+# is a defect". Kotlin qualifies: a library published from one repository and consumed by another
+# carries metadata a mismatched compiler refuses. A logging backend does not — two services on two
+# versions of it is two services, not a bug.
+#
+# Reached in a build as the `wip` catalog, beside the repository's own `libs`:
+#
+#     implementation(wip.kotlinx.coroutines.core)
+#
+# What already agreed on its own is here to KEEP agreeing: kotlin and coroutines are identical in all
+# eighteen catalogs today, by discipline. What had drifted when this file was written is marked.
+
+[versions]
+kotlin = "2.4.10"
+coroutines = "1.11.0"
+serialization = "1.11.0"
+datetime = "0.8.0"
+
+# Drifted: 3.5.2 in seven repositories, 3.4.0 in one.
+ktor = "3.5.2"
+
+# Drifted: 2.3.11 in five, 2.3.10 in two. KSP is versioned against the compiler, so the pair moves
+# together — a repository on a different KSP than its Kotlin fails at annotation processing with a
+# message about an internal API.
+ksp = "2.3.11"
+
+# Drifted: 9.3.0 / 9.3.1 / 9.3.2 across three repositories.
+agp = "9.3.2"
+
+# Drifted: 1.11.1 in three, 1.12.0 in two.
+composeMultiplatform = "1.12.0"
+
+# NO ktlint HERE, AND THAT IS THE FIX. The portfolio spelled two different things as one catalog key
+# called `ktlint` — the TOOL in nine repositories, the PLUGIN in four — which is why the same key reads
+# 1.8.0 in some and 14.2.0 in others. `sborka.lint` applies the plugin and pins the tool, so a
+# repository names neither, and the key that could be misread no longer exists.
+
+# Drifted: 6.1.3 in one repository, 4.13.2 in another — which is JUnit 4 beside JUnit 6, not a bump.
+junit = "6.1.3"
+
+koin = "4.2.2"
+okio = "3.18.1"
+turbine = "1.2.1"
+atomicfu = "0.33.0"
+
+[libraries]
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "datetime" }
+
+koin-bom = { module = "io.insert-koin:koin-bom", version.ref = "koin" }
+koin-core = { module = "io.insert-koin:koin-core" }
+koin-test = { module = "io.insert-koin:koin-test" }
+
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
+turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+
+[plugins]
+kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+androidKotlinMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+atomicfu = { id = "org.jetbrains.kotlinx.atomicfu", version.ref = "atomicfu" }

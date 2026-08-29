@@ -1,0 +1,44 @@
+name: Setup Kotlin build
+description: >
+  Java, Gradle and the Kotlin/Native cache, in one step and at one version. The portfolio runs
+  gradle/actions/setup-gradle at v4, v5 and v6 at the same time — 22 uses of v4 — which is the kind of
+  drift nobody chooses and nobody notices.
+
+inputs:
+  java-versions:
+    description: >
+      JDKs to install, one per line. Two by default and not one: a build whose toolchain is 25 while
+      Gradle itself runs on 21 needs both present, and a missing toolchain is a download nobody asked
+      for or a failure naming a vendor.
+    required: false
+    default: |
+      21
+      25
+  konan-cache:
+    description: >
+      Cache ~/.konan. Worth it only for a build with Kotlin/Native targets: the toolchain is around a
+      gigabyte, and it is downloaded on every cold runner.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Java
+      uses: actions/setup-java@v5
+      with:
+        distribution: temurin
+        java-version: ${{ inputs.java-versions }}
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v6
+
+    - name: Cache the Kotlin/Native toolchain
+      if: inputs.konan-cache == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ~/.konan
+        # Keyed on the Kotlin version, because that is what decides which toolchain is downloaded.
+        # Keyed on the lock files too, so a catalog bump does not silently reuse the previous one.
+        key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+        restore-keys: konan-${{ runner.os }}-

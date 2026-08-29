@@ -1,0 +1,39 @@
+name: Determine version
+description: >
+  The head of the version from gradle.properties, with the run number on the tail. Copied word for
+  word into three repositories before this existed.
+
+inputs:
+  key:
+    description: The gradle.properties key holding the head of the version.
+    required: false
+    default: version
+  file:
+    description: Where to read it from.
+    required: false
+    default: gradle.properties
+
+outputs:
+  version:
+    description: The full version, head plus run number.
+    value: ${{ steps.read.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - id: read
+      shell: bash
+      run: |
+        set -euo pipefail
+        # The run number goes on the tail: two publishes in a row must not produce the same
+        # coordinate, or a consumer cannot tell them apart and keeps the cached older one.
+        #
+        # `grep -E "^key="` and not `grep key`: a substring match picks up a commented-out line or a
+        # neighbouring key, and the version it then reports is a version nobody set.
+        head="$(grep -E "^${{ inputs.key }}=" "${{ inputs.file }}" | head -1 | cut -d= -f2- | tr -d '[:space:]')"
+        if [ -z "$head" ]; then
+          echo "::error::${{ inputs.key }} is not set in ${{ inputs.file }}" >&2
+          exit 1
+        fi
+        echo "version=${head}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+        echo "version is ${head}.${{ github.run_number }}"

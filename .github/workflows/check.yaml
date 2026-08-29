@@ -1,0 +1,40 @@
+name: check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/setup-kotlin
+        with:
+          # The stand has a linuxX64 target, so the Kotlin/Native toolchain is downloaded here.
+          konan-cache: "true"
+
+      # Compiles the conventions, runs their tests, and applies them in the stand: a separate build
+      # that asks for the plugins by id.
+      - name: Check
+        run: ./gradlew check --no-daemon
+
+      # THE ONE THING `check` CANNOT COVER, and it needs its own ordering to cover it.
+      #
+      # `sborka.settings` wires in the published version catalog by coordinate, and a settings plugin
+      # resolves its catalog before any task in the same invocation has run — so the build that
+      # publishes the catalog cannot be the build that reads it. Two invocations: publish it into a
+      # directory, then run the stand again against that directory with the catalog switched on.
+      #
+      # Without this the coordinate in `sborka.settings` is a string nothing ever resolves, and it
+      # would be wrong for exactly as long as it took somebody to migrate a repository.
+      - name: Publish the catalog to a directory
+        run: ./gradlew :catalog:publishAllPublicationsToLocalRepository --no-daemon
+
+      - name: Resolve the catalog the way a repository will
+        run: |
+          ./gradlew -p stand check --no-daemon \
+            -Psborka.catalog=on \
+            -Psborka.catalogRepository="file://$PWD/build/local-repo"

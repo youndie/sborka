@@ -1,0 +1,25 @@
+# The catalog sborka BUILDS WITH. What it PUBLISHES is `catalog/sborka.versions.toml`, and the two
+# are deliberately separate files: this one names a ktlint plugin sborka runs on itself, that one
+# names the versions nineteen repositories agree on, and merging them would make every bump of the
+# former a release of the latter.
+
+[versions]
+kotlin = "2.4.10"
+ktlintPlugin = "14.2.0"
+
+# The FORMATTER, and the default `sborka.lint` hands to every consumer. Generated into `:core` so the
+# number lives here and nowhere else — the same file sborka is linted from.
+ktlintTool = "1.8.0"
+junit = "6.1.3"
+
+[libraries]
+kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+ktlint-gradle-plugin = { module = "org.jlleitschuh.gradle:ktlint-gradle", version.ref = "ktlintPlugin" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+
+[plugins]
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintPlugin" }
+kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

@@ -1,0 +1,45 @@
+plugins {
+    `kotlin-dsl`
+    // SBORKA IS LINTED BY THE FORMATTER SBORKA SHIPS, at the version `:core` generates from the same
+    // catalog entry `sborka.lint` hands to consumers. A repository that ships a linter and does not
+    // run it is the shape of defect its own checks exist to catch.
+    alias(libs.plugins.ktlint)
+}
+
+ktlint {
+    version.set(libs.versions.ktlintTool)
+    filter { exclude { it.file.path.contains("/build/generated/") } }
+}
+
+// The project conventions: everything applied to a module rather than to a build.
+
+dependencies {
+    api(projects.core)
+
+    // APPLIED BY SBORKA, so it travels with it. Which ktlint runs is exactly the portfolio-wide
+    // decision this repository exists to hold: the same catalog key `ktlint` means the TOOL version
+    // 1.8.0 in nine repositories and the PLUGIN version 14.2.0 in four.
+    implementation(libs.ktlint.gradle.plugin)
+
+    // NOT applied by sborka, and that is the design. `sborka.kmp` configures Kotlin, it does not
+    // choose its version: a module applies `kotlin("multiplatform")` itself, at whatever version its
+    // own catalog names, and sborka reacts with `plugins.withId`. Declared `compileOnly` so the types
+    // are on the compile classpath and this jar carries no Kotlin plugin of its own — otherwise every
+    // Kotlin bump anywhere in the portfolio would wait on a sborka release.
+    //
+    // The arrangement that makes this work is the three-jar split in `settings.gradle.kts`: these
+    // classes must NOT end up on a classloader that has no Kotlin plugin under it.
+    compileOnly(libs.kotlin.gradle.plugin)
+
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}

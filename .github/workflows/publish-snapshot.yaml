@@ -1,0 +1,56 @@
+name: Publish sborka snapshots
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/setup-kotlin
+        with:
+          konan-cache: "true"
+
+      - id: ver
+        uses: ./.github/actions/determine-version
+        with:
+          # sborka's own head lives under its own key: `build-logic` is an included build and reads its
+          # own directory's gradle.properties, so a bare `version` here would name the wrong file.
+          key: sborka.version
+
+      # Green before published. The order is the point: a publish is the one step that cannot be taken
+      # back, and a consumer that has resolved a version keeps it.
+      - name: Check
+        run: ./gradlew check --no-daemon
+        env:
+          ORG_GRADLE_PROJECT_VERSION: ${{ steps.ver.outputs.version }}
+
+      - name: Publish
+        run: ./gradlew publishToWip --no-daemon
+        env:
+          ORG_GRADLE_PROJECT_REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
+          ORG_GRADLE_PROJECT_REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}
+          ORG_GRADLE_PROJECT_VERSION: ${{ steps.ver.outputs.version }}
+
+  # WHAT A CONSUMER RECEIVES, read from the repository after the upload rather than from a build
+  # directory before it. A file that failed to upload and a coordinate that resolves to the previous
+  # version do not exist until something asks the server, and neither fails a publish.
+  consumer:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: What a consumer gets
+        uses: youndie/proba@main
+        with:
+          coordinate: |
+            ru.workinprogress.sborka:core:${{ needs.publish.outputs.version }}
+            ru.workinprogress.sborka:conventions:${{ needs.publish.outputs.version }}
+            ru.workinprogress.sborka:settings:${{ needs.publish.outputs.version }}
+            ru.workinprogress.sborka:catalog:${{ needs.publish.outputs.version }}
+          repository: https://reposilite.kotlin.website/snapshots
