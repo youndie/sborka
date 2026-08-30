@@ -40,7 +40,11 @@ publishing {
 // and captured as a plain list, because a provider that reads an extension is resolved by the
 // configuration cache in a scope where that extension does not exist.
 afterEvaluate {
-    val published = extensions.getByType<PublishingExtension>().publications.names.sorted()
+    val published =
+        extensions
+            .getByType<PublishingExtension>()
+            .publications.names
+            .sorted()
 
     val verify =
         tasks.register("verifyPublicationShape") {

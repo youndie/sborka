@@ -2,6 +2,7 @@ package ru.workinprogress.sborka.internal
 
 import org.gradle.api.file.Directory
 import org.gradle.api.file.FileCollection
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
@@ -29,9 +30,20 @@ class PitestArguments(
     @get:InputFiles @get:PathSensitive(PathSensitivity.RELATIVE) val sourceDirs: FileCollection,
     @get:InputFiles val mutableCodePaths: FileCollection,
     @get:InputFiles val runtimeClasspath: FileCollection,
+    @get:Input val forkJvmArgs: ListProperty<String>,
 ) : CommandLineArgumentProvider {
-    override fun asArguments(): Iterable<String> =
-        listOf(
+    override fun asArguments(): Iterable<String> {
+        val fork = forkJvmArgs.get()
+        // pitest joins these with commas and splits them the same way, so a value carrying one is
+        // silently read as two arguments. Refused here, where the value is still identifiable, rather
+        // than by a minion failing to start.
+        val withComma = fork.filter { it.contains(',') }
+        require(withComma.isEmpty()) {
+            "sborkaMutation.forkJvmArgs may not contain a comma — pitest separates the minion's " +
+                "arguments on commas, so these would reach it as more arguments than were written: " +
+                withComma.joinToString()
+        }
+        return listOf(
             "--reportDir",
             reportDir.get().asFile.absolutePath,
             "--targetClasses",
@@ -52,5 +64,6 @@ class PitestArguments(
             "false",
             "--threads",
             Runtime.getRuntime().availableProcessors().toString(),
-        )
+        ) + if (fork.isEmpty()) emptyList() else listOf("--jvmArgs", fork.joinToString(","))
+    }
 }
