@@ -1,7 +1,25 @@
 // What the three published jars share. Each of them says what it is; this says what they all are.
 
+// Emptied before publishing, or the evidence outlives the run that produced it: a directory
+// repository accumulates, and yesterday's artefacts beside today's let the root's check pass on a run
+// that published nothing.
+val cleanLocalRepo =
+    tasks.register<Delete>("cleanLocalRepo") {
+        description = "Empties the local plugin repository"
+        delete(rootProject.layout.buildDirectory.dir("../../build/local-repo-plugins"))
+    }
+
 subprojects {
     apply(plugin = "org.gradle.maven-publish")
+
+    // ON THE INDIVIDUAL PUBLISH TASKS, not on the `publishAllPublicationsTo…` aggregate. The
+    // aggregate only DEPENDS ON the real publish tasks, so ordering the aggregate after the delete
+    // leaves the delete free to run beside them — which it does under `org.gradle.parallel`, and
+    // fails as "unable to delete directory" or, worse, as a publish whose output was removed after
+    // it succeeded.
+    tasks.withType<org.gradle.api.publish.maven.tasks.PublishToMavenRepository>().configureEach {
+        dependsOn(cleanLocalRepo)
+    }
 
     // ktlint is applied in each module's own `plugins { }` block rather than from here, and that is
     // the same classloader story as the three-jar split: applied from a root that has no Kotlin plugin
@@ -44,11 +62,38 @@ subprojects {
         }
     }
 
+    // THE PUBLICATION THAT NOBODY REGISTERS, and sborka shipped a release without it.
+    //
+    // `kotlin-dsl` brings `java-gradle-plugin`, which registers `pluginMaven` and a marker per plugin
+    // — so `:conventions` and `:settings` publish themselves. `:core` has neither: it holds no plugin,
+    // so `maven-publish` alone has nothing to upload, and it uploads nothing. The task is green, the
+    // job is green, and version 0.1.0.3 went out with `:conventions` and `:settings` declaring an
+    // `api` dependency on a `:core` that is not on the server — unresolvable for every consumer.
+    //
+    // This is the exact defect `sborka.publish` exists to fix, hit by the one build that deliberately
+    // cannot apply sborka's own conventions. Found by `youndie/proba`, which asks the server what a
+    // consumer would get; nothing inside the build could have said it.
+    //
+    // Guarded now by `verifyBuildLogicPublications` in the root build, which reads the directory the
+    // publish wrote instead of trusting its exit code.
+    plugins.withId("org.jetbrains.kotlin.jvm") {
+        if (!plugins.hasPlugin("java-gradle-plugin")) {
+            extensions.configure<PublishingExtension> {
+                publications.create<MavenPublication>("maven") {
+                    from(components["java"])
+                }
+            }
+        }
+    }
+
     extensions.configure<PublishingExtension> {
         repositories {
+            // A directory of its own, not the one `:catalog` writes. Each build cleans the
+            // directory it owns before publishing into it, and two builds cleaning one directory
+            // while the other writes to it is a race that fails as "unable to delete".
             maven {
                 name = "local"
-                url = uri(rootProject.layout.buildDirectory.dir("../../build/local-repo"))
+                url = uri(rootProject.layout.buildDirectory.dir("../../build/local-repo-plugins"))
             }
             maven {
                 name = "wip"

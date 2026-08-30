@@ -48,9 +48,36 @@ jobs:
       - name: What a consumer gets
         uses: youndie/proba@main
         with:
+          # `catalog` is deliberately not here. A version catalog publishes `versionCatalogElements`
+          # and nothing else — a platform for use during `version-catalog` — so proba's consumer build
+          # asks it for a compile-time library and gets "no matching variant". That is proba working
+          # correctly on a question that does not apply, and its answer is UNDETERMINED, which is a red
+          # job saying nothing. The catalog is checked below instead, through the path that actually
+          # reads it.
           coordinate: |
             ru.workinprogress.sborka:core:${{ needs.publish.outputs.version }}
             ru.workinprogress.sborka:conventions:${{ needs.publish.outputs.version }}
             ru.workinprogress.sborka:settings:${{ needs.publish.outputs.version }}
-            ru.workinprogress.sborka:catalog:${{ needs.publish.outputs.version }}
           repository: https://reposilite.kotlin.website/snapshots
+
+  # THE CATALOG, RESOLVED FROM THE SERVER BY THE PLUGIN THAT NAMES IT.
+  #
+  # `check` already resolves it from a directory this build wrote, which proves the coordinate is
+  # well-formed and nothing else. This resolves the PUBLISHED one over the network, through
+  # `sborka.settings` — the only path anybody will use — and it can only run after the publish, which
+  # is why it is a job of its own rather than a step in `check`.
+  catalog:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/setup-kotlin
+        with:
+          konan-cache: "true"
+
+      - name: Resolve the published catalog
+        run: |
+          ./gradlew -p stand check --no-daemon \
+            -Psborka.catalog=on \
+            -Psborka.catalogVersion=${{ needs.publish.outputs.version }}

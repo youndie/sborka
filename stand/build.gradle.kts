@@ -31,7 +31,12 @@ val cleanStandRepo =
     }
 
 subprojects {
-    tasks.matching { it.name == "publishAllPublicationsToStandRepository" }.configureEach {
+    // ON THE INDIVIDUAL PUBLISH TASKS, not on the `publishAllPublicationsTo…` aggregate. The
+    // aggregate only DEPENDS ON the real publish tasks, so ordering the aggregate after the delete
+    // leaves the delete free to run beside them — which it does under `org.gradle.parallel`, and
+    // fails as "unable to delete directory" or, worse, as a publish whose output was removed after
+    // it succeeded.
+    tasks.withType<org.gradle.api.publish.maven.tasks.PublishToMavenRepository>().configureEach {
         dependsOn(cleanStandRepo)
     }
 }
