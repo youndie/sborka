@@ -32,6 +32,9 @@ val targetPackage =
                 "Set it in gradle.properties, for example `sborka.mutationPackage=io.github.youndie.bochka`.",
         )
 
+// What the minions need on top of what `test` gives them, said by the repository that knows.
+val options = extensions.create<MutationOptions>("sborkaMutation")
+
 plugins.withId("org.jetbrains.kotlin.jvm") {
     val pitest = configurations.create("pitest")
     dependencies.add("pitest", "org.pitest:pitest-command-line:$pitestVersion")
@@ -79,6 +82,7 @@ plugins.withId("org.jetbrains.kotlin.jvm") {
                 sourceDirs = sourceDirs,
                 mutableCodePaths = mutable,
                 runtimeClasspath = fullPath,
+                forkJvmArgs = options.forkJvmArgs,
             ),
         )
     }
