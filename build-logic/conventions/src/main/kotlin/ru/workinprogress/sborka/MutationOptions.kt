@@ -18,7 +18,7 @@ import org.gradle.api.provider.ListProperty
  * plugins.withId("ru.workinprogress.sborka.mutation") {
  *     extensions.configure<MutationOptions>("sborkaMutation") {
  *         forkJvmArgs.addAll(profile)
- *         forkJvmArgs.add("-Dbochka.specDir=$specDir")
+ *         forkJvmArgs.add("-Dapp.specDir=$specDir")
  *     }
  * }
  * ```

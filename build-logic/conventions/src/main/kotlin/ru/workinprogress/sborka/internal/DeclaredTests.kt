@@ -4,7 +4,7 @@ import java.io.File
 
 // The comparison behind the "every declared test was executed" check, in a class of its own.
 //
-// Lifted from konekt, where it was written and where it found three of them. Not in the
+// Lifted from the repository where it was written, and where it found three of them. Not in the
 // convention script: a `doLast` that calls a top-level function of a `.gradle.kts` file
 // captures the script object, and the configuration cache refuses to serialise one. The build fails
 // with "cannot serialize Gradle script object references", which names the mechanism and not the
@@ -56,7 +56,7 @@ object DeclaredTests {
         //
         // The obvious version counted every `@Test` in a file and filed the total under the file's
         // name. A file holding two test classes then reported all of its annotations against one of
-        // them, and the other class's runs were counted against nothing: katcher has a
+        // them, and the other class's runs were counted against nothing: one repository has a
         // `CrashAssessmentTest.kt` with `CrashMetadataExtractorTest` (3 tests) beside
         // `CrashAssessmentTest` (9), and the check demanded 12 from the class that has 9. Both had
         // run. A guard that fails on correct code is worse than no guard — it gets switched off, and
@@ -101,7 +101,7 @@ object DeclaredTests {
     // NOT SILENT WHEN IT CANNOT TELL. A run whose filter is unknown is treated as filtered, because
     // the alternative is condemning every class in the module on every `--tests` run — and the caller
     // says so on the console either way. This cost a red default branch: CI's conformance step is
-    // `:server:test --tests 'io.konekt.conformance.*'`, and the first version of this check knew only
+    // `:server:test --tests 'com.example.conformance.*'`, and the first version of this check knew only
     // about the build-script filter.
     fun commandLinePatterns(filter: Any): Set<String> =
         runCatching {
@@ -126,7 +126,7 @@ object DeclaredTests {
     }
 
     // Reported may legitimately EXCEED declared — a `@TestFactory` produces dynamic cases, and
-    // viddik's generated fixture is one. Only a shortfall is a defect.
+    // a generated screenshot fixture is one. Only a shortfall is a defect.
     // A multiplatform test task names its suite `MyTest[jvm]`, so the target has to come off before
     // the comparison. Without this the check reports every commonTest class in every multiplatform
     // module as never having run — a guard that cries wolf on a whole module is one that gets deleted.

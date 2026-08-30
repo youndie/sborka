@@ -126,10 +126,10 @@ gradle.rootProject {
                     return@doLast
                 }
                 val existing = EditorconfigReference.normalise(target.readText())
-                // A REPOSITORY MAY ADD TO THE SHARED FILE, and one already does: s3kn keeps a
-                // `[docs/spec/**]` section because its vendored specification is compared byte for
-                // byte by the tests, and a stripped trailing space breaks a test rather than a style.
-                // So the tail is preserved and only the shared head is rewritten.
+                // A REPOSITORY MAY ADD TO THE SHARED FILE, and one already does: it keeps a
+                // `[docs/spec/**]` section because a vendored specification is compared byte for byte
+                // by its tests, and a stripped trailing space breaks a test rather than a style. So
+                // the tail is preserved and only the shared head is rewritten.
                 //
                 // A file whose head is NOT the reference is not something this task can classify —
                 // every line of it might be deliberate — so it refuses rather than guesses.
@@ -166,16 +166,15 @@ gradle.rootProject {
                 }
                 // STARTS WITH, not equals. The shared rules have to be there and have to be
                 // unedited; what a repository appends after them is its own business, and one
-                // repository has a real reason to append — s3kn's vendored specification is compared
-                // byte for byte by its tests, so `[docs/spec/**]` turns the whitespace rules off for
-                // that tree. A check demanding equality would have forced that repository to opt out
-                // of the shared style entirely to keep one section it needs.
+                // repository has a real reason to append — a vendored specification compared byte
+                // for byte by its tests, so `[docs/spec/**]` turns the whitespace rules off for that
+                // tree. A check demanding equality would have forced that repository to opt out of
+                // the shared style entirely to keep one section it needs.
                 // NORMALISED, because a checkout decides this and not the repository. Git on Windows
                 // rewrites text files to CRLF unless told otherwise, so `.editorconfig` arrives on a
                 // windows-latest runner byte-different from the one this jar ships — and the message
                 // below then says the repository is formatted by a different formatter, about a file
-                // nobody edited. Found on appframe, whose build matrix is the portfolio's only one
-                // with Windows in it.
+                // nobody edited. Found on the one build here whose matrix includes Windows.
                 check(EditorconfigReference.normalise(target.readText()).startsWith(EditorconfigReference.text())) {
                     ".editorconfig does not start with the one sborka ships, so this repository is " +
                         "formatted by a different formatter than the rest. Run `./gradlew " +

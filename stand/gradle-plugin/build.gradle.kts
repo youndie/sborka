@@ -10,7 +10,8 @@ plugins {
 // publication gives the same coordinate two publications. They carry different metadata, and whichever
 // task runs last decides what a consumer gets.
 //
-// The stand had no module of this shape until viddik brought one, and the defect shipped in 0.1.0.4.
+// The stand had no module of this shape until a migration brought one, and the defect shipped in
+// 0.1.0.4.
 
 gradlePlugin {
     plugins {

@@ -71,7 +71,7 @@ subprojects {
     // `api` dependency on a `:core` that is not on the server — unresolvable for every consumer.
     //
     // This is the exact defect `sborka.publish` exists to fix, hit by the one build that deliberately
-    // cannot apply sborka's own conventions. Found by `youndie/proba`, which asks the server what a
+    // cannot apply sborka's own conventions. Found by asking the server what a
     // consumer would get; nothing inside the build could have said it.
     //
     // Guarded now by `verifyBuildLogicPublications` in the root build, which reads the directory the

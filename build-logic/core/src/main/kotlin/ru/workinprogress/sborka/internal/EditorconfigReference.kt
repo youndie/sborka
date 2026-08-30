@@ -23,8 +23,8 @@ object EditorconfigReference {
      * What a style file SAYS is not a property of the checkout that produced it. Git on Windows
      * rewrites text files to CRLF unless a `.gitattributes` forbids it, so the same committed file
      * arrives byte-different on a windows-latest runner — and the check then reports that the
-     * repository is formatted by a different formatter, about a file nobody edited. Found on
-     * appframe, whose build matrix is the portfolio's only one with Windows in it.
+     * repository is formatted by a different formatter, about a file nobody edited. Found on the
+     * one build here whose matrix includes Windows.
      *
      * Here rather than in the settings plugin script, because a function declared in a precompiled
      * script plugin is a member of the SCRIPT OBJECT: calling it from a task action captures that
