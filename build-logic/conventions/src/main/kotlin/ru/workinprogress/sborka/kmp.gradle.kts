@@ -1,5 +1,8 @@
 package ru.workinprogress.sborka
 
+import org.gradle.api.attributes.Category
+import org.gradle.api.attributes.Usage
+import org.gradle.api.attributes.java.TargetJvmVersion
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.targets.jvm.KotlinJvmTarget
@@ -65,5 +68,37 @@ plugins.withId("org.jetbrains.kotlin.multiplatform") {
                 implementation(kotlin("test"))
             }
         }
+    }
+}
+
+// AND THE SAME FLOOR SAID OUT LOUD IN THE METADATA.
+//
+// A plain `kotlin("jvm")` module gets this for free — the java plugin derives
+// `org.gradle.jvm.version` from its compilation — but a Kotlin Multiplatform module publishes its jvm
+// variants with no such attribute at all, and those are the ones consumers actually take. Gradle then
+// has nothing to refuse a too-old consumer with: resolution succeeds, compilation succeeds, and the
+// failure arrives at class loading as UnsupportedClassVersionError, naming a bytecode version rather
+// than this library.
+//
+// Set HERE rather than in `sborka.publish`, beside the `jvmTarget` above, because the two are one
+// statement made twice. Split across two plugins they came apart: smtpkn takes `sborka.kmp` and
+// publishes through vanniktech to Maven Central, so it compiled to the floor and advertised nothing.
+plugins.withId("org.jetbrains.kotlin.multiplatform") {
+    afterEvaluate {
+        // FOUND BY WHAT A CONFIGURATION IS RATHER THAN BY WHAT IT IS CALLED. The obvious version of
+        // this named `jvmApiElements` and `jvmRuntimeElements`, which covers a `jvm()` target and
+        // misses `jvm("desktop")` entirely. A configuration's name comes from its target, so a name is
+        // not a property of the thing being looked for; the java-api/java-runtime usage is, and only a
+        // jvm target carries it — every other target of a multiplatform module publishes kotlin-api.
+        configurations
+            .filter { configuration ->
+                configuration.isCanBeConsumed &&
+                    configuration.attributes.getAttribute(Category.CATEGORY_ATTRIBUTE)?.name == Category.LIBRARY &&
+                    configuration.attributes
+                        .getAttribute(Usage.USAGE_ATTRIBUTE)
+                        ?.name in setOf(Usage.JAVA_API, Usage.JAVA_RUNTIME)
+            }.forEach { configuration ->
+                configuration.attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, floor)
+            }
     }
 }

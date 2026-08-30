@@ -1,8 +1,5 @@
 package ru.workinprogress.sborka
 
-import org.gradle.api.attributes.Category
-import org.gradle.api.attributes.Usage
-import org.gradle.api.attributes.java.TargetJvmVersion
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.tasks.bundling.AbstractArchiveTask
 import ru.workinprogress.sborka.internal.SborkaSettings
@@ -66,41 +63,10 @@ plugins.withId("java-platform") {
     }
 }
 
-// THE FLOOR, SAID OUT LOUD IN THE METADATA.
-//
-// A plain `kotlin("jvm")` module gets this for free — the java plugin derives `org.gradle.jvm.version`
-// from the toolchain — but a Kotlin Multiplatform module publishes its jvm variants with no such
-// attribute at all, and those are the ones consumers actually take. Gradle then has nothing to refuse
-// a too-old consumer with: resolution succeeds, compilation succeeds, and the failure arrives at class
-// loading as UnsupportedClassVersionError, naming a bytecode version rather than this library.
-//
-// Declared from a property rather than left to the toolchain because the toolchain moving is precisely
-// the event this exists to catch: with the attribute, a consumer gets "requires JVM runtime 17, you
-// are on 11" at resolution time; without it, the floor moves silently with whatever JDK the build
-// machine has. It cost one repository every consumer on 21, and cost it the only check that can see an
-// `implementation` which should have been `api` — the tool that runs that check compiles a consumer on
-// 21 and could not resolve the library at 25.
-plugins.withId("org.jetbrains.kotlin.multiplatform") {
-    val floor = SborkaSettings.jvmFloor(project)
-    afterEvaluate {
-        // FOUND BY WHAT A CONFIGURATION IS RATHER THAN BY WHAT IT IS CALLED. The obvious version of
-        // this named `jvmApiElements` and `jvmRuntimeElements`, which covers a `jvm()` target and
-        // misses `jvm("desktop")` entirely — six Compose modules, the ones a client application
-        // actually depends on. A configuration's name comes from its target, so a name is not a
-        // property of the thing being looked for; the java-api/java-runtime usage is, and only a jvm
-        // target carries it — every other target of a multiplatform module publishes kotlin-api.
-        configurations
-            .filter { configuration ->
-                configuration.isCanBeConsumed &&
-                    configuration.attributes.getAttribute(Category.CATEGORY_ATTRIBUTE)?.name == Category.LIBRARY &&
-                    configuration.attributes
-                        .getAttribute(Usage.USAGE_ATTRIBUTE)
-                        ?.name in setOf(Usage.JAVA_API, Usage.JAVA_RUNTIME)
-            }.forEach { configuration ->
-                configuration.attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, floor)
-            }
-    }
-}
+// THE FLOOR IN THE METADATA IS NOT SET HERE ANY MORE — `sborka.kmp` sets it, beside the `jvmTarget`
+// it compiles the same variants to. The two are one statement said twice, and they were in different
+// plugins: a repository that takes `sborka.kmp` and publishes some other way — smtpkn does, through
+// vanniktech to Maven Central — got the bytecode right and advertised nothing at all.
 
 // AN .aar LEAVES THE BUILD NAMED AFTER ITS MODULE AND NOTHING ELSE — `kompot-core.aar`, with no
 // version in it at all. Two releases then put identically named files on a consumer's classpath, and
