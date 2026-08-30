@@ -145,7 +145,7 @@ JUnit Platform, читаемый в логе провал, платформа JU
 | `sborka.description` | — | одна строка описания в POM |
 | `sborka.inceptionYear` | — | год в POM |
 | `sborka.jvmFloor` | `17` | самая старая Java, на которой потребителю можно быть |
-| `sborka.snapshotRepository` | reposilite `/snapshots` | куда публиковать |
+| `sborka.snapshotRepository` | reposilite `/snapshots` | куда публиковать; только абсолютный http(s), иначе сборка останавливается |
 | `sborka.licence` | `MIT License` | |
 | `sborka.developerId` / `sborka.developerName` | `youndie` / `Pavel Votyakov` | |
 
