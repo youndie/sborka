@@ -30,3 +30,4 @@ rootProject.name = "stand"
 include(":jvm-lib")
 include(":kmp-lib")
 include(":platform")
+include(":gradle-plugin")

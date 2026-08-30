@@ -36,6 +36,16 @@ plugins.withId("java") {
 // a successful publish; only asking the server whether the artifact resolves can.
 plugins.withId("org.jetbrains.kotlin.jvm") {
     afterEvaluate {
+        // NOT WHEN `java-gradle-plugin` IS THERE, and the guard is not "is there already one called
+        // maven". That plugin registers a publication of its own called `pluginMaven`, plus a marker
+        // per plugin id — so the name-based check saw no `maven`, made one, and the module ended up
+        // with TWO publications writing the same coordinate. Whichever task ran last decided what a
+        // consumer got, and the two carry different metadata.
+        //
+        // Found by viddik, whose `viddik-gradle-plugin` is the first module of that shape to take
+        // these conventions. sborka's own `build-logic` had the right guard and this did not, which
+        // is what a second reader is for.
+        if (plugins.hasPlugin("java-gradle-plugin")) return@afterEvaluate
         if (extensions.getByType<PublishingExtension>().publications.findByName("maven") == null) {
             publishing.publications.create<MavenPublication>("maven") {
                 from(components["java"])

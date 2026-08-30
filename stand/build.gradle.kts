@@ -6,6 +6,7 @@ val publishTasks =
         ":jvm-lib:publishAllPublicationsToStandRepository",
         ":kmp-lib:publishAllPublicationsToStandRepository",
         ":platform:publishAllPublicationsToStandRepository",
+        ":gradle-plugin:publishAllPublicationsToStandRepository",
     )
 
 /**
@@ -169,5 +170,6 @@ tasks.register("check") {
     // registered and never executed is the shape of defect these conventions exist to catch: it
     // compiles, it appears in `tasks`, and it fails the first time somebody runs it.
     dependsOn(":jvm-lib:mutationTest")
+    dependsOn(":gradle-plugin:verifyPublicationShape")
     dependsOn(verifyPublications)
 }
