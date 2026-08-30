@@ -39,7 +39,7 @@ plugins.withId("org.jetbrains.kotlin.jvm") {
         // with TWO publications writing the same coordinate. Whichever task ran last decided what a
         // consumer got, and the two carry different metadata.
         //
-        // Found by viddik, whose `viddik-gradle-plugin` is the first module of that shape to take
+        // Found on the first module of that shape to take
         // these conventions. sborka's own `build-logic` had the right guard and this did not, which
         // is what a second reader is for.
         if (plugins.hasPlugin("java-gradle-plugin")) return@afterEvaluate
@@ -65,11 +65,11 @@ plugins.withId("java-platform") {
 
 // THE FLOOR IN THE METADATA IS NOT SET HERE ANY MORE — `sborka.kmp` sets it, beside the `jvmTarget`
 // it compiles the same variants to. The two are one statement said twice, and they were in different
-// plugins: a repository that takes `sborka.kmp` and publishes some other way — smtpkn does, through
+// plugins: a repository that takes `sborka.kmp` and publishes some other way — one does, through
 // vanniktech to Maven Central — got the bytecode right and advertised nothing at all.
 
-// AN .aar LEAVES THE BUILD NAMED AFTER ITS MODULE AND NOTHING ELSE — `kompot-core.aar`, with no
-// version in it at all. Two releases then put identically named files on a consumer's classpath, and
+// AN .aar LEAVES THE BUILD NAMED AFTER ITS MODULE AND NOTHING ELSE — `core.aar`, with no version in
+// it at all. Two releases then put identically named files on a consumer's classpath, and
 // anything reading file names rather than coordinates cannot tell them apart.
 //
 // Matched by name rather than by type: the AGP classes are not on this plugin's classpath. And the
@@ -135,7 +135,7 @@ publishing {
                         // `.map` rather than string interpolation: `developerId` is a Provider, and a
                         // Provider in a template stringifies to its own description. That published
                         // `https://github.com/or(provider(?), fixed(youndie))` in every pom this
-                        // convention has written so far, and nothing looked at a pom until bochka.
+                        // convention has written so far, and nothing had looked at a pom until one migration did.
                         url.set(developerId.map { "https://github.com/$it" })
                     }
                 }

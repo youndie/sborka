@@ -81,8 +81,9 @@ plugins.withId("org.jetbrains.kotlin.multiplatform") {
 // than this library.
 //
 // Set HERE rather than in `sborka.publish`, beside the `jvmTarget` above, because the two are one
-// statement made twice. Split across two plugins they came apart: smtpkn takes `sborka.kmp` and
-// publishes through vanniktech to Maven Central, so it compiled to the floor and advertised nothing.
+// statement made twice. Split across two plugins they came apart: a repository that takes
+// `sborka.kmp` and publishes through vanniktech to Maven Central compiled to the floor and
+// advertised nothing.
 plugins.withId("org.jetbrains.kotlin.multiplatform") {
     afterEvaluate {
         // FOUND BY WHAT A CONFIGURATION IS RATHER THAN BY WHAT IT IS CALLED. The obvious version of

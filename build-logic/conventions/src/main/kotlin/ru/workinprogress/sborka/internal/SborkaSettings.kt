@@ -28,7 +28,7 @@ object SborkaSettings {
         if (declared != null) return declared
 
         // NOT WHILE GRADLE IS GENERATING ACCESSORS. A repository that wraps these conventions in its
-        // own `build-logic` — smtpkn does, because its target sets are its own and its releases go to
+        // own `build-logic` — one does, because its target sets are its own and its releases go to
         // Maven Central — has that build APPLY this plugin to a throwaway project to work out which
         // accessors its scripts need. That project has no `gradle.properties` and never publishes
         // anything, so failing there refuses a legitimate arrangement over a property that will be
@@ -41,7 +41,7 @@ object SborkaSettings {
 
         error(
             "sborka.group is not set. Add it to gradle.properties at the root of the repository, " +
-                "for example `sborka.group=ru.workinprogress.viddik`. It is deliberately not " +
+                "for example `sborka.group=ru.workinprogress.mylib`. It is deliberately not " +
                 "defaulted: a group nobody chose resolves, publishes, and lands under the wrong " +
                 "coordinate. " +
                 "(asked for by project '${project.path}' of build '${project.rootProject.name}')",
@@ -95,7 +95,7 @@ object SborkaSettings {
      * 'all' is not supported by protocol 'file'" — a message about authentication, for a problem that
      * is a wrong address.
      *
-     * Carried over from bochka, where it was written after `gh secret set --body -` set the secret to
+     * Carried over from a repository that wrote it after `gh secret set --body -` set the secret to
      * the literal string `-` (that flag does not read standard input). The fallback never fires for a
      * value like that: empty-by-mistake is not the same as absent, which is why this refuses rather
      * than defaults.

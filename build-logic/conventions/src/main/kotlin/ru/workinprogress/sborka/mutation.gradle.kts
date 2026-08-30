@@ -29,7 +29,7 @@ val targetPackage =
         ?: error(
             "sborka.mutationPackage is not set. pitest needs to be told which classes to mutate and " +
                 "which tests to run; without it the run either mutates the whole classpath or nothing. " +
-                "Set it in gradle.properties, for example `sborka.mutationPackage=io.github.youndie.bochka`.",
+                "Set it in gradle.properties, for example `sborka.mutationPackage=com.example.app`.",
         )
 
 // What the minions need on top of what `test` gives them, said by the repository that knows.
