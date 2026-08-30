@@ -155,8 +155,44 @@ val verifyPublications =
                     "loading, with a message naming a bytecode version rather than the library."
             }
 
+            // AND THE BYTECODE ITSELF, not only what the metadata claims about it.
+            //
+            // The attribute and the class files are set by different things and can disagree: a
+            // module on a toolchain of 21 with a floor of 17 advertised 17 and shipped class file 65,
+            // which needs Java 21. Gradle lets the consumer through — the attribute says they are
+            // welcome — and the failure arrives at class loading as UnsupportedClassVersionError,
+            // naming a class file version and nothing about the library. Every machine that builds it
+            // is too new to see it.
+            //
+            // Java 17 is class file 61, and every release since is one more.
+            val expectedClassFile = 17 + 44
+            val jars =
+                listOf(artefact("jvm-lib", ".jar"), artefact("kmp-lib-jvm", ".jar"))
+            var classesRead = 0
+            val tooNew = mutableListOf<String>()
+            jars.forEach { jar ->
+                java.util.zip.ZipFile(jar).use { archive ->
+                    val classes = archive.entries().toList().filter { it.name.endsWith(".class") }
+                    classes.forEach { entry ->
+                        classesRead++
+                        val header = archive.getInputStream(entry).use { it.readNBytes(8) }
+                        val major = ((header[6].toInt() and 0xFF) shl 8) or (header[7].toInt() and 0xFF)
+                        if (major != expectedClassFile) {
+                            tooNew += "${jar.name}!${entry.name}: class file $major, expected $expectedClassFile"
+                        }
+                    }
+                }
+            }
+            // A run that read no class files would pass every comparison below by finding nothing.
+            check(classesRead > 0) { "no class files were read out of $jars — the check proved nothing" }
+            check(tooNew.isEmpty()) {
+                "the bytecode does not match the floor the metadata advertises:\n  " +
+                    tooNew.joinToString("\n  ")
+            }
+
             logger.lifecycle(
-                "verifyPublications: ${required.size} artefacts at $version, the pom and the jvm floor all check out",
+                "verifyPublications: ${required.size} artefacts at $version, the pom, the jvm floor " +
+                    "and $classesRead class files at Java 17",
             )
         }
     }
