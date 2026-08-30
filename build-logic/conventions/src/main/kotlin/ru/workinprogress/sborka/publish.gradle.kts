@@ -132,7 +132,11 @@ publishing {
                     developer {
                         id.set(developerId)
                         name.set(developerName)
-                        url.set("https://github.com/$developerId")
+                        // `.map` rather than string interpolation: `developerId` is a Provider, and a
+                        // Provider in a template stringifies to its own description. That published
+                        // `https://github.com/or(provider(?), fixed(youndie))` in every pom this
+                        // convention has written so far, and nothing looked at a pom until bochka.
+                        url.set(developerId.map { "https://github.com/$it" })
                     }
                 }
 
