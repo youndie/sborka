@@ -85,10 +85,31 @@ object SborkaSettings {
     /** `owner/name` on GitHub. The url, the licence link and the scm block are derived from it. */
     fun repository(project: Project): String? = project.providers.gradleProperty("sborka.repository").orNull
 
-    /** Where snapshots go. Overridable so a fork or a mirror does not have to patch the plugin. */
-    fun snapshotRepository(project: Project): String =
-        project.providers.gradleProperty("sborka.snapshotRepository").orNull
-            ?: "https://reposilite.kotlin.website/snapshots"
+    /**
+     * Where snapshots go. Overridable so a fork or a mirror does not have to patch the plugin.
+     *
+     * An override has to be an absolute http(s) URL, and this refuses anything else rather than
+     * publishing somewhere nobody can resolve from. Gradle's `uri()` accepts any string: one that is
+     * not absolute becomes a **relative file path**, the repository quietly turns into a `file:` one,
+     * and the publish either writes into the build directory or fails with "Authentication scheme
+     * 'all' is not supported by protocol 'file'" — a message about authentication, for a problem that
+     * is a wrong address.
+     *
+     * Carried over from bochka, where it was written after `gh secret set --body -` set the secret to
+     * the literal string `-` (that flag does not read standard input). The fallback never fires for a
+     * value like that: empty-by-mistake is not the same as absent, which is why this refuses rather
+     * than defaults.
+     */
+    fun snapshotRepository(project: Project): String {
+        val configured =
+            project.providers.gradleProperty("sborka.snapshotRepository").orNull
+                ?: return "https://reposilite.kotlin.website/snapshots"
+        require(configured.startsWith("http://") || configured.startsWith("https://")) {
+            "sborka.snapshotRepository must be an absolute http(s) URL; got '$configured'. " +
+                "Anything else becomes a file: repository and publishes nowhere anybody can resolve from."
+        }
+        return configured
+    }
 
     fun flag(
         project: Project,
