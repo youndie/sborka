@@ -102,7 +102,28 @@ gradle.rootProject {
             description = "Writes sborka's reference .editorconfig to the root of this repository"
             outputs.file(editorconfig)
             val target = editorconfig.asFile
-            doLast { target.writeText(EditorconfigReference.text()) }
+            doLast {
+                val reference = EditorconfigReference.text()
+                if (!target.isFile) {
+                    target.writeText(reference)
+                    return@doLast
+                }
+                val existing = target.readText()
+                // A REPOSITORY MAY ADD TO THE SHARED FILE, and one already does: s3kn keeps a
+                // `[docs/spec/**]` section because its vendored specification is compared byte for
+                // byte by the tests, and a stripped trailing space breaks a test rather than a style.
+                // So the tail is preserved and only the shared head is rewritten.
+                //
+                // A file whose head is NOT the reference is not something this task can classify —
+                // every line of it might be deliberate — so it refuses rather than guesses.
+                check(existing.startsWith(reference) || existing.isBlank()) {
+                    "${target.path} does not start with sborka's reference, so this task cannot tell " +
+                        "which of its lines are the shared ones and which are this repository's. " +
+                        "Merge by hand: put the reference at the top and keep whatever this repository " +
+                        "adds below it."
+                }
+                target.writeText(reference + existing.removePrefix(reference))
+            }
         }
 
     val checkEditorconfig =
@@ -126,11 +147,18 @@ gradle.rootProject {
                         "`./gradlew $updateTaskName`, or set sborka.editorconfig=custom in " +
                         "gradle.properties if this repository means to differ."
                 }
-                check(target.readText() == EditorconfigReference.text()) {
-                    ".editorconfig differs from the one sborka ships, so this repository is formatted by " +
-                        "a different formatter than the rest. Run `./gradlew $updateTaskName` to take " +
-                        "sborka's, or set sborka.editorconfig=custom in gradle.properties to keep this " +
-                        "one on purpose."
+                // STARTS WITH, not equals. The shared rules have to be there and have to be
+                // unedited; what a repository appends after them is its own business, and one
+                // repository has a real reason to append — s3kn's vendored specification is compared
+                // byte for byte by its tests, so `[docs/spec/**]` turns the whitespace rules off for
+                // that tree. A check demanding equality would have forced that repository to opt out
+                // of the shared style entirely to keep one section it needs.
+                check(target.readText().startsWith(EditorconfigReference.text())) {
+                    ".editorconfig does not start with the one sborka ships, so this repository is " +
+                        "formatted by a different formatter than the rest. Run `./gradlew " +
+                        "$updateTaskName` to put the shared rules back at the top — anything this " +
+                        "repository adds below them is kept — or set sborka.editorconfig=custom in " +
+                        "gradle.properties to differ on purpose."
                 }
             }
         }
