@@ -23,14 +23,30 @@ object SborkaSettings {
      * name, and the failure surfaced at upload time as a PUT to the wrong path, after everything
      * had compiled and tested.
      */
-    fun group(project: Project): String =
-        project.providers.gradleProperty("sborka.group").orNull
-            ?: error(
-                "sborka.group is not set. Add it to gradle.properties at the root of the repository, " +
-                    "for example `sborka.group=ru.workinprogress.viddik`. It is deliberately not " +
-                    "defaulted: a group nobody chose resolves, publishes, and lands under the wrong " +
-                    "coordinate.",
-            )
+    fun group(project: Project): String {
+        val declared = project.providers.gradleProperty("sborka.group").orNull
+        if (declared != null) return declared
+
+        // NOT WHILE GRADLE IS GENERATING ACCESSORS. A repository that wraps these conventions in its
+        // own `build-logic` — smtpkn does, because its target sets are its own and its releases go to
+        // Maven Central — has that build APPLY this plugin to a throwaway project to work out which
+        // accessors its scripts need. That project has no `gradle.properties` and never publishes
+        // anything, so failing there refuses a legitimate arrangement over a property that will be
+        // present everywhere the plugin is really used.
+        //
+        // Detected by the name Gradle gives the throwaway, which is the only thing that distinguishes
+        // it. If that name ever changes, this stops skipping and starts failing — loudly, in a build
+        // that has nothing wrong with it, which is the failure direction to prefer.
+        if (project.rootProject.name == "gradle-kotlin-dsl-accessors") return "gradle-kotlin-dsl-accessors"
+
+        error(
+            "sborka.group is not set. Add it to gradle.properties at the root of the repository, " +
+                "for example `sborka.group=ru.workinprogress.viddik`. It is deliberately not " +
+                "defaulted: a group nobody chose resolves, publishes, and lands under the wrong " +
+                "coordinate. " +
+                "(asked for by project '${project.path}' of build '${project.rootProject.name}')",
+        )
+    }
 
     /**
      * The version, resolved once and set on the PROJECT.
