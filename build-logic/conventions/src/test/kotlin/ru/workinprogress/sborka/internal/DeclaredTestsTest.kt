@@ -97,4 +97,63 @@ class DeclaredTestsTest {
         val patterns = DeclaredTests.commandLinePatterns(filter = "not a filter at all")
         assertTrue(patterns.isNotEmpty(), "an unreadable filter must not read as an empty filter")
     }
+
+    @Test
+    fun `two classes in one file are counted apart`(
+        @TempDir tmp: File,
+    ) {
+        // A file holding two test classes used to report all of its annotations against the one the
+        // file is named after, and the other class's runs counted against nothing — so the check
+        // demanded twelve from a class that has nine, and failed on correct code.
+        val src = File(tmp, "src/commonTest/kotlin/pkg").apply { mkdirs() }
+        File(src, "FirstTest.kt").writeText(
+            """
+            package pkg
+
+            class SecondTest {
+                @Test
+                fun a() {}
+
+                @Test
+                fun b() {}
+            }
+
+            class FirstTest {
+                @Test
+                fun c() {}
+            }
+            """.trimIndent(),
+        )
+        val classes = File(tmp, "classes").apply { mkdirs() }
+        File(classes, "FirstTest.class").writeText("")
+        File(classes, "SecondTest.class").writeText("")
+
+        val declared = DeclaredTests.declaredIn(File(tmp, "src"), listOf(classes))
+        assertEquals(mapOf("SecondTest" to 2, "FirstTest" to 1), declared)
+    }
+
+    @Test
+    fun `a nested class does not start a new count`(
+        @TempDir tmp: File,
+    ) {
+        // Indented, so it belongs to the class it sits in. Counting it separately would file the
+        // outer class's own tests under a name nothing reports.
+        val src = File(tmp, "src/commonTest/kotlin/pkg").apply { mkdirs() }
+        File(src, "OuterTest.kt").writeText(
+            """
+            package pkg
+
+            class OuterTest {
+                class Fixture(val n: Int)
+
+                @Test
+                fun a() {}
+            }
+            """.trimIndent(),
+        )
+        val classes = File(tmp, "classes").apply { mkdirs() }
+        File(classes, "OuterTest.class").writeText("")
+
+        assertEquals(mapOf("OuterTest" to 1), DeclaredTests.declaredIn(File(tmp, "src"), listOf(classes)))
+    }
 }

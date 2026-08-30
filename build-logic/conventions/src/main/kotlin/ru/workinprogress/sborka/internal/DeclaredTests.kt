@@ -17,6 +17,10 @@ object DeclaredTests {
 
     private val header = Regex("""name="([^"]+)"\s+tests="(\d+)"""")
 
+    // A TOP-LEVEL CLASS DECLARATION, which is what a test class is. Anchored to the start of a line
+    // so a nested class — indented — belongs to the class it sits in rather than starting a new one.
+    private val declarations = Regex("""^(?:internal |public |private )?(?:abstract |open )?class (\w+)""", RegexOption.MULTILINE)
+
     // Only the classes THIS task compiled. A multiplatform module has one `src` tree and several test
     // tasks over it, so scanning sources alone would have `jvmTest` demand that an iosTest class
     // appear in its results — a failure with nothing wrong behind it.
@@ -44,23 +48,43 @@ object DeclaredTests {
                         }.map { it.name.removeSuffix(".class") }
                 }.toSet()
 
+        // ONE ENTRY PER CLASS, NOT PER FILE.
+        //
+        // The obvious version counted every `@Test` in a file and filed the total under the file's
+        // name. A file holding two test classes then reported all of its annotations against one of
+        // them, and the other class's runs were counted against nothing: katcher has a
+        // `CrashAssessmentTest.kt` with `CrashMetadataExtractorTest` (3 tests) beside
+        // `CrashAssessmentTest` (9), and the check demanded 12 from the class that has 9. Both had
+        // run. A guard that fails on correct code is worse than no guard — it gets switched off, and
+        // takes the cases it was right about with it.
         return sourceRoot
             .walkTopDown()
             .filter { it.isFile && it.name.endsWith("Test.kt") }
-            .mapNotNull { file ->
-                val simpleName = file.name.removeSuffix(".kt")
-                if (simpleName !in compiled) return@mapNotNull null
-                // The package from the path: everything under `.../kotlin/`, which is where every
-                // source set in this repository roots its packages.
-                val qualified =
+            .flatMap { file ->
+                // The package from the path: everything under `.../kotlin/`, which is where source
+                // sets root their packages.
+                val packagePath =
                     file.invariantSeparatorsPath
                         .substringAfterLast("/kotlin/")
-                        .removeSuffix(".kt")
+                        .substringBeforeLast('/', "")
                         .replace('/', '.')
-                if (excludedNames.any { it.matches(qualified) }) return@mapNotNull null
-                val count = annotation.findAll(file.readText()).count()
-                if (count == 0) null else simpleName to count
-            }.toMap()
+                val text = file.readText()
+
+                declarations
+                    .findAll(text)
+                    .map { it.groupValues[1] to it.range.first }
+                    .toList()
+                    .let { found ->
+                        found.mapIndexed { index, (name, start) ->
+                            val end = found.getOrNull(index + 1)?.second ?: text.length
+                            Triple(name, packagePath, annotation.findAll(text.substring(start, end)).count())
+                        }
+                    }
+            }.filter { (name, _, count) -> count > 0 && name in compiled }
+            .filterNot { (name, packagePath, _) ->
+                val qualified = if (packagePath.isEmpty()) name else "$packagePath.$name"
+                excludedNames.any { it.matches(qualified) }
+            }.associate { (name, _, count) -> name to count }
     }
 
     // `--tests` ON THE COMMAND LINE, WHICH IS A DIFFERENT FILTER FROM THE BUILD SCRIPT'S.
