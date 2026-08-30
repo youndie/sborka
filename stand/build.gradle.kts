@@ -138,8 +138,25 @@ val verifyPublications =
                 "<url>https://github.com/youndie/sborka</url>",
                 "scm:git:git://github.com/youndie/sborka.git",
                 "scm:git:ssh://git@github.com/youndie/sborka.git",
+                // The developer's own url, which is built from a DIFFERENT value than the three above
+                // and was the one that was wrong.
+                "<url>https://github.com/youndie</url>",
             ).forEach { fragment ->
                 check(pom.contains(fragment)) { "the published pom does not carry $fragment" }
+            }
+
+            // AND NOTHING IN IT MAY LOOK LIKE A PROVIDER THAT WAS PRINTED INSTEAD OF READ.
+            //
+            // `"https://github.com/$developerId"` compiles, publishes, and puts
+            // `or(provider(?), fixed(youndie))` in the pom: `Provider.toString()` is a description of
+            // how the value would be computed. The fragments above only cover the strings somebody
+            // thought to list, so this covers the shape instead — every pom, every field.
+            listOf("provider(", "fixed(", "property(", "Provider<").forEach { leak ->
+                check(!pom.contains(leak)) {
+                    "the published pom contains '$leak' — a Provider was interpolated into a string " +
+                        "somewhere instead of being read, and what shipped is its description rather " +
+                        "than its value:\n" + pom.lines().filter { it.contains(leak) }.joinToString("\n")
+                }
             }
 
             // THE JVM FLOOR IS IN THE METADATA, on the variant a consumer actually takes.
