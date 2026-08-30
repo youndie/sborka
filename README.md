@@ -1,16 +1,16 @@
 # sborka
 
-**Конвенции сборки Gradle, вынесенные из девятнадцати репозиториев в один плагин.**
+**My Gradle conventions, as a plugin.**
 
-Координата и версия, тулчейн и пол JVM, публикация, линтер, тестовый гейт, механика KMP, нативный
-сервис, настройки резолва и общий каталог версий — по одной строке в `gradle.properties` вместо
-десятков строк Kotlin в каждом репозитории.
+The coordinate and the version, the toolchain and the JVM floor, publishing, the formatter, the test
+gate, the multiplatform mechanics, the native service, resolution settings and a shared version
+catalog — one line each in `gradle.properties` instead of dozens of lines of Kotlin per repository.
 
 ```kotlin
 // settings.gradle.kts
-plugins { id("ru.workinprogress.sborka.settings") version "<версия>" }
+plugins { id("ru.workinprogress.sborka.settings") version "<version>" }
 
-// модуль
+// a module
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     id("ru.workinprogress.sborka.kmp")
@@ -21,49 +21,27 @@ plugins {
 
 ---
 
-## Зачем
+## The plugins
 
-Разбор девятнадцати сборок портфеля — не «многовато повторов», а список мест, где одно и то же
-решение принято по-разному и никто об этом не знает:
-
-| | |
+| id | what it does |
 |---|---|
-| вызовов `jvmToolchain(n)` | 60 в 18 репозиториях |
-| блоков репозитория reposilite | 36 в 17 |
-| `useJUnitPlatform()` | 28 в 10 |
-| блоков `maven-publish { }` | 18 в 11 |
-| рукописных конвенций публикации | 5, и никакие две не знают одного и того же |
-| обвязок ktlint | 4 разные на 13 репозиториев |
-| файлов `.editorconfig` | 11 различных, ещё в 4 репозиториях нет вовсе |
-| версий `gradle/actions/setup-gradle` одновременно | v4 (22 вызова), v5 (18), v6 (41) |
+| `ru.workinprogress.sborka.settings` | repositories with content filters, the `wip` catalog, the `.editorconfig` check — applied in `settings.gradle.kts` |
+| `…sborka.base` | group, version, toolchain |
+| `…sborka.lint` | ktlint at a pinned version, generated sources excluded |
+| `…sborka.test` | JUnit Platform, a failure readable in the run log, an enforced BOM — and the check that **every declared `@Test` was executed** |
+| `…sborka.jvm` | `base` + `test` + `explicitApi`, `-Werror`, `jvmTarget` taken from the floor |
+| `…sborka.kmp` | the same for multiplatform — **except the target list**, which is a repository's argument rather than a convention |
+| `…sborka.publish` | the publication, a pom derived from one property, a sources jar, the floor attribute, an `.aar` named with its version |
+| `…sborka.mutation` | `mutationTest` on pitest; deliberately not wired into `check` |
+| `…sborka.native-service` | the binary's name, staging under `build/native`, `writeNativeDockerfile` |
 
-Разница между «пять копий одной конвенции» и «одна конвенция» здесь не в строках. Каждая из пяти
-копий знала что-то, чего не знали остальные четыре: одна ставила `org.gradle.jvm.version`, вторая
-переименовывала `.aar`, третья регистрировала публикацию для `kotlin("jvm")` — без которой модуль
-собирается, `publish` отчитывается об успехе и не выгружает **ничего**. Собранные вместе, они стали
-конвенцией, которая знает всё это сразу.
+Plus a composite action, `.github/actions/setup-kotlin`: Java, Gradle and the Kotlin/Native cache in
+one step and at one version.
 
-## Плагины
+## Quick start
 
-| id | что делает |
-|---|---|
-| `ru.workinprogress.sborka.settings` | репозитории с фильтрами, каталог `wip`, проверка `.editorconfig` — применяется в `settings.gradle.kts` |
-| `…sborka.base` | группа, версия, тулчейн |
-| `…sborka.lint` | ktlint прибитой версии, генерируемые исходники исключены |
-| `…sborka.test` | JUnit Platform, читаемый лог падения, BOM — и проверка, что **каждый объявленный `@Test` был исполнен** |
-| `…sborka.jvm` | `base` + `test` + `explicitApi`, `-Werror`, `jvmTarget` из пола |
-| `…sborka.kmp` | то же для multiplatform — **кроме списка таргетов**: это аргумент репозитория, а не конвенция |
-| `…sborka.publish` | публикация, pom из одного свойства, sources jar, атрибут пола, имя `.aar` с версией |
-| `…sborka.mutation` | `mutationTest` на pitest; не висит на `check` |
-| `…sborka.native-service` | имя бинаря, стейджинг под `build/native`, `writeNativeDockerfile` |
-
-Плюс composite action `.github/actions/setup-kotlin` — Java, Gradle и кэш Kotlin/Native одним шагом
-и одной версией.
-
-## Быстрый старт
-
-**`settings.gradle.kts`** — снапшот-репозиторий выписывается руками: `pluginManagement`
-вычисляется раньше, чем применяется хоть один settings-плагин, включая этот.
+**`settings.gradle.kts`** — the snapshot repository is written out by hand, and it has to be:
+`pluginManagement` is evaluated before any settings plugin is applied, including this one.
 
 ```kotlin
 pluginManagement {
@@ -77,57 +55,60 @@ pluginManagement {
 }
 
 plugins {
-    id("ru.workinprogress.sborka.settings") version "<версия>"
+    id("ru.workinprogress.sborka.settings") version "<version>"
 }
 ```
 
-**`gradle.properties`** — то, что раньше было кодом:
+**`gradle.properties`** — what used to be code:
 
 ```properties
 version=0.4.0
 sborka.group=ru.workinprogress.mylib
 sborka.repository=youndie/mylib
-sborka.description=Одна строка о том, что это за библиотека
+sborka.description=One line about what this library is
 sborka.jvmToolchain=25
 sborka.jvmFloor=21
 ```
 
-`sborka.jvmFloor` подбирается **осознанно**: это самая старая Java, на которой потребителю можно
-быть, а не та, на которой библиотеку собрали.
+`sborka.jvmFloor` is chosen **deliberately**: it is the oldest Java a consumer may be on, not the one
+the library happened to be built with.
 
-Пошагово — [docs/migration.md](docs/migration.md). Что читает каждый плагин и какие свойства
-существуют — [docs/conventions.md](docs/conventions.md). Почему сделано именно так —
+Step by step — [docs/migration.md](docs/migration.md). What each plugin reads and which properties
+exist — [docs/conventions.md](docs/conventions.md). Why it is built this way —
+[docs/decisions.md](docs/decisions.md). (Those three are in Russian.)
+
+## What is published
+
+| artefact | what it is |
+|---|---|
+| `ru.workinprogress.sborka:conventions` | the project plugins |
+| `ru.workinprogress.sborka:settings` | the settings plugin |
+| `ru.workinprogress.sborka:core` | what both halves share: the reference `.editorconfig` and the release version |
+| `ru.workinprogress.sborka:catalog` | the versions several repositories have to keep identical |
+
+Three jars rather than one, and that is not cosmetic. Gradle picks a classloader by classpath: a
+settings plugin and a project plugin shipped in one jar share a loader — the one that has no Kotlin
+plugin beneath it — and the project plugin then fails with `NoClassDefFoundError` on a class that is
+demonstrably among its own dependencies. The details are in
 [docs/decisions.md](docs/decisions.md).
 
-## Что публикуется
-
-| артефакт | что это |
-|---|---|
-| `ru.workinprogress.sborka:conventions` | плагины проекта |
-| `ru.workinprogress.sborka:settings` | плагин настроек |
-| `ru.workinprogress.sborka:core` | общее для двух половин: эталонный `.editorconfig` и версия релиза |
-| `ru.workinprogress.sborka:catalog` | версии, которые нескольким репозиториям приходится держать одинаковыми |
-
-Три jar-а, а не один, и это не косметика. Gradle подбирает класслоадер по classpath: плагин настроек
-и проектный плагин в одном jar-е делят загрузчик — тот, у которого Kotlin-плагина под собой нет, — и
-проектный плагин падает `NoClassDefFoundError` на классе, который в его собственных зависимостях
-есть. Подробности в [docs/decisions.md](docs/decisions.md).
-
-## Проверка
+## Checking it
 
 ```bash
 ./gradlew check
 ```
 
-Собирает плагины, гоняет их тесты и **применяет их в отдельной сборке** — `stand/`, которая просит
-плагины по id через `includeBuild`, как это будет делать репозиторий через опубликованный маркер.
-Стенд публикуется в каталог на диске и читает, что туда легло: имена артефактов, версии class file
-внутри jar-ов, атрибут пола в метаданных, содержимое pom. Без этого «плагин применился» и «плагин
-сделал то, зачем он есть» — разные утверждения, и вторым никто не занимается.
+This builds the plugins, runs their tests, and **applies them in a separate build**: `stand/`, which
+asks for the plugins by id through `includeBuild`, the way a repository will ask through a published
+marker. The stand publishes into a directory and then reads what landed there — artefact names, class
+file versions inside the jars, the floor attribute in the metadata, the contents of the pom. Without
+that, "the plugin applied" and "the plugin did the thing it exists for" are two different claims and
+nobody is making the second one.
 
-Стенду видно не всё, и это записано честно: чего он спросить не может, находит первая же чужая
-сборка — [что именно нашли миграции](docs/decisions.md#что-нашли-миграции).
+There are things the stand cannot ask, and that is written down rather than left implicit: what it
+cannot see, the first build that takes the plugins finds — [the list of what they
+found](docs/decisions.md#что-нашли-миграции).
 
-## Лицензия
+## Licence
 
 MIT.
