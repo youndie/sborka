@@ -16,7 +16,7 @@
 kotlin = "2.4.10"
 coroutines = "1.11.0"
 serialization = "1.11.0"
-datetime = "0.8.0"
+datetime = "0.8.0-0.6.x-compat"
 
 # Drifted: 3.5.2 in seven repositories, 3.4.0 in one.
 ktor = "3.5.2"
