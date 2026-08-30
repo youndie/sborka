@@ -25,8 +25,25 @@ import ru.workinprogress.sborka.internal.SborkaVersion
 @Suppress("UnstableApiUsage")
 dependencyResolutionManagement {
     // A module that declares its own repositories declares them for itself only, and the build then
-    // resolves the same coordinate from different places depending on which module asked.
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // resolves the same coordinate from different places depending on which module asked. Refusing
+    // that outright is right for most repositories here — and impossible for one kind.
+    //
+    // A module with a `js` or `wasmJs` target does not declare a repository; the KOTLIN PLUGIN does,
+    // an ivy repository for the Node distribution, and it adds it to the project. FAIL_ON_PROJECT_REPOS
+    // then refuses a build over a repository nobody in it wrote, with "added by unknown code" — and
+    // declaring the same ivy repository in settings does not help, because the mode objects to the
+    // project-level declaration existing at all.
+    //
+    // So `sborka.repositoriesMode=PREFER_SETTINGS` is the way to say it. The guarantee is nearly the
+    // same — settings repositories still win and project ones are ignored — the difference being that
+    // it stops shouting. Two repositories in the portfolio have JS targets; the other seventeen keep
+    // the refusal.
+    val requested = providers.gradleProperty("sborka.repositoriesMode").getOrElse("FAIL_ON_PROJECT_REPOS")
+    val known = RepositoriesMode.entries.associateBy { it.name }
+    repositoriesMode.set(
+        known[requested]
+            ?: error("sborka.repositoriesMode=$requested is not one of ${known.keys.sorted()}"),
+    )
 
     repositories {
         google {

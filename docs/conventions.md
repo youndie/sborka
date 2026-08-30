@@ -35,6 +35,7 @@ settings-плагина — включая этот, который сам че�
 
 | свойство | по умолчанию | что делает |
 |---|---|---|
+| `sborka.repositoriesMode` | `FAIL_ON_PROJECT_REPOS` | `PREFER_SETTINGS` — для репозитория с таргетами `js`/`wasmJs`: репозиторий для дистрибутива Node объявляет не модуль, а сам Kotlin-плагин, и отказ ловит сборку на репозитории, которого никто в ней не писал |
 | `sborka.catalog` | `on` | `off` — не подключать каталог `wip` |
 | `sborka.catalogVersion` | версия плагина | взять другую версию каталога |
 | `sborka.catalogRepository` | — | дополнительный maven-репозиторий для группы `ru.workinprogress.sborka` |
