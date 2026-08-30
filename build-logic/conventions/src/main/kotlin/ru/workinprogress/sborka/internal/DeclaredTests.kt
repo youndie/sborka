@@ -19,7 +19,11 @@ object DeclaredTests {
 
     // A TOP-LEVEL CLASS DECLARATION, which is what a test class is. Anchored to the start of a line
     // so a nested class — indented — belongs to the class it sits in rather than starting a new one.
-    private val declarations = Regex("""^(?:internal |public |private )?(?:abstract |open )?class (\w+)""", RegexOption.MULTILINE)
+    private val declarations =
+        Regex(
+            """^(?:internal |public |private )?(?:abstract |open )?class (\w+)""",
+            RegexOption.MULTILINE,
+        )
 
     // Only the classes THIS task compiled. A multiplatform module has one `src` tree and several test
     // tasks over it, so scanning sources alone would have `jvmTest` demand that an iosTest class
