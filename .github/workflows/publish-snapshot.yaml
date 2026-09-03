@@ -55,15 +55,16 @@ jobs:
           # job saying nothing. The catalog is checked below instead, through the path that actually
           # reads it.
           #
-          # `kapkan` IS here, and it is the one coordinate no plugin marker points at: `sborka.lint`
-          # names it on ktlint's `ktlintRuleset` configuration, so a release that publishes the
-          # conventions and not the rule set fails in the consumer's ktlint task rather than in its
-          # plugin resolution — later, and with a message about a missing module.
+          # `kapkan` is not here either, and for the same shape of reason as `catalog` — it took a
+          # release to find out. A rule set jar is loaded by ktlint's worker through
+          # `META-INF/services`; nobody compiles against it, and its ktlint dependencies are
+          # `compileOnly` precisely so that it does not carry a second copy of the API onto that
+          # worker. proba therefore reports its whole public API as unreachable, which is proba being
+          # right about a question nobody is asking. What IS worth asking of it is below.
           coordinate: |
             ru.workinprogress.sborka:core:${{ needs.publish.outputs.version }}
             ru.workinprogress.sborka:conventions:${{ needs.publish.outputs.version }}
             ru.workinprogress.sborka:settings:${{ needs.publish.outputs.version }}
-            ru.workinprogress.sborka:kapkan:${{ needs.publish.outputs.version }}
           repository: https://reposilite.kotlin.website/snapshots
 
   # THE CATALOG, RESOLVED FROM THE SERVER BY THE PLUGIN THAT NAMES IT.
@@ -87,3 +88,30 @@ jobs:
           ./gradlew -p stand check --no-daemon \
             -Psborka.catalog=on \
             -Psborka.catalogVersion=${{ needs.publish.outputs.version }}
+
+  # WHAT A RULE SET IS FOR, ASKED OF THE PUBLISHED JAR.
+  #
+  # `sborka.lint` names this coordinate on ktlint's `ktlintRuleset` configuration, and it is the one
+  # artefact of the release that no plugin marker points at: a publish that lands the conventions and
+  # not the rule set fails in a consumer's ktlint task, later and with a message about a missing
+  # module. So the coordinate is fetched from the server rather than believed.
+  #
+  # AND THE SERVICE FILE INSIDE IT, which is the half that can go wrong quietly. ktlint finds a rule
+  # set through `META-INF/services`; a jar that resolves and declares no provider makes every kapkan
+  # rule stop running while every build stays green — the exact silence the rules exist to end.
+  ruleset:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: What ktlint would load
+        run: |
+          set -euo pipefail
+          version=${{ needs.publish.outputs.version }}
+          url=https://reposilite.kotlin.website/snapshots/ru/workinprogress/sborka/kapkan/$version/kapkan-$version.jar
+          curl --fail --silent --show-error --location "$url" --output kapkan.jar
+          service=META-INF/services/com.pinterest.ktlint.cli.ruleset.core.api.RuleSetProviderV3
+          unzip -p kapkan.jar "$service" > provider.txt
+          provider=$(cat provider.txt)
+          test -n "$provider"
+          unzip -l kapkan.jar | grep -q "${provider//./\/}.class"
+          echo "kapkan:$version declares $provider, and the class is in the jar"
