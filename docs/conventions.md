@@ -167,7 +167,7 @@ ktlint, версия инструмента прибита отсюда, сге�
 | правило | что ловит | найдено в |
 |---|---|---|
 | `kapkan:foreign-import-in-common` | `java.*`, `javax.*`, `android.*`, `org.w3c.*` в `common…`-сорс-сете | shashki B-01. Компилятор ловит то же самое — этот ловит на сорок секунд раньше, и ловит в модуле, у которого таргеты только JVM и Android |
-| `kapkan:swallowed-failure` | `runCatching`, чей `Result` выбрасывает сам язык; `catch (e: Exception\|Throwable)`, чьё тело ни разу не упоминает `e` | shashki B-39: сериализация отчёта падала, и `runCatching` внутри `launch` это глотал |
+| `kapkan:swallowed-failure` | `runCatching`, чью неудачу **никто не читает** — в цепочке нет ни `onFailure`, ни `getOrElse`, ни `fold`, а то, что осталось, выбрасывает сам язык; `catch (e: Exception\|Throwable)`, чьё тело ни разу не упоминает `e` | shashki B-39: сериализация отчёта падала, и `runCatching` внутри `launch` это глотал |
 | `kapkan:wall-clock` | `System.currentTimeMillis()`, `Clock.System.now()`, `Instant.now()` и соседи из `java.time` | shashki B-29: клиент вычитал серверный дедлайн из собственных часов, и ноутбук на час вперёд рисовал обратный отсчёт, который не начинается |
 | `kapkan:suppression-needs-a-reason` | подавление правила kapkan без причины | не находка, а условие: этой аннотацией исчерпывается вся настройка инструмента |
 
