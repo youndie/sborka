@@ -18,6 +18,25 @@ ktlint {
 // the release this jar came from. A module of its own rather than a copy in each, because the thing
 // being shared is a FILE — and a style file that exists twice is two style files that agree today.
 
+// The reference `.editorconfig` and the release's version are data; `Joins` and `ClassFile` are the
+// one piece of logic here, and they are here because BOTH halves of sborka would otherwise need it —
+// the settings plugin registers `kapkanJoins`, and this module is what the settings plugin is allowed
+// to depend on.
+
+dependencies {
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
+
 // THE RELEASE'S OWN VERSION, generated into the jar.
 //
 // `sborka.settings` wires in the published version catalog, and the catalog is released together with

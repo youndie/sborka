@@ -10,6 +10,20 @@ ktlint {
     version.set(libs.versions.ktlintTool)
 }
 
+val kapkanVersion: String =
+    providers
+        .gradleProperty("VERSION")
+        .orElse(providers.gradleProperty("sborka.version"))
+        .get()
+
+// LINTED BY THE RULES THIS REPOSITORY PUBLISHES, not only by its formatter. The coordinate resolves
+// to `build-logic`'s `:kapkan` through `includeBuild`, which is the same substitution a consumer gets
+// from the repository — so a rule set that fails to build fails here rather than in somebody's
+// migration.
+dependencies {
+    ktlintRuleset("ru.workinprogress.sborka:kapkan:$kapkanVersion")
+}
+
 // The root holds no code. Everything sborka publishes lives in the `build-logic` build and in `:catalog`;
 // what is here is the one task that runs everything.
 
@@ -74,7 +88,7 @@ val verifyBuildLogicPublications =
                     .filter { it.isDirectory && it.name.first().isDigit() }
                     .map { it.name }
 
-            val libraries = listOf("core", "conventions", "settings", "catalog")
+            val libraries = listOf("core", "conventions", "settings", "kapkan", "catalog")
             val absent = libraries.filter { versionsOf(it).isEmpty() }
             check(absent.isEmpty()) {
                 "these published nothing, though every publish task reported success: ${absent.joinToString()}. " +
@@ -97,6 +111,11 @@ val verifyBuildLogicPublications =
                     File(groupDir, "core/$version/core-$version.pom"),
                     File(groupDir, "conventions/$version/conventions-$version.jar"),
                     File(groupDir, "settings/$version/settings-$version.jar"),
+                    // THE RULE SET, and it is the one artefact whose absence is invisible from
+                    // inside a consuming build: `sborka.lint` names it on `ktlintRuleset`, and a
+                    // coordinate that does not resolve fails the ktlint task with a message about a
+                    // missing module rather than about the rules that did not run.
+                    File(groupDir, "kapkan/$version/kapkan-$version.jar"),
                     File(catalogGroupDir, "catalog/$version/catalog-$version.toml"),
                 ) +
                     // THE MARKERS, one per plugin id. A marker is how `plugins { id(...) version ... }`

@@ -34,3 +34,14 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 include(":core")
 include(":conventions")
 include(":settings")
+
+// A FOURTH JAR, AND IT IS NOT A PLUGIN.
+//
+// kapkan is a ktlint rule set: it is loaded by ktlint's own worker, on ktlint's classpath, in the
+// build of whoever applies `sborka.lint`. It must therefore NOT be on the Gradle plugin classpath at
+// all — a rule set jar carrying `kotlin-dsl` or the Kotlin Gradle plugin would arrive on the worker
+// beside ktlint's own copies of the same classes.
+//
+// `sborka.lint` names it by coordinate rather than depending on it, which is how ktlint-gradle's
+// `ktlintRuleset` configuration expects to be handed a rule set.
+include(":kapkan")

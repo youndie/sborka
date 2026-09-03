@@ -54,10 +54,16 @@ jobs:
           # correctly on a question that does not apply, and its answer is UNDETERMINED, which is a red
           # job saying nothing. The catalog is checked below instead, through the path that actually
           # reads it.
+          #
+          # `kapkan` IS here, and it is the one coordinate no plugin marker points at: `sborka.lint`
+          # names it on ktlint's `ktlintRuleset` configuration, so a release that publishes the
+          # conventions and not the rule set fails in the consumer's ktlint task rather than in its
+          # plugin resolution — later, and with a message about a missing module.
           coordinate: |
             ru.workinprogress.sborka:core:${{ needs.publish.outputs.version }}
             ru.workinprogress.sborka:conventions:${{ needs.publish.outputs.version }}
             ru.workinprogress.sborka:settings:${{ needs.publish.outputs.version }}
+            ru.workinprogress.sborka:kapkan:${{ needs.publish.outputs.version }}
           repository: https://reposilite.kotlin.website/snapshots
 
   # THE CATALOG, RESOLVED FROM THE SERVER BY THE PLUGIN THAT NAMES IT.

@@ -1,5 +1,6 @@
 package ru.workinprogress.sborka
 
+import org.gradle.api.tasks.testing.AbstractTestTask
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import ru.workinprogress.sborka.internal.DeclaredTests
 import ru.workinprogress.sborka.internal.SborkaSettings
@@ -63,8 +64,7 @@ if (junitVersion != null) {
 // remaining allowance on any consumption taking more than half of it. The defect was covered. The
 // cover had never executed once.
 //
-// NOT COVERED: Kotlin/Native test tasks. `iosSimulatorArm64Test` is a `KotlinNativeTest` and not a
-// `Test`, so nothing below sees it. Written down rather than left to be discovered.
+// COVERED FOR A JVM `Test` ONLY, and the second block below is what the other kinds get instead.
 if (SborkaSettings.flag(project, "sborka.declaredTests", default = true)) {
     tasks.withType<Test>().configureEach {
         val resultsDir = reports.junitXml.outputLocation
@@ -112,6 +112,41 @@ if (SborkaSettings.flag(project, "sborka.declaredTests", default = true)) {
             }
 
             logger.lifecycle("$taskName: every @Test in ${declared.size} class(es) was executed")
+        }
+    }
+
+    // AND EVERY OTHER KIND OF TEST TASK, WHICH IS THE HALF THE COMPARISON CANNOT REACH.
+    //
+    // `linuxX64Test`, `iosSimulatorArm64Test`, `wasmJsBrowserTest` and `jsNodeTest` are
+    // `AbstractTestTask`s of the Kotlin plugin's own kinds rather than `Test` tasks, so nothing above
+    // sees them. This file used to say so and stop there.
+    //
+    // What can be asked of them is smaller and still worth asking. THE PER-CLASS SHORTFALL STAYS A
+    // JVM THING because it needs the classes the task compiled, and a Kotlin/Native test binary is
+    // one executable with no class files to read declarations out of. A count needs none.
+    //
+    // A SUITE THAT RAN NOTHING IS GREENER THAN ONE WITH A FAILURE, which is the exact shape of a wasm
+    // target that looked checked and was not. This is lifted from the repository where that was
+    // found, where it was written by hand in a root build because the conventions had nowhere to put
+    // it — three items had closed against "no browser on the build box" while the suite quietly ran
+    // zero tests.
+    //
+    // A TASK GRADLE SKIPPED NEVER RUNS ITS `doLast`, so `NO-SOURCE` and a task disabled because the
+    // machine has no browser both stay green — and saying which of those happened is the
+    // repository's job, not this one's.
+    tasks.withType<AbstractTestTask>().configureEach {
+        if (this is Test) return@configureEach
+
+        val resultsDir = reports.junitXml.outputLocation
+        val taskPath = path
+
+        doLast {
+            val executed = DeclaredTests.executedIn(resultsDir.get().asFile)
+            check(executed > 0) {
+                "$taskPath wrote no test results to ${resultsDir.get().asFile}. A suite that ran " +
+                    "nothing passes every comparison there is, which is why it is not a check."
+            }
+            logger.lifecycle("$taskPath: $executed test(s)")
         }
     }
 }

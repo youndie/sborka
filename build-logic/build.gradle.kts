@@ -28,6 +28,20 @@ subprojects {
 
     group = "ru.workinprogress.sborka"
 
+    // AND BY THE RULES SBORKA SHIPS, not only by its formatter.
+    //
+    // `sborka.lint` hands consumers a `ktlintRuleset`; these modules cannot apply `sborka.lint` —
+    // sborka does not apply its own conventions, on purpose — so they say the same thing by hand. A
+    // rule set nobody runs on the repository that publishes it is a rule set whose first real corpus
+    // is somebody else's build.
+    //
+    // `:kapkan` is in this list too, and depends on itself: `ktlintCheck` needs its jar, and its jar
+    // needs nothing from `check`, so there is no cycle — only a module whose rules are the first
+    // thing they are pointed at.
+    plugins.withId("org.jlleitschuh.gradle.ktlint") {
+        dependencies.add("ktlintRuleset", dependencies.project(mapOf("path" to ":kapkan")))
+    }
+
     // ONE NUMBER, and it lives in the root `gradle.properties` beside the catalog's.
     //
     // An included build reads its OWN directory's `gradle.properties` and not its parent's, so the

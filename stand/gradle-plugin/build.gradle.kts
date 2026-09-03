@@ -2,6 +2,11 @@ plugins {
     alias(libs.plugins.kotlinJvm)
     `java-gradle-plugin`
     id("ru.workinprogress.sborka.jvm")
+    // LINT HERE TOO, and the module had none. `Kapkan.kt` beside `NoopPlugin.kt` is the stand's proof
+    // that the rule set reaches ktlint, and it lives here rather than in `:jvm-lib` because that one
+    // carries `sborka.mutation`: a function with no test would have dropped its test strength, and a
+    // number that moves for a reason unrelated to what it measures is a number nobody watches.
+    id("ru.workinprogress.sborka.lint")
     id("ru.workinprogress.sborka.publish")
 }
 
