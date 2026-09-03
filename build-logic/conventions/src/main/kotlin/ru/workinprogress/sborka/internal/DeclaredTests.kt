@@ -17,6 +17,8 @@ object DeclaredTests {
 
     private val header = Regex("""name="([^"]+)"\s+tests="(\d+)"""")
 
+    private val count = Regex("""tests="(\d+)"""")
+
     // A TOP-LEVEL CLASS DECLARATION, which is what a test class is. Anchored to the start of a line
     // so a nested class — indented — belongs to the class it sits in rather than starting a new one.
     private val declarations =
@@ -123,6 +125,33 @@ object DeclaredTests {
                         it.groupValues[2].toInt()
                 }
             }.toMap()
+    }
+
+    /**
+     * How many test cases a test task actually wrote, whatever kind of task it was.
+     *
+     * The comparison above needs a JVM `Test` — it wants the classes THIS task compiled, and a
+     * Kotlin/Native test binary has none to look at. This does not: it counts, and a count is enough
+     * for the one question that can be asked of any suite — did it run anything at all.
+     *
+     * WALKS THE TREE rather than listing the directory, because a multiplatform test task nests its
+     * results a level deeper than `Test` does, and a reader that lists one level finds nothing and
+     * reports zero — which, for a check that fails on zero, is the loudest possible wrong answer.
+     */
+    fun executedIn(resultsDir: File): Int {
+        if (!resultsDir.isDirectory) return 0
+
+        return resultsDir
+            .walkTopDown()
+            .filter { it.isFile && it.extension == "xml" }
+            .sumOf { file ->
+                count
+                    .find(file.readText(Charsets.UTF_8).take(600))
+                    ?.groupValues
+                    ?.get(1)
+                    ?.toInt()
+                    ?: 0
+            }
     }
 
     // Reported may legitimately EXCEED declared — a `@TestFactory` produces dynamic cases, and

@@ -25,10 +25,10 @@ plugins {
 
 | id | what it does |
 |---|---|
-| `ru.workinprogress.sborka.settings` | repositories with content filters, the `wip` catalog, the `.editorconfig` check — applied in `settings.gradle.kts` |
+| `ru.workinprogress.sborka.settings` | repositories with content filters, the `wip` catalog, the `.editorconfig` check, and `kapkanJoins` — the report of what this repository built and never called — applied in `settings.gradle.kts` |
 | `…sborka.base` | group, version, toolchain |
-| `…sborka.lint` | ktlint at a pinned version, generated sources excluded |
-| `…sborka.test` | JUnit Platform, a failure readable in the run log, an enforced BOM — and the check that **every declared `@Test` was executed** |
+| `…sborka.lint` | ktlint at a pinned version, generated sources excluded, and **kapkan** — three rules that each encode one defect this stack paid a stand run to find |
+| `…sborka.test` | JUnit Platform, a failure readable in the run log, an enforced BOM — the check that **every declared `@Test` was executed**, and, for the native and browser suites the comparison cannot reach, the one that **a suite which ran nothing does not pass** |
 | `…sborka.jvm` | `base` + `test` + `explicitApi`, `-Werror`, `jvmTarget` taken from the floor |
 | `…sborka.kmp` | the same for multiplatform — **except the target list**, which is a repository's argument rather than a convention |
 | `…sborka.publish` | the publication, a pom derived from one property, a sources jar, the floor attribute, an `.aar` named with its version |

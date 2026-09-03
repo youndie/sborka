@@ -1,6 +1,7 @@
 package ru.workinprogress.sborka
 
 import ru.workinprogress.sborka.internal.EditorconfigReference
+import ru.workinprogress.sborka.internal.Joins
 import ru.workinprogress.sborka.internal.SborkaVersion
 
 // The settings-level half of sborka: where dependencies are looked for, which shared versions are in
@@ -190,5 +191,114 @@ gradle.rootProject {
     // ends up never running — which is the same silence it is guarding against.
     allprojects {
         tasks.matching { it.name == "check" }.configureEach { dependsOn(checkEditorconfig) }
+    }
+}
+
+// `kapkanJoins` — WHAT THIS REPOSITORY BUILT AND NEVER CALLED.
+//
+// The rest of kapkan is ktlint rules, and they see one file at a time. This one cannot: "nothing
+// mentions this" is a question about the whole build, and shashki's own measurement says so — two
+// protocol types looked unused until `:server` was compiled beside them.
+//
+// IT LIVES IN THE SETTINGS PLUGIN FOR THE REASON `checkEditorconfig` DOES, plus one of its own. The
+// reason it shares: this is one task per repository, and a task hung off a module-level plugin runs
+// only where somebody remembered to apply that plugin to the root. The reason of its own: applying a
+// PROJECT convention to the root project puts the conventions jar on every module's classpath, and a
+// module then asking for a plugin BY VERSION fails with "already on the classpath with an unknown
+// version" — a message about neither the plugin nor the module. The settings jar has no such effect.
+//
+// NOT IN `check`, AND THAT IS A MEASUREMENT RATHER THAN CAUTION. On shashki's compiled output the
+// rule names 46 of 437 classes and not one of them is a defect: an `inline` function leaves no
+// reference, a `const val` is folded into its call site, and Kotlin's own idiom is to declare a
+// helper beside its only user. A rule with that ratio in `check` is a rule somebody switches off,
+// and it takes the cases it was right about with it. So it writes a list, and the list is read.
+gradle.rootProject {
+    // JVM OUTPUT ONLY, and that is what there is. Kotlin/Native and wasm produce klibs, whose
+    // references live inside a serialised IR with no supported reader; every application in this
+    // portfolio keeps a JVM or desktop target anyway, because that is the only target a screenshot
+    // can be taken on. Written down as a condition of use rather than left as a surprise.
+    val classDirs = files(allprojects.map { it.layout.buildDirectory.dir("classes") })
+    val sourceDirs = files(allprojects.map { it.layout.projectDirectory.dir("src") })
+    val reportFile = layout.buildDirectory.file("reports/kapkan/joins.txt")
+    val root = layout.projectDirectory.asFile
+
+    val kapkanJoins =
+        tasks.register("kapkanJoins") {
+            group = "verification"
+            description = "Lists declarations nothing outside their own file mentions"
+            // The inputs are read from disk by another task's output directory, and the answer changes
+            // whenever any module recompiles. Cheaper to redo than to be wrong about.
+            outputs.upToDateWhen { false }
+
+            doLast {
+                val report = Joins.scan(classDirs.files, sourceDirs.files)
+
+                // A REPORT OVER NO CLASSES IS NOT AN EMPTY REPORT, it is a report that read nothing —
+                // and printing "found 0" for it would be the exact silence kapkan exists to end.
+                check(report.classesRead > 0) {
+                    "kapkanJoins read no class files under ${classDirs.files.size} build directories. " +
+                        "It reads compiled output, so something has to have compiled: run it after " +
+                        "`./gradlew classes` or `./gradlew build`."
+                }
+
+                fun report(
+                    finding: Joins.Finding,
+                    verb: String,
+                ): String {
+                    val where = finding.file.relativeTo(root).invariantSeparatorsPath
+                    val verdict =
+                        if (finding.testsOnly) {
+                            "only tests $verb it — built at one end and joined at neither"
+                        } else {
+                            "nothing in this repository ${verb}s it"
+                        }
+                    return "$where:${finding.line}:1: kapkan[${Joins.RULE.substringAfter(':')}]: " +
+                        "${finding.qualifiedName.substringAfterLast('.')} is public and $verdict"
+                }
+
+                val lines =
+                    report.findings.map { report(it, "mention") } +
+                        report.functionFindings.map { report(it, "call") }
+
+                val summary =
+                    "kapkanJoins: ${report.classesRead} class file(s), " +
+                        "${report.declarationsConsidered} declaration(s) and " +
+                        "${report.functionsConsidered} function(s) considered, " +
+                        "${report.findings.size + report.functionFindings.size} finding(s) of which " +
+                        "${(report.findings + report.functionFindings).count {
+                            it.testsOnly
+                        }} reached only by tests, " +
+                        "${report.suppressed.size} suppressed"
+
+                val target = reportFile.get().asFile
+                target.parentFile.mkdirs()
+                target.writeText((lines + summary).joinToString("\n", postfix = "\n"))
+
+                lines.forEach { logger.lifecycle(it) }
+                logger.lifecycle(summary)
+                logger.lifecycle("kapkanJoins: written to ${target.relativeTo(root).invariantSeparatorsPath}")
+            }
+        }
+
+    // AFTER THE COMPILATIONS THAT PRODUCE CLASS FILES, and after those only. KGP registers a
+    // `<target>MainClasses` task for JVM-like targets and for nothing else — `linuxX64` has none —
+    // so this list is exactly the JVM output without naming a single target. `metadata…Classes` is
+    // dropped because it assembles klibs, which this cannot read anyway.
+    //
+    // BY NAME, AND NOT BY `tasks.matching`. A predicate over a task collection has to CREATE every
+    // task in every project to ask it its name, which is the configuration-avoidance mistake with a
+    // measurable price — and it surfaced one of KGP's own deprecations on the way. `tasks.names` is
+    // the registered names without instantiating anything, and `projectsEvaluated` is when every
+    // project has registered its own.
+    gradle.projectsEvaluated {
+        kapkanJoins.configure {
+            dependsOn(
+                allprojects.flatMap { project ->
+                    project.tasks.names
+                        .filter { it.endsWith("Classes") && !it.startsWith("metadata") }
+                        .map { "${project.path}:$it" }
+                },
+            )
+        }
     }
 }

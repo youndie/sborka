@@ -8,6 +8,20 @@ ktlint {
     version.set(libs.versions.ktlintTool)
 }
 
+val kapkanVersion: String =
+    providers
+        .gradleProperty("VERSION")
+        .orElse(providers.gradleProperty("sborka.version"))
+        .get()
+
+// LINTED BY THE RULES THIS REPOSITORY PUBLISHES, not only by its formatter. The coordinate resolves
+// to `build-logic`'s `:kapkan` through `includeBuild`, which is the same substitution a consumer gets
+// from the repository — so a rule set that fails to build fails here rather than in somebody's
+// migration.
+dependencies {
+    ktlintRuleset("ru.workinprogress.sborka:kapkan:$kapkanVersion")
+}
+
 group = "ru.workinprogress.sborka"
 version = providers.gradleProperty("VERSION").orElse(providers.gradleProperty("sborka.version")).get()
 

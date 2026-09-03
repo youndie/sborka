@@ -23,6 +23,24 @@ plugins {
     id("org.jlleitschuh.gradle.ktlint")
 }
 
+// THE RULES TRAVEL WITH THE FORMATTER, at the version of the sborka release that carried them.
+//
+// `ktlintRuleset` is ktlint-gradle's own configuration for rule set jars: what lands on it is loaded
+// by ktlint's worker through `META-INF/services`, beside the standard rules and on the same
+// classpath. Named by coordinate rather than depended on, because these conventions must not carry
+// kapkan's classes: they would then be on the Gradle plugin classloader, which is not where ktlint
+// looks.
+//
+// A repository that gets the plugin gets the rules — there is no opt-in, and no property to turn
+// them off. What can be turned off is one rule in one place, by a `@Suppress` that has to say why;
+// see `kapkan:suppression-needs-a-reason`.
+//
+// AND THE VERSION IS THIS RELEASE'S. `sborka.lint` and the rule set are published together, so a jar
+// asking for a number typed beside it would be asking for whatever was current when somebody typed.
+dependencies {
+    add("ktlintRuleset", "ru.workinprogress.sborka:kapkan:${SborkaVersion.CURRENT}")
+}
+
 configure<KtlintExtension> {
     version.set(providers.gradleProperty("sborka.ktlintVersion").orElse(SborkaVersion.DEFAULT_KTLINT))
 

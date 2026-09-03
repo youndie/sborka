@@ -156,4 +156,26 @@ class DeclaredTestsTest {
 
         assertEquals(mapOf("OuterTest" to 1), DeclaredTests.declaredIn(File(tmp, "src"), listOf(classes)))
     }
+
+    @Test
+    fun `a results tree is counted however deep it is nested`(
+        @TempDir tmp: File,
+    ) {
+        // A multiplatform test task nests its results a level deeper than a JVM `Test` does. A reader
+        // that lists one directory finds nothing there and reports zero — and zero is exactly what
+        // the check fails on, so the wrong answer would be indistinguishable from the defect.
+        val results = File(tmp, "test-results/macosArm64Test").apply { mkdirs() }
+        File(results, "TEST-pkg.FirstTest.xml").writeText("<testsuite name=\"pkg.FirstTest\" tests=\"3\" >")
+        val nested = File(results, "binaries").apply { mkdirs() }
+        File(nested, "TEST-pkg.SecondTest.xml").writeText("<testsuite name=\"pkg.SecondTest\" tests=\"2\" >")
+
+        assertEquals(5, DeclaredTests.executedIn(File(tmp, "test-results")))
+    }
+
+    @Test
+    fun `a missing results directory counts as nothing run`(
+        @TempDir tmp: File,
+    ) {
+        assertEquals(0, DeclaredTests.executedIn(File(tmp, "never-written")))
+    }
 }
