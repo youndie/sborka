@@ -162,4 +162,43 @@ class SwallowedFailureRuleTest {
             """.trimIndent()
         assertEquals(emptyList<String>(), lint(code).ids())
     }
+
+    @Test
+    fun `a runCatching whose failure is logged is not swallowed`() {
+        // THE SHAPE THAT MADE THIS RULE WRONG ON ITS FIRST CONSUMER. The `Result` is discarded — the
+        // whole chain is a statement — and the failure is reported, which is correct code. Five of
+        // the nine findings on shashki were this, against four real ones.
+        val code =
+            """
+            fun handle() {
+                runCatching { send() }.onFailure { log.warn("sending failed", it) }
+            }
+            """.trimIndent()
+        assertEquals(emptyList<String>(), lint(code).ids())
+    }
+
+    @Test
+    fun `a runCatching turned into a throw is not swallowed`() {
+        val code =
+            """
+            fun handle() {
+                runCatching { send() }.getOrElse { throw AssertionError("never sent") }
+            }
+            """.trimIndent()
+        assertEquals(emptyList<String>(), lint(code).ids())
+    }
+
+    @Test
+    fun `getOrNull does not read the failure`() {
+        // `getOrNull` and `getOrDefault` answer "what is the value" and drop the exception on the
+        // way, which is the shape the rule is about. They are not in the list, and this is the test
+        // that says the list is a list and not "anything chained".
+        val code =
+            """
+            fun handle() {
+                runCatching { send() }.getOrNull()
+            }
+            """.trimIndent()
+        assertEquals(listOf("kapkan:swallowed-failure"), lint(code).ids())
+    }
 }

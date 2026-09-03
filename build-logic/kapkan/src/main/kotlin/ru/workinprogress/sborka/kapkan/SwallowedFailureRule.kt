@@ -28,9 +28,10 @@ import org.jetbrains.kotlin.psi.KtValueArgument
  *
  * **What it catches.** Two shapes, and both are exact rather than heuristic:
  *
- *  * a `runCatching { … }` whose `Result` is thrown away by the language — the last statement of a
- *    block body, of a `finally`, of a loop, of an initializer, or a statement that is not the last
- *    one at all;
+ *  * a `runCatching { … }` whose failure NOTHING READS — the chain applied to it never mentions
+ *    `onFailure`, `getOrElse`, `fold` or their neighbours, and what is left is thrown away by the
+ *    language: the last statement of a block body, of a `finally`, of a loop, of an initializer, or
+ *    a statement that is not the last one at all;
  *  * `catch (e: Exception)` / `catch (e: Throwable)` whose body never mentions `e`.
  *
  * **Where it was found.** shashki B-39. `ReportingDegradationSink` set no content type of its own and
@@ -70,6 +71,8 @@ public class SwallowedFailureRule :
         emit: (Int, String, Boolean) -> AutocorrectDecision,
     ) {
         if (call.calleeExpression?.text != "runCatching") return
+        val chain = chainOf(call)
+        if (chain.any { it in READS_THE_FAILURE }) return
         if (!discards(outermost(call))) return
         emit(
             call.node.startOffset,
@@ -98,6 +101,31 @@ public class SwallowedFailureRule :
                 "that would have named it does not exist",
             false,
         )
+    }
+
+    /**
+     * The names applied to this `runCatching`, in order — `onFailure`, `getOrElse`, `map`.
+     *
+     * WHETHER THE FAILURE IS READ IS A DIFFERENT QUESTION FROM WHETHER THE VALUE IS USED, and the
+     * first version of this rule asked the second one. `runCatching { … }.onFailure { log.warn(…) }`
+     * as a statement discards a `Result` and reports the failure, which is correct code; the first
+     * consumer to run this rule had five of them and four real findings, so the mistake was the
+     * majority of what the rule said.
+     */
+    private fun chainOf(call: KtCallExpression): List<String> {
+        val names = mutableListOf<String>()
+        var expression: KtExpression = call
+        while (true) {
+            val parent = expression.parent
+            if (parent !is KtQualifiedExpression || parent.receiverExpression !== expression) return names
+            val selector = parent.selectorExpression
+            names +=
+                when (selector) {
+                    is KtCallExpression -> selector.calleeExpression?.text.orEmpty()
+                    else -> selector?.text.orEmpty()
+                }
+            expression = parent
+        }
     }
 
     /**
@@ -169,5 +197,25 @@ public class SwallowedFailureRule :
 
     private companion object {
         val UNIT_BUILDERS = setOf("launch")
+
+        /**
+         * The members of `Result` that hand the failure to somebody, and therefore end the question.
+         *
+         * NOT `getOrNull` OR `getOrDefault`: those answer "what is the value" and drop the exception
+         * on the way, which is the shape this rule is about. `isFailure` is here because a branch on
+         * it is a decision somebody wrote, and a rule cannot tell a good one from a bad one without
+         * reading the branch.
+         */
+        val READS_THE_FAILURE =
+            setOf(
+                "onFailure",
+                "getOrElse",
+                "getOrThrow",
+                "fold",
+                "recover",
+                "recoverCatching",
+                "exceptionOrNull",
+                "isFailure",
+            )
     }
 }
