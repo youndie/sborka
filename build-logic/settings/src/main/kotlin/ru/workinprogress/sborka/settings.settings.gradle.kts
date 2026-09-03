@@ -46,21 +46,29 @@ dependencyResolutionManagement {
             ?: error("sborka.repositoriesMode=$requested is not one of ${known.keys.sorted()}"),
     )
 
+    // EVERY FILTERED REPOSITORY BEFORE THE UNFILTERED ONE, and the order is the whole of it.
+    //
+    // Gradle asks repositories in the order they are declared and stops at the first that answers. A
+    // filter does not make a repository cheaper to ask — it makes it SKIPPED for coordinates it does
+    // not claim — so a filtered repository costs nothing when it is first and everything when it is
+    // last: with `mavenCentral()` in front of the snapshot server, every `ru.workinprogress`
+    // coordinate in the portfolio pays a round trip to Central that is required to miss.
+    //
+    // It does not always miss politely. sborka's own release check failed on
+    // `ru.workinprogress.sborka:catalog` with "Received status code 429 from server: Too Many
+    // Requests" — a rate limit, on a group Central has never held, for a question that should never
+    // have been asked. `mavenCentral()` last is not a preference; it is the only position at which an
+    // unfiltered repository is asked exactly the coordinates the others declined.
+    //
+    // AND THE OVERRIDE BEFORE WHAT IT OVERRIDES. It was last, which made it a fallback wearing the
+    // word "override": a version present on the snapshot server was answered from there and the
+    // directory never consulted.
     repositories {
         google {
             mavenContent {
                 includeGroupAndSubgroups("androidx")
                 includeGroupAndSubgroups("com.android")
                 includeGroupAndSubgroups("com.google")
-            }
-        }
-        mavenCentral()
-        maven("https://reposilite.kotlin.website/snapshots") {
-            name = "wip-snapshots"
-            mavenContent {
-                includeGroupByRegex("ru\\.workinprogress.*")
-                includeGroupByRegex("io\\.github\\.youndie.*")
-                includeGroupByRegex("io\\.konekt.*")
             }
         }
         // A repository named from the outside, for the one case a settings plugin cannot serve on its
@@ -73,6 +81,15 @@ dependencyResolutionManagement {
                 mavenContent { includeGroupByRegex("ru\\.workinprogress\\.sborka.*") }
             }
         }
+        maven("https://reposilite.kotlin.website/snapshots") {
+            name = "wip-snapshots"
+            mavenContent {
+                includeGroupByRegex("ru\\.workinprogress.*")
+                includeGroupByRegex("io\\.github\\.youndie.*")
+                includeGroupByRegex("io\\.konekt.*")
+            }
+        }
+        mavenCentral()
     }
 
     versionCatalogs {
