@@ -63,6 +63,7 @@ val verifyPublications =
         // separately below. That also catches something the arithmetic could not: two versions in the
         // directory at once.
         val expectedVersion = providers.gradleProperty("VERSION").orNull
+        val central = providers.gradleProperty("sborka.central").orNull.toBoolean()
         outputs.upToDateWhen { false }
 
         doLast {
@@ -124,10 +125,37 @@ val verifyPublications =
                     artefact("kmp-lib-linuxx64", ".module"),
                 )
 
-            val missing = required.filterNot { it.isFile }
+            // WHAT MAVEN CENTRAL ADDS TO THE LIST, and the only reason `sborka.central` exists.
+            //
+            // A Reposilite takes whatever it is given. Central refuses a release bundle that has no
+            // javadoc jar beside the sources jar, and it refuses it at the portal — after the
+            // version has been decided, tagged and published everywhere else, and with no way to
+            // reuse the number. `withSourcesJar()` alone produced exactly four files (jar, sources,
+            // module, pom); this is the difference, checked here rather than found there.
+            //
+            // Not the platform: a `java-platform` publishes constraints and no artefacts at all, and
+            // Central asks for none.
+            val forCentral =
+                if (!central) {
+                    emptyList()
+                } else {
+                    listOf(
+                        artefact("jvm-lib", "-javadoc.jar"),
+                        artefact("kmp-lib", "-javadoc.jar"),
+                        artefact("kmp-lib-jvm", "-javadoc.jar"),
+                    )
+                }
+
+            val missing = (required + forCentral).filterNot { it.isFile }
             check(missing.isEmpty()) {
                 "these were not published, though every publish task reported success:\n  " +
-                    missing.joinToString("\n  ") { it.relativeTo(root).path }
+                    missing.joinToString("\n  ") { it.relativeTo(root).path } +
+                    if (missing.any { it.name.endsWith("-javadoc.jar") }) {
+                        "\n(sborka.central is on, so a javadoc jar is part of the shape: Central " +
+                            "refuses a bundle without one, and refuses it after the version is spent)"
+                    } else {
+                        ""
+                    }
             }
 
             // THE POM SAYS WHO OWNS IT. Derived from one property in `gradle.properties` rather than
