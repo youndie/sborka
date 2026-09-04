@@ -7,6 +7,16 @@
 kotlin = "2.4.10"
 ktlintPlugin = "14.2.0"
 
+# The plugin that puts a release on Maven Central. Applied by `sborka.publish` only where a
+# repository asks for it (`sborka.central`), and pinned here rather than in each of them: Central
+# refuses a bundle for reasons that are the plugin's business -- a missing javadoc jar, an unsigned
+# file -- and two repositories on two versions would meet those refusals separately.
+#
+# 0.37.0 because that is the version `kmp-smtp-client` already pins, which is the only other place
+# in the portfolio wired for Central. Same number in two places until that repository takes these
+# conventions.
+mavenPublish = "0.37.0"
+
 # The FORMATTER, and the default `sborka.lint` hands to every consumer. Generated into `:core` so the
 # number lives here and nowhere else — the same file sborka is linted from.
 ktlintTool = "1.8.0"
@@ -20,6 +30,7 @@ slf4j = "2.0.18"
 [libraries]
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 ktlint-gradle-plugin = { module = "org.jlleitschuh.gradle:ktlint-gradle", version.ref = "ktlintPlugin" }
+maven-publish-gradle-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "mavenPublish" }
 
 # THE RULE API kapkan IS WRITTEN AGAINST, at the same version as the tool that loads it. `compileOnly`
 # in `:kapkan`: ktlint puts these on the worker classpath itself, and a ruleset jar carrying a second

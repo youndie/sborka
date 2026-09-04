@@ -21,6 +21,13 @@ dependencies {
     // 1.8.0 in nine repositories and the PLUGIN version 14.2.0 in four.
     implementation(libs.ktlint.gradle.plugin)
 
+    // APPLIED BY SBORKA TOO, but only where `sborka.central` asks for it. On the classpath of every
+    // consumer either way, which is the same trade ktlint makes above: a jar that is loaded and not
+    // applied costs a classloader entry, while a consumer declaring the plugin itself would put the
+    // version back into nineteen repositories -- and the version is the part Central's refusals are
+    // about.
+    implementation(libs.maven.publish.gradle.plugin)
+
     // NOT applied by sborka, and that is the design. `sborka.kmp` configures Kotlin, it does not
     // choose its version: a module applies `kotlin("multiplatform")` itself, at whatever version its
     // own catalog names, and sborka reacts with `plugins.withId`. Declared `compileOnly` so the types

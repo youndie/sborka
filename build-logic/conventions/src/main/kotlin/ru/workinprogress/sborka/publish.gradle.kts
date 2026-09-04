@@ -43,6 +43,14 @@ plugins.withId("org.jetbrains.kotlin.jvm") {
         // these conventions. sborka's own `build-logic` had the right guard and this did not, which
         // is what a second reader is for.
         if (plugins.hasPlugin("java-gradle-plugin")) return@afterEvaluate
+        // NOR WHEN THE CENTRAL PLUGIN IS HERE, and this is not the same guard twice. That plugin
+        // creates a publication called `maven` of its own -- with the javadoc jar Central requires
+        // attached to it -- and it does so later than this block. The name check below cannot see
+        // it yet, so both ran and the build failed at configuration with "Cannot add a Publication
+        // with name 'maven' as a Publication with that name already exists". Which is the good
+        // failure of the two: the same collision without the name clash is two publications
+        // writing one coordinate, and then whichever task ran last decides what a consumer gets.
+        if (plugins.hasPlugin("com.vanniktech.maven.publish")) return@afterEvaluate
         if (extensions.getByType<PublishingExtension>().publications.findByName("maven") == null) {
             publishing.publications.create<MavenPublication>("maven") {
                 from(components["java"])
@@ -55,6 +63,7 @@ plugins.withId("org.jetbrains.kotlin.jvm") {
 // sources to give away — only the component that carries its constraints.
 plugins.withId("java-platform") {
     afterEvaluate {
+        if (plugins.hasPlugin("com.vanniktech.maven.publish")) return@afterEvaluate
         if (extensions.getByType<PublishingExtension>().publications.findByName("maven") == null) {
             publishing.publications.create<MavenPublication>("maven") {
                 from(components["javaPlatform"])
@@ -83,6 +92,36 @@ tasks
     .configureEach {
         (this as AbstractArchiveTask).archiveFileName.set("${project.name}-android-${project.version}.aar")
     }
+
+// MAVEN CENTRAL, WHERE A REPOSITORY ASKS FOR IT (`sborka.central=true` in its gradle.properties).
+//
+// Off by default and applied rather than declared, because Central is a different contract from a
+// Reposilite and the difference is not the URL. A release bundle it accepts carries a javadoc jar
+// and a detached signature for every file; `withSourcesJar()` above gives neither, and a publish
+// missing them fails at the portal, after the version has been decided and tagged.
+//
+// The plugin does both, and it is applied here instead of by each repository so that the version of
+// the thing that talks to the portal is a portfolio decision like the ktlint version above.
+//
+// **Publication stays manual on purpose.** `publishToMavenCentral()` uploads a bundle and leaves it
+// staged; releasing it is a click. A release cannot be taken back -- Central never rewrites or
+// removes a version -- so the last step is not one to automate before anybody has done it once.
+if (providers.gradleProperty("sborka.central").orNull.toBoolean()) {
+    apply(plugin = "com.vanniktech.maven.publish")
+
+    extensions.configure<com.vanniktech.maven.publish.MavenPublishBaseExtension> {
+        publishToMavenCentral()
+
+        // SIGNED ONLY WHERE THERE IS A KEY, and the condition is the key rather than a second
+        // switch. A snapshot goes to a Reposilite, which asks for no signature; demanding a GPG key
+        // for it would put one into every CI run that publishes one. A release without a signature
+        // is refused by the portal, which is where that half is enforced -- by somebody whose job it
+        // is, rather than by a flag here that can be set wrong.
+        if (providers.environmentVariable("ORG_GRADLE_PROJECT_signingInMemoryKey").isPresent) {
+            signAllPublications()
+        }
+    }
+}
 
 publishing {
     repositories {
