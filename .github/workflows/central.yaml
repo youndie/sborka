@@ -1,0 +1,201 @@
+# Uploads a released version of ANY repository in the portfolio to Maven Central.
+#
+# The workflow lives here rather than in each library because the four credentials it needs do too.
+# A personal GitHub account has no shared secret store — organisation secrets are an organisation
+# feature — so a `central.yaml` per repository means a copy of the portal token and of the signing
+# key in every one of them, and a key rotation that has to visit each in turn and is silently half
+# done the moment one is missed. Here they exist once: in this repository's secrets, guarding one
+# job.
+#
+# What that costs, said plainly: the run appears in sborka's Actions tab and not in the library's,
+# and whoever can dispatch here can publish anything. Both are the same person, and the first is
+# what a link in the release notes is for.
+#
+# WHAT A LIBRARY HAS TO DO TO BE PUBLISHABLE FROM HERE: set `sborka.central=true` in its
+# `gradle.properties`. That is the whole contract. `ru.workinprogress.sborka.publish` reads it,
+# applies the plugin that produces the javadoc jar and the detached signatures Central requires, and
+# leaves the coordinates alone.
+#
+# THE RELEASE ITSELF STAYS A CLICK. `publishToMavenCentral` uploads the bundle and leaves it staged;
+# `publishAndReleaseToMavenCentral` would release it, and a version on Central can never be rewritten
+# or taken back. The last step belongs to a person looking at what is about to become permanent.
+name: central
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: The repository to publish, owner/name — for example youndie/viddik
+        required: true
+        type: string
+      ref:
+        description: The tree to build, a tag or a branch
+        required: true
+        default: main
+        type: string
+      version:
+        description: The Maven version to publish it as, without the v — for example 0.3.1
+        required: true
+        type: string
+      runner:
+        description: >
+          macOS where the build has Apple targets — a multiplatform module publishes its root and
+          every target from one host, or the root points at variants that do not exist.
+        required: true
+        default: ubuntu-latest
+        type: choice
+        options: [ubuntu-latest, macos-15]
+      konan-cache:
+        description: Cache ~/.konan. Worth it only for a build with Kotlin/Native targets.
+        required: false
+        default: false
+        type: boolean
+      gate:
+        description: Run the repository's own `check` on the tree being uploaded.
+        required: false
+        default: true
+        type: boolean
+
+# Nothing here writes to a repository. The credentials that matter are the four secrets below, and
+# they are not the token this line is about.
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 90
+    steps:
+      # ONLY THIS ACCOUNT'S REPOSITORIES, and the guard is not ceremony. The step after it checks
+      # out a tree named at dispatch time and then runs Gradle on it — a build script is code, and it
+      # would run here, beside a signing key and a portal token. A typo in the owner is the likely
+      # form of that, not an attack: `youndei/viddik` is a repository somebody else may own, and the
+      # bundle would go out signed by us.
+      - name: The repository is one of ours
+        env:
+          REPO: ${{ inputs.repository }}
+        run: |
+          # The step after this one checks out a tree named at dispatch time and runs Gradle on it —
+          # a build script is code, and it would run here, beside a signing key and a portal token.
+          # A typo in the owner is the likely form of that rather than an attack: `youndei/viddik`
+          # is a name somebody else may hold, and the bundle would go out signed by us.
+          name=${REPO#youndie/}
+          case "$REPO" in
+            youndie/*) ;;
+            *) name='' ;;
+          esac
+          case "$name" in
+            '' | *[!A-Za-z0-9._-]*)
+              echo "::error::'$REPO' is not a youndie/<name> repository; this workflow signs and" >&2
+              echo "uploads with credentials that must not build a tree from anywhere else." >&2
+              exit 3 ;;
+          esac
+
+      # The default token is enough because every repository this publishes is public. A private one
+      # would need a PAT here, and would also need somebody to decide whether a private tree belongs
+      # on Central at all.
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          # The tags come too, so the step below can diff against one.
+          fetch-depth: 0
+
+      # REFUSED HERE RATHER THAN BY A MISSING TASK. Without the switch the publish plugin is not
+      # applied, `publishToMavenCentral` does not exist, and Gradle's answer is "task not found" —
+      # which reads as a typo in this file rather than as a tree that cannot publish.
+      - name: The tree being built can publish to Central
+        run: |
+          grep -q '^sborka.central=true' gradle.properties || {
+            echo "::error::sborka.central is not set in ${{ inputs.repository }}@${{ inputs.ref }}," >&2
+            echo "so nothing there can publish to Central. Build a tree that has it." >&2
+            exit 3
+          }
+
+      # WHAT IS ACTUALLY GOING OUT, said out loud before it goes. A version on Central can never be
+      # rewritten, so if the sources under this ref differ from the tag of the same name, that is
+      # worth reading in the log rather than discovering from a decompiler.
+      #
+      # Sources and not the whole tree: the first release of a repository is normally a tag that
+      # predates its own ability to publish — bochka's `v0.6.0` carried neither `sborka.central` nor
+      # the sborka version that reads it — and a diff that counted CI and build configuration would
+      # warn on every one of those while saying nothing about the artefact.
+      - name: Say how this tree relates to the tag of the same version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          tag="v$VERSION"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            changed=$(git diff --name-only "$tag"..HEAD -- '*/src/*' 'src/*' | wc -l)
+            if [ "$changed" -eq 0 ]; then
+              echo "sources identical to $tag; the difference is build and CI configuration:"
+              git diff --stat "$tag"..HEAD | tail -20
+            else
+              echo "::warning::$changed source files differ from $tag, and this publishes as" \
+                   "$VERSION anyway. A version on Central cannot be replaced."
+              git diff --stat "$tag"..HEAD -- '*/src/*' 'src/*' >&2
+            fi
+          else
+            echo "there is no tag $tag; publishing $VERSION from ${{ inputs.ref }}"
+          fi
+
+      # By coordinate rather than `./.github/actions/...`: the workspace holds the library's tree,
+      # not this one's.
+      - uses: youndie/sborka/.github/actions/setup-kotlin@main
+        with:
+          konan-cache: ${{ inputs.konan-cache }}
+
+      # The gate on the tree being uploaded, not on the tree that was green once. It is a switch
+      # because some repositories gate on things a runner here cannot give them — a stand, a
+      # registry, a second machine — and a gate that cannot pass is a gate nobody runs.
+      - name: Gate
+        if: inputs.gate
+        run: ./gradlew check --no-daemon
+
+      # The property names are the publishing plugin's, read out of its jar rather than remembered:
+      # `mavenCentralUsername`, `mavenCentralPassword`, `signingInMemoryKey`,
+      # `signingInMemoryKeyPassword`. Gradle takes each as ORG_GRADLE_PROJECT_<name>.
+      #
+      # The username and password are a **user token** from the portal, not the account's own
+      # credentials.
+      - name: Upload the bundle, staged
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+          # Through the environment rather than spliced into the script: an input is text somebody
+          # typed, and text pasted into a shell body is a command as much as it is a value.
+          VERSION: ${{ inputs.version }}
+        run: |
+          # Refused here rather than by the portal after a ten-minute build: an unset secret arrives
+          # as an empty string, the plugin sends no credentials, and the failure that comes back
+          # says nothing about which of the four is missing.
+          for name in MAVEN_CENTRAL_USERNAME MAVEN_CENTRAL_PASSWORD SIGNING_KEY SIGNING_PASSWORD; do
+            case $name in
+              MAVEN_CENTRAL_USERNAME) value=$ORG_GRADLE_PROJECT_mavenCentralUsername ;;
+              MAVEN_CENTRAL_PASSWORD) value=$ORG_GRADLE_PROJECT_mavenCentralPassword ;;
+              SIGNING_KEY) value=$ORG_GRADLE_PROJECT_signingInMemoryKey ;;
+              SIGNING_PASSWORD) value=$ORG_GRADLE_PROJECT_signingInMemoryKeyPassword ;;
+            esac
+            if [ -z "$value" ]; then
+              echo "::error::the secret $name is empty or not set in youndie/sborka, where this" >&2
+              echo "workflow keeps them; nothing was uploaded." >&2
+              exit 3
+            fi
+          done
+
+          # The `v` is not accepted quietly: `vX.Y.Z` is a git tag and `X.Y.Z` is a Maven
+          # coordinate, and a bundle uploaded under the first is a version nobody asked for that
+          # can never be reused.
+          case $VERSION in
+            v*) echo "::error::the version is a Maven coordinate, without the v: ${VERSION#v}" >&2; exit 3 ;;
+          esac
+          echo "uploading ${{ inputs.repository }} $VERSION as a staged deployment"
+          ./gradlew -PVERSION="$VERSION" publishToMavenCentral --no-daemon
+
+      - name: What to do next
+        run: |
+          echo "The bundle is staged at https://central.sonatype.com/publishing/deployments"
+          echo "Check it, then press Publish. Nothing is resolvable until you do, and nothing can be"
+          echo "changed after you have."
