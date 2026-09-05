@@ -10,7 +10,7 @@
 
 ---
 
-## `ru.workinprogress.sborka.settings` — плагин настроек
+## `io.github.youndie.sborka.settings` — плагин настроек
 
 Применяется в `settings.gradle.kts`. Делает три вещи.
 
@@ -21,10 +21,10 @@ round-trip на каждый промах и — что хуже — шанс, �
 Порядок при этом не косметика. Gradle спрашивает репозитории в порядке объявления и останавливается
 на первом ответившем, а фильтр не делает репозиторий дешевле — он делает его **пропускаемым** для
 координат, которых тот не заявлял. Значит фильтрованный репозиторий стоит ноль, когда он первый, и
-всё, когда он последний: с `mavenCentral()` перед снапшот-сервером каждая координата
-`ru.workinprogress` платила поход на Central, обязанный промахнуться. Промахнуться вежливо он тоже
-не обязан — проверка релиза sborka однажды упала на `ru.workinprogress.sborka:catalog` с
-`Received status code 429 from server: Too Many Requests`.
+всё, когда он последний: с `mavenCentral()` перед снапшот-сервером каждая первая-сторонняя
+координата платила поход на Central, обязанный промахнуться. Промахнуться вежливо он тоже
+не обязан — проверка релиза sborka однажды упала на `ru.workinprogress.sborka:catalog` (координата
+тех времён) с `Received status code 429 from server: Too Many Requests`.
 
 Настроить можно только сторону резолва. `pluginManagement` вычисляется до применения любого
 settings-плагина — включая этот, который сам через него и достаётся, — поэтому снапшот-репозиторий
@@ -46,7 +46,7 @@ settings-плагина — включая этот, который сам че�
 | `sborka.repositoriesMode` | `FAIL_ON_PROJECT_REPOS` | `PREFER_SETTINGS` — для репозитория с таргетами `js`/`wasmJs`: репозиторий для дистрибутива Node объявляет не модуль, а сам Kotlin-плагин, и отказ ловит сборку на репозитории, которого никто в ней не писал |
 | `sborka.catalog` | `on` | `off` — не подключать каталог `wip` |
 | `sborka.catalogVersion` | версия плагина | взять другую версию каталога |
-| `sborka.catalogRepository` | — | дополнительный maven-репозиторий для группы `ru.workinprogress.sborka` |
+| `sborka.catalogRepository` | — | дополнительный maven-репозиторий для группы `io.github.youndie.sborka` |
 | `sborka.editorconfig` | — | `custom` — этот репозиторий отличается намеренно, не проверять |
 
 Проверка требует, чтобы файл **начинался** с эталона, а не совпадал с ним целиком. Общие правила
@@ -118,7 +118,7 @@ ktlint проверяет id внутри `@Suppress` по загруженны�
 
 ---
 
-## `ru.workinprogress.sborka.base`
+## `io.github.youndie.sborka.base`
 
 Координата, версия, тулчейн. Подключается остальными; отдельно нужен только приложению, которому не
 нужны ни публикация, ни `explicitApi`.
@@ -140,7 +140,7 @@ ktlint проверяет id внутри `@Suppress` по загруженны�
 
 ---
 
-## `ru.workinprogress.sborka.lint`
+## `io.github.youndie.sborka.lint`
 
 ktlint, версия инструмента прибита отсюда, сгенерированные исходники исключены.
 
@@ -158,7 +158,7 @@ ktlint, версия инструмента прибита отсюда, сге�
 
 ### kapkan — правила, которые едут вместе с форматтером
 
-`sborka.lint` кладёт на конфигурацию `ktlintRuleset` координату `ru.workinprogress.sborka:kapkan`
+`sborka.lint` кладёт на конфигурацию `ktlintRuleset` координату `io.github.youndie.sborka:kapkan`
 той же версии, что и сам плагин. Ручки нет: репозиторий, получивший `sborka.lint`, получил правила.
 
 Каждое правило кодирует **один класс дефекта, найденный в этом стеке**, и несёт ссылку на item.
@@ -194,7 +194,7 @@ jar с правилами реально доехал до воркера ktlint
 
 ---
 
-## `ru.workinprogress.sborka.test`
+## `io.github.youndie.sborka.test`
 
 JUnit Platform, читаемый в логе провал, платформа JUnit и — главное — проверка, что каждый
 объявленный `@Test` был выполнен.
@@ -229,7 +229,7 @@ JUnit Platform, читаемый в логе провал, платформа JU
 
 ---
 
-## `ru.workinprogress.sborka.publish`
+## `io.github.youndie.sborka.publish`
 
 Всё, что портфель узнал про доставку артефакта потребителю. Пять рукописных копий этого было по
 репозиториям, и никакие две не знали одного и того же — каждая дырка находилась одинаково: спросив у
@@ -291,7 +291,7 @@ version=<X.Y.Z>`; `-f runner=macos-15` там, где в сборке есть A
 
 ---
 
-## `ru.workinprogress.sborka.kmp` и `.jvm`
+## `io.github.youndie.sborka.kmp` и `.jvm`
 
 `explicitApi()`, `allWarningsAsErrors`, `kotlin("test")` в тестовом сорс-сете. Подключают `base` и
 `test`.
@@ -312,7 +312,7 @@ Telegram-зависимость; четвёртый не берёт iOS-симу
 
 ---
 
-## `ru.workinprogress.sborka.mutation`
+## `io.github.youndie.sborka.mutation`
 
 Задача `mutationTest`: ломает модуль по одному месту и говорит, чего тесты не заметили. Семь мутаций,
 сделанных руками в одном репозитории, нашли два стража, которых не ловило **ничего**, и два теста,
@@ -331,7 +331,7 @@ Telegram-зависимость; четвёртый не берёт iOS-симу
 
 ---
 
-## `ru.workinprogress.sborka.native-service`
+## `io.github.youndie.sborka.native-service`
 
 `executable { entryPoint; baseName }` для нативных таргетов и `stageNativeImage` — задача, кладущая
 release-бинарь в `build/native-image/` под стабильным именем.

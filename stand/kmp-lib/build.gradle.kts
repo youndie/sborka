@@ -1,8 +1,8 @@
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    id("ru.workinprogress.sborka.kmp")
-    id("ru.workinprogress.sborka.lint")
-    id("ru.workinprogress.sborka.publish")
+    id("io.github.youndie.sborka.kmp")
+    id("io.github.youndie.sborka.lint")
+    id("io.github.youndie.sborka.publish")
 }
 
 // The targets are the module's, not the convention's — which is the point `sborka.kmp` is making by
