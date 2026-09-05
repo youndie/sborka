@@ -1,13 +1,13 @@
 plugins {
     alias(libs.plugins.kotlinJvm)
     `java-gradle-plugin`
-    id("ru.workinprogress.sborka.jvm")
+    id("io.github.youndie.sborka.jvm")
     // LINT HERE TOO, and the module had none. `Kapkan.kt` beside `NoopPlugin.kt` is the stand's proof
     // that the rule set reaches ktlint, and it lives here rather than in `:jvm-lib` because that one
     // carries `sborka.mutation`: a function with no test would have dropped its test strength, and a
     // number that moves for a reason unrelated to what it measures is a number nobody watches.
-    id("ru.workinprogress.sborka.lint")
-    id("ru.workinprogress.sborka.publish")
+    id("io.github.youndie.sborka.lint")
+    id("io.github.youndie.sborka.publish")
 }
 
 // A MODULE THAT IS ITSELF A GRADLE PLUGIN, which is a publishing shape of its own: `java-gradle-plugin`
@@ -41,7 +41,7 @@ publishing {
 // ONE PUBLICATION PER COORDINATE, checked rather than assumed.
 //
 // `pluginMaven` and the marker are what `java-gradle-plugin` produces; anything else publishing
-// `ru.workinprogress.stand:gradle-plugin` is a second writer of the same files.
+// `io.github.youndie.stand:gradle-plugin` is a second writer of the same files.
 // Registered from `afterEvaluate` so the names are read AFTER the conventions have had their turn —
 // and captured as a plain list, because a provider that reads an extension is resolved by the
 // configuration cache in a scope where that extension does not exist.

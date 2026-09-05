@@ -19,10 +19,10 @@ val kapkanVersion: String =
 // from the repository — so a rule set that fails to build fails here rather than in somebody's
 // migration.
 dependencies {
-    ktlintRuleset("ru.workinprogress.sborka:kapkan:$kapkanVersion")
+    ktlintRuleset("io.github.youndie.sborka:kapkan:$kapkanVersion")
 }
 
-group = "ru.workinprogress.sborka"
+group = "io.github.youndie.sborka"
 version = providers.gradleProperty("VERSION").orElse(providers.gradleProperty("sborka.version")).get()
 
 catalog {

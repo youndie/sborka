@@ -62,9 +62,9 @@ jobs:
           # worker. proba therefore reports its whole public API as unreachable, which is proba being
           # right about a question nobody is asking. What IS worth asking of it is below.
           coordinate: |
-            ru.workinprogress.sborka:core:${{ needs.publish.outputs.version }}
-            ru.workinprogress.sborka:conventions:${{ needs.publish.outputs.version }}
-            ru.workinprogress.sborka:settings:${{ needs.publish.outputs.version }}
+            io.github.youndie.sborka:core:${{ needs.publish.outputs.version }}
+            io.github.youndie.sborka:conventions:${{ needs.publish.outputs.version }}
+            io.github.youndie.sborka:settings:${{ needs.publish.outputs.version }}
           repository: https://reposilite.kotlin.website/snapshots
 
   # THE CATALOG, RESOLVED FROM THE SERVER BY THE PLUGIN THAT NAMES IT.
@@ -107,7 +107,7 @@ jobs:
         run: |
           set -euo pipefail
           version=${{ needs.publish.outputs.version }}
-          url=https://reposilite.kotlin.website/snapshots/ru/workinprogress/sborka/kapkan/$version/kapkan-$version.jar
+          url=https://reposilite.kotlin.website/snapshots/io/github/youndie/sborka/kapkan/$version/kapkan-$version.jar
           curl --fail --silent --show-error --location "$url" --output kapkan.jar
           service=META-INF/services/com.pinterest.ktlint.cli.ruleset.core.api.RuleSetProviderV3
           unzip -p kapkan.jar "$service" > provider.txt

@@ -26,7 +26,7 @@ subprojects {
     // under it, the ktlint plugin fails on `NoClassDefFoundError: KotlinProjectExtension` — it looks
     // Kotlin up at apply time, and finds it only in a loader that has `kotlin-dsl` beside it.
 
-    group = "ru.workinprogress.sborka"
+    group = "io.github.youndie.sborka"
 
     // AND BY THE RULES SBORKA SHIPS, not only by its formatter.
     //

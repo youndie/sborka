@@ -8,7 +8,7 @@
 ## 0. Убедиться, что sborka опубликована
 
 ```bash
-curl -s https://reposilite.kotlin.website/snapshots/ru/workinprogress/sborka/conventions/maven-metadata.xml
+curl -s https://reposilite.kotlin.website/snapshots/io/github/youndie/sborka/conventions/maven-metadata.xml
 ```
 
 Версию оттуда подставлять ниже.
@@ -24,13 +24,19 @@ pluginManagement {
         // settings-плагина — включая тот, который через него же и достаётся.
         maven("https://reposilite.kotlin.website/snapshots") {
             name = "wip-snapshots"
-            content { includeGroupByRegex("ru\\.workinprogress.*") }
+            content {
+                // Обе группы. Портфель переезжает на `io.github.youndie`, и sborka уже там —
+                // маркер плагина и jar за ним лежат под новой. Старую держат версии библиотек,
+                // выложенные до переезда: они с сервера никуда не делись и резолвятся как прежде.
+                includeGroupByRegex("io\\.github\\.youndie.*")
+                includeGroupByRegex("ru\\.workinprogress.*")
+            }
         }
     }
 }
 
 plugins {
-    id("ru.workinprogress.sborka.settings") version "<версия>"
+    id("io.github.youndie.sborka.settings") version "<версия>"
 }
 ```
 
@@ -47,7 +53,7 @@ plugins {
 
 ```properties
 version=0.4.0
-sborka.group=ru.workinprogress.myrepo
+sborka.group=io.github.youndie.myrepo
 sborka.repository=youndie/myrepo
 sborka.description=Одна строка о том, что это за библиотека
 sborka.inceptionYear=2026
@@ -82,9 +88,9 @@ git diff .editorconfig
 ```kotlin
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    id("ru.workinprogress.sborka.kmp")
-    id("ru.workinprogress.sborka.lint")
-    id("ru.workinprogress.sborka.publish")
+    id("io.github.youndie.sborka.kmp")
+    id("io.github.youndie.sborka.lint")
+    id("io.github.youndie.sborka.publish")
 }
 
 kotlin {

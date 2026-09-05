@@ -355,7 +355,7 @@ be fully qualified with the rule set id» и «Ktlint rule with id '…' is unkn
 правило 6 в таком виде включилось бы.
 
 Признак, который разделяет корректно весь портфель, — **применён ли к модулю
-`ru.workinprogress.sborka.publish`**: опубликованный модуль имеет потребителей вне репозитория,
+`io.github.youndie.sborka.publish`**: опубликованный модуль имеет потребителей вне репозитория,
 неопубликованный не имеет. Проверено: shashki не применяет его ни в одном модуле; petich, viddik
 (`viddik-annotations/build.gradle.kts:9` и остальные) — применяют; kompot ещё не мигрирован и
 объявляет `maven-publish` сам, что тот же факт другим именем. Это и есть «факт сборки, а не флаг»,
@@ -402,7 +402,7 @@ be fully qualified with the rule set id» и «Ktlint rule with id '…' is unkn
 ## 10. Что построено (03.09.2026)
 
 v1 собрана как ktlint-ruleset — модуль `build-logic/kapkan`, пятая публикуемая координата
-`ru.workinprogress.sborka:kapkan`, подключается `sborka.lint`-ом на конфигурацию `ktlintRuleset`.
+`io.github.youndie.sborka:kapkan`, подключается `sborka.lint`-ом на конфигурацию `ktlintRuleset`.
 Три правила из §7 плюс сторож подавлений; правила 1 и 5 не написаны, правило 6 — следующим куском.
 
 **Три решения принято по ходу, и все три уточняют §7:**

@@ -51,11 +51,11 @@ val generateVersionConstant =
         inputs.property("ktlint", ktlint)
         outputs.dir(outputDir)
         doLast {
-            val target = outputDir.get().asFile.resolve("ru/workinprogress/sborka/internal/SborkaVersion.kt")
+            val target = outputDir.get().asFile.resolve("io/github/youndie/sborka/internal/SborkaVersion.kt")
             target.parentFile.mkdirs()
             target.writeText(
                 """
-                package ru.workinprogress.sborka.internal
+                package io.github.youndie.sborka.internal
 
                 /** Generated: the numbers this release of sborka was built with. */
                 public object SborkaVersion {

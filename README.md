@@ -8,14 +8,14 @@ catalog — one line each in `gradle.properties` instead of dozens of lines of K
 
 ```kotlin
 // settings.gradle.kts
-plugins { id("ru.workinprogress.sborka.settings") version "<version>" }
+plugins { id("io.github.youndie.sborka.settings") version "<version>" }
 
 // a module
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    id("ru.workinprogress.sborka.kmp")
-    id("ru.workinprogress.sborka.lint")
-    id("ru.workinprogress.sborka.publish")
+    id("io.github.youndie.sborka.kmp")
+    id("io.github.youndie.sborka.lint")
+    id("io.github.youndie.sborka.publish")
 }
 ```
 
@@ -25,7 +25,7 @@ plugins {
 
 | id | what it does |
 |---|---|
-| `ru.workinprogress.sborka.settings` | repositories with content filters, the `wip` catalog, the `.editorconfig` check, and `kapkanJoins` — the report of what this repository built and never called — applied in `settings.gradle.kts` |
+| `io.github.youndie.sborka.settings` | repositories with content filters, the `wip` catalog, the `.editorconfig` check, and `kapkanJoins` — the report of what this repository built and never called — applied in `settings.gradle.kts` |
 | `…sborka.base` | group, version, toolchain |
 | `…sborka.lint` | ktlint at a pinned version, generated sources excluded, and **kapkan** — three rules that each encode one defect this stack paid a stand run to find |
 | `…sborka.test` | JUnit Platform, a failure readable in the run log, an enforced BOM — the check that **every declared `@Test` was executed**, and, for the native and browser suites the comparison cannot reach, the one that **a suite which ran nothing does not pass** |
@@ -49,13 +49,19 @@ pluginManagement {
         gradlePluginPortal()
         mavenCentral()
         maven("https://reposilite.kotlin.website/snapshots") {
-            content { includeGroupByRegex("ru\\.workinprogress.*") }
+            content {
+                // Обе группы. Портфель переезжает на `io.github.youndie`, и sborka уже там —
+                // маркер плагина и jar за ним лежат под новой. Старую держат версии библиотек,
+                // выложенные до переезда: они с сервера никуда не делись и резолвятся как прежде.
+                includeGroupByRegex("io\\.github\\.youndie.*")
+                includeGroupByRegex("ru\\.workinprogress.*")
+            }
         }
     }
 }
 
 plugins {
-    id("ru.workinprogress.sborka.settings") version "<version>"
+    id("io.github.youndie.sborka.settings") version "<version>"
 }
 ```
 
@@ -63,7 +69,7 @@ plugins {
 
 ```properties
 version=0.4.0
-sborka.group=ru.workinprogress.mylib
+sborka.group=io.github.youndie.mylib
 sborka.repository=youndie/mylib
 sborka.description=One line about what this library is
 sborka.jvmToolchain=25
@@ -81,10 +87,10 @@ exist — [docs/conventions.md](docs/conventions.md). Why it is built this way �
 
 | artefact | what it is |
 |---|---|
-| `ru.workinprogress.sborka:conventions` | the project plugins |
-| `ru.workinprogress.sborka:settings` | the settings plugin |
-| `ru.workinprogress.sborka:core` | what both halves share: the reference `.editorconfig` and the release version |
-| `ru.workinprogress.sborka:catalog` | the versions several repositories have to keep identical |
+| `io.github.youndie.sborka:conventions` | the project plugins |
+| `io.github.youndie.sborka:settings` | the settings plugin |
+| `io.github.youndie.sborka:core` | what both halves share: the reference `.editorconfig` and the release version |
+| `io.github.youndie.sborka:catalog` | the versions several repositories have to keep identical |
 
 Three jars rather than one, and that is not cosmetic. Gradle picks a classloader by classpath: a
 settings plugin and a project plugin shipped in one jar share a loader — the one that has no Kotlin

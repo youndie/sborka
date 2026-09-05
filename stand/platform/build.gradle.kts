@@ -1,6 +1,6 @@
 plugins {
     `java-platform`
-    id("ru.workinprogress.sborka.publish")
+    id("io.github.youndie.sborka.publish")
 }
 
 // A platform registers no publication of its own, exactly like a `kotlin("jvm")` module and for a

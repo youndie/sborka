@@ -12,7 +12,7 @@
 # what a link in the release notes is for.
 #
 # WHAT A LIBRARY HAS TO DO TO BE PUBLISHABLE FROM HERE: set `sborka.central=true` in its
-# `gradle.properties`. That is the whole contract. `ru.workinprogress.sborka.publish` reads it,
+# `gradle.properties`. That is the whole contract. `io.github.youndie.sborka.publish` reads it,
 # applies the plugin that produces the javadoc jar and the detached signatures Central requires, and
 # leaves the coordinates alone.
 #

@@ -21,7 +21,7 @@ val kapkanVersion: String =
 // from the repository — so a rule set that fails to build fails here rather than in somebody's
 // migration.
 dependencies {
-    ktlintRuleset("ru.workinprogress.sborka:kapkan:$kapkanVersion")
+    ktlintRuleset("io.github.youndie.sborka:kapkan:$kapkanVersion")
 }
 
 // The root holds no code. Everything sborka publishes lives in the `build-logic` build and in `:catalog`;
@@ -73,13 +73,13 @@ val verifyBuildLogicPublications =
         outputs.upToDateWhen { false }
 
         doLast {
-            val catalogGroupDir = File(catalogRepoDir.get().asFile, "ru/workinprogress/sborka")
+            val catalogGroupDir = File(catalogRepoDir.get().asFile, "io/github/youndie/sborka")
             val root = pluginRepoDir.get().asFile
-            val groupDir = File(root, "ru/workinprogress/sborka")
+            val groupDir = File(root, "io/github/youndie/sborka")
 
             // A VERSION DIRECTORY STARTS WITH A DIGIT, and the filter is not decoration. `settings` is
             // both a module name and a plugin id, so `.../sborka/settings/` holds the version
-            // directories AND `ru.workinprogress.sborka.settings.gradle.plugin` beside them — which the
+            // directories AND `io.github.youndie.sborka.settings.gradle.plugin` beside them — which the
             // "more than one version" check below duly reported as a second version.
             fun versionsOf(module: String) =
                 File(if (module == "catalog") catalogGroupDir else groupDir, module)
@@ -122,7 +122,7 @@ val verifyBuildLogicPublications =
                     // finds the jar at all: without it the conventions are on the server and
                     // unreachable by the only means anybody uses to ask for them.
                     pluginIds.map { id ->
-                        val marker = "ru.workinprogress.sborka.$id.gradle.plugin"
+                        val marker = "io.github.youndie.sborka.$id.gradle.plugin"
                         File(groupDir, "$id/$marker/$version/$marker-$version.pom")
                     }
 

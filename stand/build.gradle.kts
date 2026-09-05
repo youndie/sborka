@@ -49,7 +49,7 @@ val verifyPublications =
         dependsOn(publishTasks)
 
         val repoDir = layout.buildDirectory.dir("repo")
-        val groupPath = "ru/workinprogress/stand"
+        val groupPath = "io/github/youndie/stand"
 
         // WHAT THE VERSION IS, ACCORDING TO THE PUBLISH RATHER THAN ACCORDING TO THIS TASK.
         //
