@@ -1,0 +1,17 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Lets the build harness merge itself: `github-actions` and `gradle-wrapper`, majors included. Extend it AFTER the base preset — `\"extends\": [\"github>youndie/sborka\", \"github>youndie/sborka:automerge-harness\"]` — because package rules are concatenated in that order and the last match wins, and this one has to win over the base preset's rule that sends every major to a human.",
+    "The argument: a major of actions/checkout is not the same kind of event as a major of a library this repository publishes. The harness ships to nobody, and the check that would catch a bad bump is the build itself, which already ran on the pull request.",
+    "WHICH IS THE PRECONDITION, AND IT IS NOT RHETORICAL. This is only safe in a repository where a pull request actually runs that build. mongkn is the counter-example and says so in its own config: the automatic triggers of its build workflow are commented out, only workflow_dispatch is left, so a green-looking pull request there means nobody ran anything — and automerging it would mean nobody ever will. Before extending this, look at what runs on `pull_request` in the repository doing the extending.",
+    "GitHub's own auto-merge is deliberately not used (`platformAutomerge: false` in the base preset): it refuses to arm on a branch with no required checks, and adding branch protection to `main` would change how these repositories are worked in. Renovate merges the pull request itself instead."
+  ],
+  "packageRules": [
+    {
+      "description": "The build harness merges itself, majors included: CI on pull_request is the review.",
+      "matchManagers": ["github-actions", "gradle-wrapper"],
+      "automerge": true,
+      "automergeType": "pr"
+    }
+  ]
+}

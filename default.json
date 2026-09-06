@@ -1,0 +1,72 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "The portfolio's Renovate configuration, extended by name rather than copied: `\"extends\": [\"github>youndie/sborka\"]`.",
+    "It was not designed here. Ten repositories had written the same file — the same timezone, the same Monday schedule, the same four groups in the same order — and the five that had not written it are where the defects are: konekt took one sborka release as two pull requests (#5 and #7 for 0.2.0.30), because the rule that says a release is one thing lives in the ten files and not in the five.",
+    "What is NOT here is anything a repository has to decide for itself: automerge (see the `automerge-harness` preset next door and the precondition it names), which of its own images or charts to ignore, and every group that exists because of one repository's dependencies.",
+    "Note on merging: `packageRules` from a preset are concatenated with the repository's own, preset first, and the last matching rule wins. Every other array — `ignorePaths`, `labels` — is REPLACED by the repository's value, so a repository adding one ignore path has to repeat the two below."
+  ],
+
+  "extends": ["config:recommended"],
+
+  "timezone": "Etc/UTC",
+  "schedule": ["before 6am on monday"],
+
+  "semanticCommits": "enabled",
+  "labels": ["dependencies"],
+
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 0,
+
+  "platformAutomerge": false,
+
+  "vulnerabilityAlerts": {
+    "schedule": ["at any time"],
+    "labels": ["dependencies", "security"]
+  },
+
+  "ignorePaths": ["**/build/**", "**/.gradle/**"],
+
+  "packageRules": [
+    {
+      "description": "Kotlin: the compiler and its plugins move as one version, and that is never a routine bump.",
+      "matchPackageNames": ["/^org\\.jetbrains\\.kotlin[:.]/"],
+      "groupName": "kotlin"
+    },
+    {
+      "description": "kotlinx ships as one release train — one pull request.",
+      "matchPackageNames": ["/^org\\.jetbrains\\.kotlinx[:.]/"],
+      "groupName": "kotlinx"
+    },
+    {
+      "description": [
+        "kotlinx-datetime publishes a parallel line, 0.8.0-0.6.x-compat: not a newer version but 0.8.0 built against the OLD 0.6.x API. Renovate reads it as an upgrade and offers to move a repository backwards.",
+        "Six repositories had this guard and two did not, and both of those are being offered it right now — konekt as an open pull request, petich on its dashboard. That is the argument for the preset in one line."
+      ],
+      "matchPackageNames": ["org.jetbrains.kotlinx:kotlinx-datetime"],
+      "allowedVersions": "!/-0\\.6\\.x-compat$/"
+    },
+    {
+      "description": [
+        "sborka is one release, not one release per place it is named. The settings plugin is applied in settings.gradle.kts and the conventions come from the catalog's version ref; they share a classloader, so a repository that moves one and not the other runs 0.2.x settings against 0.1.x conventions.",
+        "BOTH group names on purpose. The plugin ids moved to `io.github.youndie.sborka` in youndie/sborka#23 while every consumer still names `ru.workinprogress.sborka`, so a rule naming only the old one keeps working until the day a repository migrates — and then stops matching without saying anything, which is the same split coming back."
+      ],
+      "matchPackageNames": [
+        "/^ru\\.workinprogress\\.sborka/",
+        "/^io\\.github\\.youndie\\.sborka/"
+      ],
+      "groupName": "sborka"
+    },
+    {
+      "description": "The build harness arrives as one pull request, not one per action. Whether it may then merge itself is a separate question, and a separate preset.",
+      "matchManagers": ["github-actions"],
+      "groupName": "ci actions"
+    },
+    {
+      "description": "A major of anything that ships gets a human. `automerge-harness` deliberately overrides this for the harness, which ships to nobody.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "major"]
+    }
+  ]
+}
