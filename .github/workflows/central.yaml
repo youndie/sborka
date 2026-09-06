@@ -39,8 +39,10 @@ on:
         type: string
       runner:
         description: >
-          macOS where the build has Apple targets — a multiplatform module publishes its root and
-          every target from one host, or the root points at variants that do not exist.
+          Linux unless something in the build genuinely needs Apple tooling. Apple targets are not
+          that reason: Kotlin cross-compiles their klibs on Linux, and a publish uploads klibs.
+          What is real is that a multiplatform module publishes its root and every target from ONE
+          host, or the root points at variants nobody built — one host, not a Mac.
         required: true
         default: ubuntu-latest
         type: choice
