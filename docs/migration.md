@@ -145,6 +145,31 @@ curl -s https://reposilite.kotlin.website/snapshots/<group-путь>/<модул
 Заодно приводит `setup-gradle` к одной версии: сейчас в портфеле одновременно живут v4 (22 вызова),
 v5 (18) и v6 (41).
 
+А если репозиторий выкладывает снапшоты так же, как это делали telek, viddik и petich, — не шаги, а
+весь воркфлоу:
+
+```yaml
+jobs:
+  publish:
+    uses: youndie/sborka/.github/workflows/publish-wip.yaml@main
+    with:
+      tasks: build publishAllPublicationsToWipRepository
+      # konan-cache / dokka / test-results / check / runner — по надобности,
+      # coordinates: список `group:artifact` (без версии) для job'ы proba
+    secrets:
+      REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
+      REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}
+```
+
+**Секреты перечислять поимённо, а не `secrets: inherit`.** Вызов передаёт их в воркфлоу, лежащий в
+чужом репозитории; `inherit` передаёт туда все, какие есть в вызывающем, — включая те, к публикации
+отношения не имеющие.
+
+**`permissions` объявлять у вызывающей job'ы.** Вызванная не может получить больше, чем выдано
+вызывающей, поэтому `contents: write` (его просит только выкладка dokka на Pages) стоит там, а не в
+самом `publish-wip.yaml`: объяви его там — и упадёт каждый вызывающий, который выдаёт `contents:
+read`.
+
 ## Чего миграция не трогает
 
 - **Списки таргетов.** См. [conventions.md](conventions.md), `sborka.kmp`.
