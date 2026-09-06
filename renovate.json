@@ -1,6 +1,12 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "sborka is the first consumer of its own preset, which is the only way the preset gets exercised at all: `default.json` is a file nothing reads until a repository names it.",
+    "The harness preset is extended second on purpose — package rules are concatenated in the order the presets are named, and its rule has to come after the base preset's `majors get a human`. Its precondition holds here: check.yaml runs on `pull_request`.",
+    "The Kotlin/Native toolchain and the stand are what those pull requests build, so nothing else is added here yet. What this repository does need beyond the preset will be found by the preset failing to cover it, not by guessing now."
+  ],
   "extends": [
-    "config:recommended"
+    "github>youndie/sborka",
+    "github>youndie/sborka:automerge-harness"
   ]
 }

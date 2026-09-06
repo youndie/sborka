@@ -46,6 +46,18 @@ Plus what a repository's CI asks for by name rather than by copy:
 The first two are steps, which is all a composite action can be. The third is a workflow because the
 thing being shared is a job and a second job waiting on it, and neither fits in a step.
 
+And one more thing a repository extends by name rather than copies — its Renovate configuration:
+
+```json
+{ "extends": ["github>youndie/sborka", "github>youndie/sborka:automerge-harness"] }
+```
+
+`default.json` holds what nineteen repositories had already agreed on by writing it separately: one
+Monday batch, the kotlin / kotlinx / sborka / ci-actions groups, the guard against
+`kotlinx-datetime`'s `-0.6.x-compat` line (which is 0.8.0 built against the OLD API, and Renovate
+reads it as an upgrade), and majors going to a human. `automerge-harness.json` is separate because
+it has a precondition — it is only safe where a pull request actually runs the build.
+
 ## Quick start
 
 **`settings.gradle.kts`** — the snapshot repository is written out by hand, and it has to be:
