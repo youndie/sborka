@@ -35,8 +35,16 @@ plugins {
 | `…sborka.mutation` | `mutationTest` on pitest; deliberately not wired into `check` |
 | `…sborka.native-service` | the binary's name, staging under `build/native`, `writeNativeDockerfile` |
 
-Plus a composite action, `.github/actions/setup-kotlin`: Java, Gradle and the Kotlin/Native cache in
-one step and at one version.
+Plus what a repository's CI asks for by name rather than by copy:
+
+| what | where |
+|---|---|
+| `.github/actions/setup-kotlin` | Java, Gradle and the Kotlin/Native cache in one step and at one version |
+| `.github/actions/determine-version` | the head of the version from `gradle.properties`, run number on the tail |
+| `.github/workflows/publish-wip.yaml` | the whole snapshot publish, called with `uses:` — checkout, setup, version, the publish, and the proba job that asks the server what a consumer would resolve |
+
+The first two are steps, which is all a composite action can be. The third is a workflow because the
+thing being shared is a job and a second job waiting on it, and neither fits in a step.
 
 ## Quick start
 

@@ -1,0 +1,232 @@
+# PUBLISHING A LIBRARY'S SNAPSHOTS TO THE WIP REPOSITORY, in one place.
+#
+# The shape below was not designed, it was counted. petich, telek and viddik ran the same four
+# steps in the same order with the same three environment variables; with the comments stripped,
+# telek and viddik differ by a name, one `with:`, and whether test results are uploaded. That is a
+# file that exists in three copies, and a fix to it that reaches one of them.
+#
+# WHY A REUSABLE WORKFLOW AND NOT ONE MORE COMPOSITE ACTION. Everything next door in
+# `.github/actions` is a step, because a step is all a composite action can be: it cannot name a
+# runner, cannot declare a second job, cannot make one wait for another. The proba job at the
+# bottom is exactly those three things, which is why it was copied instead of shared. This can say
+# them, so it does.
+#
+# WHAT A CALLER HANDS OVER, said plainly: the secrets it names in `secrets:`, to a workflow living
+# in a repository it does not own. `secrets: inherit` would hand over all of them — the callers
+# name the two on purpose, and that is worth keeping when the next repository is migrated.
+#
+# PERMISSIONS ARE DELIBERATELY NOT DECLARED HERE. A called workflow's job cannot ask for more than
+# the caller's token was granted, so a `contents: write` in this file would fail every caller that
+# grants `contents: read` — including the ones that publish nothing to Pages. The grant belongs in
+# the caller, next to the reason for it, and the only step that needs it is the dokka deploy.
+name: publish-wip
+
+on:
+  workflow_call:
+    inputs:
+      tasks:
+        description: >
+          The Gradle command line that publishes, without `./gradlew` and without `--no-daemon` —
+          for example `build publishAllPublicationsToWipRepository`. Whether a `build` in front of
+          the publish is enough of a gate, or the check wants its own step, is `check` below.
+        required: true
+        type: string
+      check:
+        description: >
+          Tasks to run BEFORE the publish, in a step of their own. Empty by default because most
+          callers put `build` in front of the publish in one invocation. Use this when the two must
+          not share an invocation: a publish is the one step that cannot be taken back, and a
+          consumer that has resolved a version keeps it.
+        required: false
+        default: ""
+        type: string
+      runner:
+        description: >
+          Linux unless the build genuinely needs Apple tooling. A multiplatform module publishes
+          its root and every target from ONE host, or the root points at variants nobody built.
+        required: false
+        default: ubuntu-latest
+        type: string
+      konan-cache:
+        description: Cache ~/.konan. Worth it only for a build with Kotlin/Native targets.
+        required: false
+        default: false
+        type: boolean
+      version-key:
+        description: >
+          The gradle.properties key holding the head of the version. `version` for a repository
+          whose head lives under the plain name; a repository with an included build that reads its
+          own directory names its own key instead.
+        required: false
+        default: version
+        type: string
+      version:
+        description: >
+          The whole version, when the caller already knows it. Empty means the head from
+          gradle.properties with the run number on the tail, which is what a snapshot wants: two
+          publishes in a row must not produce the same coordinate, or a consumer cannot tell them
+          apart and keeps the cached older one.
+        required: false
+        default: ""
+        type: string
+      test-results:
+        description: Upload the JUnit XML, so a red run says which test was red.
+        required: false
+        default: false
+        type: boolean
+      dokka:
+        description: >
+          Deploy `build/dokka/html` to GitHub Pages. The caller has to grant `contents: write` to
+          the job that calls this, and `dokkaGenerate` has to be among the tasks — this only moves
+          what the build produced.
+        required: false
+        default: false
+        type: boolean
+      coordinates:
+        description: >
+          What a consumer should be able to resolve afterwards, `group:artifact` per line and
+          WITHOUT the version — the version is not known to the caller before this workflow runs,
+          so it is appended here. Empty skips the job.
+        required: false
+        default: ""
+        type: string
+      repository:
+        description: The repository proba resolves those coordinates from.
+        required: false
+        default: https://reposilite.kotlin.website/snapshots
+        type: string
+
+    secrets:
+      REPOSILITE_USER:
+        required: true
+      REPOSILITE_SECRET:
+        required: true
+
+    outputs:
+      version:
+        description: The version that was published, for a caller that has more to do with it.
+        value: ${{ jobs.publish.outputs.version }}
+
+jobs:
+  publish:
+    runs-on: ${{ inputs.runner }}
+    # A guard, not a budget: a native build on a cold runner takes tens of minutes, and a hung one
+    # takes six hours of somebody's quota.
+    timeout-minutes: 90
+    outputs:
+      version: ${{ steps.resolved.outputs.version }}
+    steps:
+      # The caller's repository at the caller's ref: inside a called workflow the `github` context
+      # is the caller's, so this checks out the library, not sborka.
+      - uses: actions/checkout@v7
+
+      - uses: youndie/sborka/.github/actions/setup-kotlin@main
+        with:
+          konan-cache: ${{ inputs.konan-cache }}
+
+      - id: ver
+        if: inputs.version == ''
+        uses: youndie/sborka/.github/actions/determine-version@main
+        with:
+          key: ${{ inputs.version-key }}
+
+      - id: resolved
+        env:
+          GIVEN: ${{ inputs.version }}
+          READ: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          version="${GIVEN:-$READ}"
+          # An empty version publishes coordinates ending in a dot and fails much later, in
+          # somebody's dependency block.
+          if [ -z "$version" ]; then
+            echo '::error::no version: neither the version input nor gradle.properties gave one'
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "publishing $version"
+
+      # A secret a repository does not have arrives as an empty string, not as an error. What
+      # Reposilite then answers is 401, and a 401 names neither the secret nor the repository that
+      # was supposed to hold it — so the two are read here, where their names still exist.
+      - name: The credentials arrived
+        env:
+          # Not `USER`: the runner already has one, and an empty secret would then be read as the
+          # account the job runs under — a guard that passes by accident is worse than none.
+          REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
+          REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}
+        run: |
+          set -euo pipefail
+          missing=""
+          [ -n "$REPOSILITE_USER" ] || missing="REPOSILITE_USER"
+          [ -n "$REPOSILITE_SECRET" ] || missing="$missing REPOSILITE_SECRET"
+          if [ -n "$missing" ]; then
+            echo "::error::empty in the calling repository's secrets:$missing"
+            exit 1
+          fi
+
+      - name: Check
+        if: inputs.check != ''
+        env:
+          CHECK: ${{ inputs.check }}
+          ORG_GRADLE_PROJECT_VERSION: ${{ steps.resolved.outputs.version }}
+        run: |
+          # Unquoted on purpose: the input is a task list and has to word-split. It comes from a
+          # caller's workflow file, not from anything a pull request can write.
+          # shellcheck disable=SC2086
+          ./gradlew $CHECK --no-daemon
+
+      - name: Publish
+        env:
+          TASKS: ${{ inputs.tasks }}
+          ORG_GRADLE_PROJECT_REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
+          ORG_GRADLE_PROJECT_REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}
+          ORG_GRADLE_PROJECT_VERSION: ${{ steps.resolved.outputs.version }}
+        run: |
+          # A task list, word-split on purpose — see the Check step above.
+          # shellcheck disable=SC2086
+          ./gradlew $TASKS --no-daemon
+
+      - name: Upload test results
+        if: inputs.test-results && always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: '**/build/test-results/**/TEST-*.xml'
+          if-no-files-found: warn
+
+      - name: Deploy dokka to GitHub Pages
+        if: inputs.dokka
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/dokka/html
+          full_commit_message: "📚 Deploy Dokka documentation"
+
+  # WHAT A CONSUMER RECEIVES, read from the repository after the upload rather than from a build
+  # directory before it. A file that failed to upload and a coordinate that resolves to the previous
+  # version do not exist until something asks the server, and neither fails a publish.
+  consumer:
+    if: inputs.coordinates != ''
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - id: coordinates
+        env:
+          COORDINATES: ${{ inputs.coordinates }}
+          VERSION: ${{ needs.publish.outputs.version }}
+        # The caller writes `group:artifact` and the version is put on here, because the caller
+        # cannot name a version this workflow has not produced yet.
+        run: |
+          set -euo pipefail
+          {
+            echo "value<<COORDINATES_EOF"
+            printf '%s\n' "$COORDINATES" | awk -v v="$VERSION" 'NF { gsub(/^[ \t]+|[ \t]+$/, ""); print $0 ":" v }'
+            echo "COORDINATES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: What a consumer gets
+        uses: youndie/proba@main
+        with:
+          coordinate: ${{ steps.coordinates.outputs.value }}
+          repository: ${{ inputs.repository }}
