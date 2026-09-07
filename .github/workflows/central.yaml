@@ -96,7 +96,7 @@ jobs:
       # The default token is enough because every repository this publishes is public. A private one
       # would need a PAT here, and would also need somebody to decide whether a private tree belongs
       # on Central at all.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
