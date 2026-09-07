@@ -54,8 +54,8 @@ And one more thing a repository extends by name rather than copies — its Renov
 
 `default.json` holds what nineteen repositories had already agreed on by writing it separately: one
 Monday batch, the kotlin / kotlinx / sborka / ci-actions groups, the guard against
-`kotlinx-datetime`'s `-0.6.x-compat` line (which is 0.8.0 built against the OLD API, and Renovate
-reads it as an upgrade), and majors going to a human. `automerge-harness.json` is separate because
+`kotlinx-datetime`'s `-compat` builds (which are the new version compiled against an OLD API, and
+Renovate reads them as upgrades), and majors going to a human. `automerge-harness.json` is separate because
 it has a precondition — it is only safe where a pull request actually runs the build.
 
 ## Quick start
