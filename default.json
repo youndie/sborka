@@ -40,11 +40,12 @@
     },
     {
       "description": [
-        "kotlinx-datetime publishes a parallel line, 0.8.0-0.6.x-compat: not a newer version but 0.8.0 built against the OLD 0.6.x API. Renovate reads it as an upgrade and offers to move a repository backwards.",
-        "Six repositories had this guard and two did not, and both of those are being offered it right now — konekt as an open pull request, petich on its dashboard. That is the argument for the preset in one line."
+        "kotlinx-datetime publishes `-compat` builds for consumers pinned to an older line: `0.8.0-0.6.x-compat` is not a newer version but 0.8.0 compiled against the OLD 0.6.x API. Such a build sorts as newer, Renovate reads it as an upgrade, and taking it moves a repository backwards.",
+        "ANY `-compat` suffix, not the 0.6.x line by name. This started as `!/-0\\.6\\.x-compat$/` — the line that existed — and five repositories were already refusing the whole shape locally: smtpkn, tracy, katcher, shildik and metrik. They were right, and the narrow pattern would have re-opened the next line the day it was published, silently. The rule is scoped to one package, so there is nothing else for the wider pattern to catch.",
+        "Six repositories had this guard and two did not, and both of those were being offered it while the preset was being written — konekt as an open pull request, petich on its dashboard. That is the argument for the preset in one line."
       ],
       "matchPackageNames": ["org.jetbrains.kotlinx:kotlinx-datetime"],
-      "allowedVersions": "!/-0\\.6\\.x-compat$/"
+      "allowedVersions": "!/-compat$/"
     },
     {
       "description": [
