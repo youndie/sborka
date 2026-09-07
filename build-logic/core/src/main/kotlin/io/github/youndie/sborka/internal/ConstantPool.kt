@@ -34,24 +34,37 @@ internal object ConstantPool {
     const val PACKAGE = 20
 
     /**
+     * A reference's two halves, NAMED RATHER THAN A `Pair`, and that is not a style preference.
+     *
+     * `internal` in Kotlin is public on the JVM: this class emits a public constructor, getter,
+     * `component4` and `copy`. With a `Pair` in that signature the jar hands a consumer a type it
+     * cannot name — `core` is built with `embedded-kotlin` and does not ship the standard library —
+     * and proba said so on the first publish after the class was written. Everything compiled, the
+     * tests passed, `check` was green, and only a consumer build could see it.
+     */
+    data class MethodRef(
+        val classIndex: Int,
+        val nameAndTypeIndex: Int,
+    )
+
+    /**
      * As much of the pool as any of the readers asks for.
      *
      * `methodRefs` is keyed BY THE REFERENCE'S OWN POOL INDEX, because that is what an instruction
      * carries: `invokestatic` names a pool entry, and the walker has nothing else to look it up by.
-     * The value is `(class index, name-and-type index)`, which names the owner and the member
-     * without resolving anything.
+     * The value names the owner and the member without resolving anything.
      */
     data class Pool(
         val utf8: Map<Int, String>,
         val classNameIndex: Map<Int, Int>,
         val nameOfNameAndType: Map<Int, Int>,
-        val methodRefs: Map<Int, Pair<Int, Int>>,
+        val methodRefs: Map<Int, MethodRef>,
     ) {
         /** `owner.member` for a reference at this pool index, or `null` if it names something else. */
         fun member(index: Int): String? {
-            val (classIndex, nameAndTypeIndex) = methodRefs[index] ?: return null
-            val owner = classNameIndex[classIndex]?.let { utf8[it] } ?: return null
-            val name = nameOfNameAndType[nameAndTypeIndex]?.let { utf8[it] } ?: return null
+            val reference = methodRefs[index] ?: return null
+            val owner = classNameIndex[reference.classIndex]?.let { utf8[it] } ?: return null
+            val name = nameOfNameAndType[reference.nameAndTypeIndex]?.let { utf8[it] } ?: return null
             return "${owner.replace('/', '.')}.$name"
         }
     }
@@ -67,7 +80,7 @@ internal object ConstantPool {
         val utf8 = HashMap<Int, String>()
         val classNameIndex = HashMap<Int, Int>()
         val nameOfNameAndType = HashMap<Int, Int>()
-        val methodRefs = HashMap<Int, Pair<Int, Int>>()
+        val methodRefs = HashMap<Int, MethodRef>()
 
         var index = 1
         while (index < poolCount) {
@@ -85,7 +98,7 @@ internal object ConstantPool {
                 }
 
                 METHOD_REF, INTERFACE_METHOD_REF -> {
-                    methodRefs[index] = input.readUnsignedShort() to input.readUnsignedShort()
+                    methodRefs[index] = MethodRef(input.readUnsignedShort(), input.readUnsignedShort())
                 }
 
                 NAME_AND_TYPE -> {
