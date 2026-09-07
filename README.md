@@ -25,7 +25,7 @@ plugins {
 
 | id | what it does |
 |---|---|
-| `io.github.youndie.sborka.settings` | repositories with content filters, the `wip` catalog, the `.editorconfig` check, and `kapkanJoins` — the report of what this repository built and never called — applied in `settings.gradle.kts` |
+| `io.github.youndie.sborka.settings` | repositories with content filters, the `wip` catalog, the `.editorconfig` check, and two reports read by a person rather than a build — `kapkanJoins`, what this repository built and never called, and `kapkanMethodSizes`, the bodies C2 is being asked to inline — applied in `settings.gradle.kts` |
 | `…sborka.base` | group, version, toolchain |
 | `…sborka.lint` | ktlint at a pinned version, generated sources excluded, and **kapkan** — three rules that each encode one defect this stack paid a stand run to find |
 | `…sborka.test` | JUnit Platform, a failure readable in the run log, an enforced BOM — the check that **every declared `@Test` was executed**, and, for the native and browser suites the comparison cannot reach, the one that **a suite which ran nothing does not pass** |
