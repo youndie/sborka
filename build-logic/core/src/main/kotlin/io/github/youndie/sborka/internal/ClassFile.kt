@@ -77,7 +77,7 @@ internal object ClassFile {
                         .map(::binaryToDotted)
                         .toSet(),
                 calls =
-                    pool.methodRefs
+                    pool.methodRefs.values
                         .mapNotNull { (classIndex, nameAndTypeIndex) ->
                             val owner = classNameIndex[classIndex]?.let { utf8[it] } ?: return@mapNotNull null
                             val memberIndex = pool.nameOfNameAndType[nameAndTypeIndex] ?: return@mapNotNull null

@@ -45,3 +45,25 @@ internal class MethodSizesFixture {
 internal interface MethodSizesFixturePort {
     fun bodyless(value: Int): Int
 }
+
+/**
+ * The two call shapes the report asks about, each in the place that makes it a finding or not.
+ *
+ * `perCall` builds the pattern on every invocation; `SHARED` is built once in `<clinit>` and is the
+ * control — the finding is a constant rebuilt per call, not the existence of a `Regex`.
+ */
+internal class MethodSizesCallsFixture {
+    fun perCall(input: String): Boolean = Regex("[a-z]+-\\d+").matches(input)
+
+    fun viaShared(input: String): Boolean = SHARED.matches(input)
+
+    /** Two parameters the compiler will null-check, which is what `Intrinsics.check*` counts. */
+    fun checked(
+        first: String,
+        second: String,
+    ): Int = first.length + second.length
+
+    private companion object {
+        val SHARED = Regex("[a-z]+-\\d+")
+    }
+}
