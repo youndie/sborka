@@ -34,12 +34,17 @@ jobs:
       # repository off the disk. So the same question is asked here, on the pull request, against the
       # artefacts this run just built.
       #
-      # `core` ONLY, AND THE OMISSIONS ARE DELIBERATE. `conventions` and `settings` come back
-      # UNDETERMINED wherever proba runs them: their consumer build cannot resolve
-      # `org.jlleitschuh.gradle:ktlint-gradle`, which lives on the plugin portal. `kapkan` is a rule
-      # set loaded by ktlint through `META-INF/services` with its ktlint dependencies `compileOnly`,
-      # so proba reports its whole API as unreachable — correctly, about a question nobody is asking.
-      # `core` is the plain library of the four, and it is the one that broke.
+      # THREE OF THE FOUR. `conventions` and `settings` were left out when this step was added,
+      # because proba could not judge them: their consumer build could not resolve
+      # `org.jlleitschuh.gradle:ktlint-gradle`, which is on the plugin portal and not on Central at
+      # all. That was proba's harness rather than these artefacts, and it is fixed — youndie/proba#22
+      # gives the modelled consumer the portal, which is what a consumer applying a Gradle plugin
+      # really has. So the two plugins are judged here now, and this run is what says so.
+      #
+      # `kapkan` stays out, and for a reason that will not go away: it is a rule set loaded by
+      # ktlint through `META-INF/services`, with its ktlint dependencies `compileOnly` so that it
+      # does not carry a second copy of the API onto that worker. proba reports its whole public API
+      # as unreachable — correctly, about a question nobody is asking of it.
       - name: The version this build published locally
         id: published
         run: |
@@ -52,7 +57,10 @@ jobs:
       - name: What a consumer can name
         uses: youndie/proba@main
         with:
-          coordinate: io.github.youndie.sborka:core:${{ steps.published.outputs.version }}
+          coordinate: |
+            io.github.youndie.sborka:core:${{ steps.published.outputs.version }}
+            io.github.youndie.sborka:conventions:${{ steps.published.outputs.version }}
+            io.github.youndie.sborka:settings:${{ steps.published.outputs.version }}
           repository: file://${{ github.workspace }}/build/local-repo-plugins
 
       # THE REPORT TASKS, RUN ONCE SO THAT THEY ARE RUN AT ALL.
