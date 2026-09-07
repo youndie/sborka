@@ -10,6 +10,8 @@ import java.io.File
  * `this_class`, which sits immediately after the pool. Nothing beyond that is parsed — no fields, no
  * methods, no attributes — which is why this is sixty lines rather than a library.
  *
+ * THE POOL WALK ITSELF IS IN `ConstantPool`, shared with `MethodSizes`.
+ *
  * THE CONSTANT POOL IS THE WHOLE REFERENCE GRAPH. Every type a class touches has a `CONSTANT_Class`
  * entry, and the owner of every method or field it calls is one of them. So "does anything mention
  * this class" is answered by a set union, without loading a single class or resolving anything.
@@ -20,24 +22,6 @@ import java.io.File
  */
 internal object ClassFile {
     private const val MAGIC = -0x35014542 // 0xCAFEBABE as a signed Int
-
-    private const val UTF8 = 1
-    private const val INTEGER = 3
-    private const val FLOAT = 4
-    private const val LONG = 5
-    private const val DOUBLE = 6
-    private const val CLASS = 7
-    private const val STRING = 8
-    private const val FIELD_REF = 9
-    private const val METHOD_REF = 10
-    private const val INTERFACE_METHOD_REF = 11
-    private const val NAME_AND_TYPE = 12
-    private const val METHOD_HANDLE = 15
-    private const val METHOD_TYPE = 16
-    private const val DYNAMIC = 17
-    private const val INVOKE_DYNAMIC = 18
-    private const val MODULE = 19
-    private const val PACKAGE = 20
 
     /**
      * The class this file declares, every class name it names, and every method it calls.
@@ -66,58 +50,9 @@ internal object ClassFile {
             input.readUnsignedShort() // minor
             input.readUnsignedShort() // major
 
-            val poolCount = input.readUnsignedShort()
-            val utf8 = HashMap<Int, String>()
-            val classNameIndex = HashMap<Int, Int>()
-            val nameOfNameAndType = HashMap<Int, Int>()
-            val methodRefs = ArrayList<Pair<Int, Int>>()
-
-            var index = 1
-            while (index < poolCount) {
-                when (val tag = input.readUnsignedByte()) {
-                    UTF8 -> {
-                        utf8[index] = input.readUTF()
-                    }
-
-                    CLASS -> {
-                        classNameIndex[index] = input.readUnsignedShort()
-                    }
-
-                    STRING, METHOD_TYPE, MODULE, PACKAGE -> {
-                        input.skipBytes(2)
-                    }
-
-                    METHOD_REF, INTERFACE_METHOD_REF -> {
-                        methodRefs += input.readUnsignedShort() to input.readUnsignedShort()
-                    }
-
-                    NAME_AND_TYPE -> {
-                        nameOfNameAndType[index] = input.readUnsignedShort()
-                        input.skipBytes(2) // the descriptor, which this does not need
-                    }
-
-                    INTEGER, FLOAT, FIELD_REF, DYNAMIC, INVOKE_DYNAMIC -> {
-                        input.skipBytes(4)
-                    }
-
-                    METHOD_HANDLE -> {
-                        input.skipBytes(3)
-                    }
-
-                    // A long or a double TAKES TWO POOL SLOTS. The spec calls this a historical
-                    // mistake; a reader that forgets it walks off the end of the pool and reads
-                    // rubbish as tags, which fails as a parse error somewhere far from here.
-                    LONG, DOUBLE -> {
-                        input.skipBytes(8)
-                        index++
-                    }
-
-                    else -> {
-                        return null
-                    } // a tag from a class file version this does not know
-                }
-                index++
-            }
+            val pool = ConstantPool.read(input) ?: return null
+            val utf8 = pool.utf8
+            val classNameIndex = pool.classNameIndex
 
             input.readUnsignedShort() // access_flags
             val thisClass = input.readUnsignedShort()
@@ -142,10 +77,11 @@ internal object ClassFile {
                         .map(::binaryToDotted)
                         .toSet(),
                 calls =
-                    methodRefs
+                    pool.methodRefs
                         .mapNotNull { (classIndex, nameAndTypeIndex) ->
                             val owner = classNameIndex[classIndex]?.let { utf8[it] } ?: return@mapNotNull null
-                            val member = nameOfNameAndType[nameAndTypeIndex]?.let { utf8[it] } ?: return@mapNotNull null
+                            val memberIndex = pool.nameOfNameAndType[nameAndTypeIndex] ?: return@mapNotNull null
+                            val member = utf8[memberIndex] ?: return@mapNotNull null
                             "${binaryToDotted(owner)}.${sourceName(member)}"
                         }.toSet(),
             )

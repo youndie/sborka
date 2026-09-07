@@ -2,6 +2,7 @@ package io.github.youndie.sborka
 
 import io.github.youndie.sborka.internal.EditorconfigReference
 import io.github.youndie.sborka.internal.Joins
+import io.github.youndie.sborka.internal.MethodSizes
 import io.github.youndie.sborka.internal.SborkaVersion
 
 // The settings-level half of sborka: where dependencies are looked for, which shared versions are in
@@ -238,6 +239,7 @@ gradle.rootProject {
     val classDirs = files(allprojects.map { it.layout.buildDirectory.dir("classes") })
     val sourceDirs = files(allprojects.map { it.layout.projectDirectory.dir("src") })
     val reportFile = layout.buildDirectory.file("reports/kapkan/joins.txt")
+    val methodSizesReport = layout.buildDirectory.file("reports/kapkan/method-sizes.txt")
     val root = layout.projectDirectory.asFile
 
     val kapkanJoins =
@@ -298,6 +300,66 @@ gradle.rootProject {
             }
         }
 
+    // `kapkanMethodSizes` — WHAT THE JIT IS BEING ASKED TO INLINE.
+    //
+    // The same shape as `kapkanJoins` above and for the same reasons: one task per repository, in the
+    // settings plugin so that it needs nobody to remember it, over compiled output because the source
+    // cannot answer the question. A `suspend` function becomes a state machine and an `inline`
+    // function is copied into its caller, so how long a body reads says little about how many bytes
+    // C2 measures.
+    //
+    // NOT IN `check`, AND HERE THE REASON IS THAT NOTHING HAS BEEN SHOWN YET. Crossing FreqInlineSize
+    // is not a defect: the flag limits the inlining of a CALLEE, and the largest bodies in a Kotlin
+    // service are `invokeSuspend` — a compilation root, which nothing inlines anyway. Before this
+    // could fail a build, the stand has to run under load with `-XX:+UnlockDiagnosticVMOptions
+    // -XX:+PrintInlining` and the findings be matched against "too big" / "hot method too big" in
+    // that log. Until somebody does that, this prints a list and the list is read.
+    val kapkanMethodSizes =
+        tasks.register("kapkanMethodSizes") {
+            group = "verification"
+            description = "Lists method bodies larger than the thresholds C2 inlines by"
+            outputs.upToDateWhen { false }
+
+            doLast {
+                val report = MethodSizes.scan(classDirs.files)
+
+                // THE SAME GUARD AS THE JOINS REPORT, and it earns its place for the same reason: a
+                // report over no class files is not an empty report, it is a report that read nothing.
+                check(report.classesRead > 0) {
+                    "kapkanMethodSizes read no class files under ${classDirs.files.size} build " +
+                        "directories. It reads compiled output, so something has to have compiled: " +
+                        "run it after `./gradlew classes` or `./gradlew build`."
+                }
+
+                val lines =
+                    report.findings.map { method ->
+                        val crossed =
+                            method.crossed.joinToString(", ") { "${it.flag} (${it.bytes})" }
+                        "${method.className}.${method.name}${method.descriptor}: " +
+                            "${method.bytes} bytes — over $crossed"
+                    }
+
+                val summary =
+                    "kapkanMethodSizes: ${report.classesRead} class file(s), " +
+                        "${report.methodsRead} method(s) with a body, " +
+                        "${report.findings.size} over ${MethodSizes.REPORT_FROM.flag} " +
+                        "(${MethodSizes.REPORT_FROM.bytes} bytes), of which " +
+                        "${report.findings.count { it.bytes > MethodSizes.HUGE_METHOD_LIMIT.bytes }} " +
+                        "over ${MethodSizes.HUGE_METHOD_LIMIT.flag} — a method that long is not " +
+                        "compiled at all"
+
+                val target = methodSizesReport.get().asFile
+                target.parentFile.mkdirs()
+                target.writeText((lines + summary).joinToString("\n", postfix = "\n"))
+
+                lines.forEach { logger.lifecycle(it) }
+                logger.lifecycle(summary)
+                logger.lifecycle(
+                    "kapkanMethodSizes: written to ${target.relativeTo(root).invariantSeparatorsPath}",
+                )
+            }
+        }
+
     // AFTER THE COMPILATIONS THAT PRODUCE CLASS FILES, and after those only. KGP registers a
     // `<target>MainClasses` task for JVM-like targets and for nothing else — `linuxX64` has none —
     // so this list is exactly the JVM output without naming a single target. `metadata…Classes` is
@@ -309,14 +371,13 @@ gradle.rootProject {
     // the registered names without instantiating anything, and `projectsEvaluated` is when every
     // project has registered its own.
     gradle.projectsEvaluated {
-        kapkanJoins.configure {
-            dependsOn(
-                allprojects.flatMap { project ->
-                    project.tasks.names
-                        .filter { it.endsWith("Classes") && !it.startsWith("metadata") }
-                        .map { "${project.path}:$it" }
-                },
-            )
-        }
+        val classesTasks =
+            allprojects.flatMap { project ->
+                project.tasks.names
+                    .filter { it.endsWith("Classes") && !it.startsWith("metadata") }
+                    .map { "${project.path}:$it" }
+            }
+        kapkanJoins.configure { dependsOn(classesTasks) }
+        kapkanMethodSizes.configure { dependsOn(classesTasks) }
     }
 }

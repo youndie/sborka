@@ -21,6 +21,16 @@ jobs:
       - name: Check
         run: ./gradlew check --no-daemon
 
+      # THE REPORT TASKS, RUN ONCE SO THAT THEY ARE RUN AT ALL.
+      #
+      # Neither is in `check` by design — both write a list for a person — and a task nobody ever
+      # invokes is a task whose registration nobody has tested. This does not read the lists: it
+      # proves they are registered on a real consumer build, that they wait for the compilations
+      # they read, and that the guard against reading zero class files does not fire on a build
+      # that has some.
+      - name: The reports register and run on a consumer build
+        run: ./gradlew -p stand kapkanJoins kapkanMethodSizes --no-daemon
+
       # THE ONE THING `check` CANNOT COVER, and it needs its own ordering to cover it.
       #
       # `sborka.settings` wires in the published version catalog by coordinate, and a settings plugin
