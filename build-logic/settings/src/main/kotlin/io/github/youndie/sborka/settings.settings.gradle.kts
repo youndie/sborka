@@ -309,7 +309,7 @@ gradle.rootProject {
     // C2 measures.
     //
     // NOT IN `check`, AND THE REASON IS NOT THAT THE NUMBERS MEAN NOTHING — that was measured and it
-    // came back the other way. zavarnik's bench under load at 36 692 rps, with PrintCompilation and
+    // came back the other way. zavarnik's bench under load at 31 418 rps, with PrintCompilation and
     // PrintInlining: three of the ten methods over FreqInlineSize appear in the compiler's log as
     // "hot method too big" — `Pricing::quote` (1827 bytes), an `invokeSuspend` (816) and a
     // serializer's `deserialize` (374). The reason it still only prints is the step after that,

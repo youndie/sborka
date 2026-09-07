@@ -14,8 +14,8 @@ import java.io.File
  * compiles to 1827 bytes.
  *
  * THE THRESHOLD DOES FIRE IN THE HOT PATH — measured, and it corrected what stood here before.
- * zavarnik's bench service under load (36 692 rps on /business, JDK 25.0.4, `-XX:+PrintCompilation
- * -XX:+PrintInlining`): of 858 "too big" refusals in the compiler's log, five name `bench` code, and
+ * zavarnik's bench service under load (31 418 rps on /business in the clean window, 36 692 in the
+ * second, JDK 25.0.4, `-XX:+PrintCompilation -XX:+PrintInlining`): of 858 "too big" refusals in the compiler's log, five name `bench` code, and
  * every one of them is "hot method too big" —
  *
  *   bench.Pricing::quote                     1827 bytes   refused twice
