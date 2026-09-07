@@ -34,17 +34,27 @@ internal object ConstantPool {
     const val PACKAGE = 20
 
     /**
-     * As much of the pool as either reader asks for.
+     * As much of the pool as any of the readers asks for.
      *
-     * `methodRefs` is `(class index, name-and-type index)` in pool order, which is what a caller
-     * needs to name the owner and the member of a call without resolving anything.
+     * `methodRefs` is keyed BY THE REFERENCE'S OWN POOL INDEX, because that is what an instruction
+     * carries: `invokestatic` names a pool entry, and the walker has nothing else to look it up by.
+     * The value is `(class index, name-and-type index)`, which names the owner and the member
+     * without resolving anything.
      */
     data class Pool(
         val utf8: Map<Int, String>,
         val classNameIndex: Map<Int, Int>,
         val nameOfNameAndType: Map<Int, Int>,
-        val methodRefs: List<Pair<Int, Int>>,
-    )
+        val methodRefs: Map<Int, Pair<Int, Int>>,
+    ) {
+        /** `owner.member` for a reference at this pool index, or `null` if it names something else. */
+        fun member(index: Int): String? {
+            val (classIndex, nameAndTypeIndex) = methodRefs[index] ?: return null
+            val owner = classNameIndex[classIndex]?.let { utf8[it] } ?: return null
+            val name = nameOfNameAndType[nameAndTypeIndex]?.let { utf8[it] } ?: return null
+            return "${owner.replace('/', '.')}.$name"
+        }
+    }
 
     /**
      * Reads the pool, leaving the stream positioned on `access_flags`.
@@ -57,7 +67,7 @@ internal object ConstantPool {
         val utf8 = HashMap<Int, String>()
         val classNameIndex = HashMap<Int, Int>()
         val nameOfNameAndType = HashMap<Int, Int>()
-        val methodRefs = ArrayList<Pair<Int, Int>>()
+        val methodRefs = HashMap<Int, Pair<Int, Int>>()
 
         var index = 1
         while (index < poolCount) {
@@ -75,7 +85,7 @@ internal object ConstantPool {
                 }
 
                 METHOD_REF, INTERFACE_METHOD_REF -> {
-                    methodRefs += input.readUnsignedShort() to input.readUnsignedShort()
+                    methodRefs[index] = input.readUnsignedShort() to input.readUnsignedShort()
                 }
 
                 NAME_AND_TYPE -> {

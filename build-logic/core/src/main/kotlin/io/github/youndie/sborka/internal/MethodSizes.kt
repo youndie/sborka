@@ -13,14 +13,23 @@ import java.io.File
  * source does not say by how much. On the zavarnik stand `Pricing.quote` reads as a dozen lines and
  * compiles to 1827 bytes.
  *
- * WHAT IT DOES NOT CLAIM. Crossing a threshold is not a defect and this does not say it is. It says
- * a number, next to the flag that number is measured against, and leaves the reading to a person —
- * the same arrangement as `kapkanJoins`, and for a stronger reason: it has NOT been shown that any
- * method in a report like this is one the JIT actually refused. `FreqInlineSize` limits the inlining
- * of a CALLEE, and the biggest bodies here are `invokeSuspend` — a compilation root, which nothing
- * inlines anyway. Turning this into a gate needs `-XX:+UnlockDiagnosticVMOptions -XX:+PrintInlining`
- * under load first, and the findings matched against "too big" / "hot method too big" in that log.
- * Until then a report that fails a build would be a counter with an opinion.
+ * THE THRESHOLD DOES FIRE IN THE HOT PATH — measured, and it corrected what stood here before.
+ * zavarnik's bench service under load (31 418 rps on /business in the clean window, 36 692 in the
+ * second, JDK 25.0.4, `-XX:+PrintCompilation -XX:+PrintInlining`): of 858 "too big" refusals in the compiler's log, five name `bench` code, and
+ * every one of them is "hot method too big" —
+ *
+ *   bench.Pricing::quote                     1827 bytes   refused twice
+ *   bench.MainKt$main$1$2$9::invokeSuspend    816 bytes   refused twice
+ *   bench.Order$$serializer::deserialize      374 bytes   refused once
+ *
+ * So `invokeSuspend` IS offered for inlining rather than only being a compilation root, which is the
+ * argument this comment used to make against itself. Three of the ten methods over the threshold
+ * were refused; seven never came up.
+ *
+ * WHAT THAT STILL DOES NOT MAKE IT. A refusal is not a cost: nothing here measured the service with
+ * those bodies made smaller, so "the JIT declined to inline this" and "this is slow" are two
+ * statements and only the first has evidence. The report therefore names methods and the flags they
+ * cross, and leaves the reading to a person — the same arrangement as `kapkanJoins`.
  */
 object MethodSizes {
     private const val MAGIC = -0x35014542 // 0xCAFEBABE as a signed Int
@@ -61,6 +70,26 @@ object MethodSizes {
         val name: String,
         val descriptor: String,
         val bytes: Int,
+        /**
+         * `Intrinsics.check*` call sites in this body — the null checks Kotlin emits on parameters
+         * and on the results of Java calls. `-Xno-param-assertions` and `-Xno-call-assertions`
+         * between them remove these; the count is what says whether removing them would remove
+         * anything worth the argument.
+         */
+        val assertions: Int = 0,
+        /**
+         * `Regex(…)` or `Pattern.compile(…)` inside this body. A pattern is a constant with a
+         * compiler attached: built in `<clinit>` it is paid for once, built here it is paid for on
+         * every call — which is why `<clinit>` is not counted.
+         */
+        val patternsCompiled: Int = 0,
+        /**
+         * Whether the instruction walk got through this body.
+         *
+         * `false` means the two counts above are not answers, and the report says so by name rather
+         * than printing their zeroes.
+         */
+        val walked: Boolean = true,
     ) {
         /** Every threshold this body is over, largest first. */
         val crossed: List<Threshold> get() = ALL.filter { bytes > it.bytes }
@@ -72,6 +101,18 @@ object MethodSizes {
         val classesRead: Int,
         val methodsRead: Int,
         val findings: List<Method>,
+        /** Methods that null-check, most first — where `-Xno-param-assertions` would be felt. */
+        val assertions: List<Method> = emptyList(),
+        /** Methods that build a pattern on every call, most first. */
+        val patternsCompiled: List<Method> = emptyList(),
+        /**
+         * Bodies the instruction walk refused, by name.
+         *
+         * A method whose walk did not land exactly on the end of its code array is not counted as
+         * "no calls found": the two questions above would then be answered with a silent zero,
+         * which is the shape of wrong this package exists to avoid. It is named instead.
+         */
+        val unwalked: List<String> = emptyList(),
     )
 
     /**
@@ -86,6 +127,10 @@ object MethodSizes {
         var methodsRead = 0
         val findings = ArrayList<Method>()
 
+        val assertions = ArrayList<Method>()
+        val patterns = ArrayList<Method>()
+        val unwalked = ArrayList<String>()
+
         classDirs.filter { it.isDirectory }.forEach { root ->
             root
                 .walkTopDown()
@@ -95,6 +140,9 @@ object MethodSizes {
                     classesRead++
                     methodsRead += methods.size
                     findings += methods.filter { it.bytes > REPORT_FROM.bytes }
+                    assertions += methods.filter { it.assertions > 0 }
+                    patterns += methods.filter { it.patternsCompiled > 0 }
+                    unwalked += methods.filter { it.bytes > 0 && it.walked.not() }.map { it.toString() }
                 }
         }
 
@@ -102,6 +150,9 @@ object MethodSizes {
             classesRead = classesRead,
             methodsRead = methodsRead,
             findings = findings.sortedByDescending { it.bytes },
+            assertions = assertions.sortedByDescending { it.assertions },
+            patternsCompiled = patterns.sortedByDescending { it.patternsCompiled },
+            unwalked = unwalked,
         )
     }
 
@@ -139,8 +190,27 @@ object MethodSizes {
                 input.readUnsignedShort() // access_flags
                 val name = utf8[input.readUnsignedShort()] ?: return null
                 val descriptor = utf8[input.readUnsignedShort()] ?: return null
-                val bytes = codeLength(input, utf8)
-                if (bytes != null) methods += Method(className, name, descriptor, bytes)
+                val code = body(input, utf8)
+                if (code != null) {
+                    val calls = Bytecode.calls(code)
+                    methods +=
+                        Method(
+                            className = className,
+                            name = name,
+                            descriptor = descriptor,
+                            bytes = code.size,
+                            assertions = calls.orEmpty().count { pool.member(it.poolIndex).isAssertion() },
+                            // `<clinit>` is where a pattern SHOULD be built, so it is not counted:
+                            // the finding is a constant rebuilt per call, not the existence of a Regex.
+                            patternsCompiled =
+                                if (name == "<clinit>") {
+                                    0
+                                } else {
+                                    calls.orEmpty().count { pool.member(it.poolIndex).isPatternBuild() }
+                                },
+                            walked = calls != null,
+                        )
+                }
             }
             methods
         }
@@ -155,28 +225,46 @@ object MethodSizes {
     }
 
     /**
-     * The `code_length` of this member's `Code` attribute, or `null` when it has none.
+     * The bytes of this member's `Code` attribute, or `null` when it has none.
      *
      * `Code` starts with `max_stack` and `max_locals` — four bytes — and then the length. What
-     * follows is the body and everything hung off it (line numbers, the exception table, the stack
-     * map), none of which is read: the attribute's own length says where the next attribute begins.
+     * follows the body (line numbers, the exception table, the stack map) is skipped by the
+     * attribute's own length, which is what says where the next attribute begins.
+     *
+     * THE BODY IS READ RATHER THAN SKIPPED because the size is only one of the three questions:
+     * the other two are about which calls the body makes, and those need the instructions.
      */
-    private fun codeLength(
+    private fun body(
         input: DataInputStream,
         utf8: Map<Int, String>,
-    ): Int? {
-        var found: Int? = null
+    ): ByteArray? {
+        var found: ByteArray? = null
         repeat(input.readUnsignedShort()) {
             val name = utf8[input.readUnsignedShort()]
             val length = input.readInt()
             if (name == "Code" && found == null) {
                 input.skipBytes(4) // max_stack, max_locals
-                found = input.readInt()
-                input.skipBytes(length - 8)
+                val codeLength = input.readInt()
+                val code = ByteArray(codeLength)
+                input.readFully(code)
+                input.skipBytes(length - 8 - codeLength)
+                found = code
             } else {
                 input.skipBytes(length)
             }
         }
         return found
     }
+
+    /** The null checks Kotlin emits; the two `-Xno-*-assertions` flags remove them. */
+    private fun String?.isAssertion(): Boolean = this != null && startsWith("kotlin.jvm.internal.Intrinsics.check")
+
+    /**
+     * Building a pattern: Kotlin's `Regex(…)` and Java's `Pattern.compile(…)`.
+     *
+     * `Regex` is `new` plus `invokespecial <init>`, so the constructor is what names it — there is no
+     * factory to look for.
+     */
+    private fun String?.isPatternBuild(): Boolean =
+        this == "kotlin.text.Regex.<init>" || this == "java.util.regex.Pattern.compile"
 }

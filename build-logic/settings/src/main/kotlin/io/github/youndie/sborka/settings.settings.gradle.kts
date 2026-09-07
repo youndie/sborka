@@ -308,12 +308,13 @@ gradle.rootProject {
     // function is copied into its caller, so how long a body reads says little about how many bytes
     // C2 measures.
     //
-    // NOT IN `check`, AND HERE THE REASON IS THAT NOTHING HAS BEEN SHOWN YET. Crossing FreqInlineSize
-    // is not a defect: the flag limits the inlining of a CALLEE, and the largest bodies in a Kotlin
-    // service are `invokeSuspend` — a compilation root, which nothing inlines anyway. Before this
-    // could fail a build, the stand has to run under load with `-XX:+UnlockDiagnosticVMOptions
-    // -XX:+PrintInlining` and the findings be matched against "too big" / "hot method too big" in
-    // that log. Until somebody does that, this prints a list and the list is read.
+    // NOT IN `check`, AND THE REASON IS NOT THAT THE NUMBERS MEAN NOTHING — that was measured and it
+    // came back the other way. zavarnik's bench under load at 31 418 rps, with PrintCompilation and
+    // PrintInlining: three of the ten methods over FreqInlineSize appear in the compiler's log as
+    // "hot method too big" — `Pricing::quote` (1827 bytes), an `invokeSuspend` (816) and a
+    // serializer's `deserialize` (374). The reason it still only prints is the step after that,
+    // which nobody has taken: a refusal to inline is not a measured cost, and a build that failed on
+    // one would be enforcing a proxy.
     val kapkanMethodSizes =
         tasks.register("kapkanMethodSizes") {
             group = "verification"
@@ -331,13 +332,63 @@ gradle.rootProject {
                         "run it after `./gradlew classes` or `./gradlew build`."
                 }
 
-                val lines =
+                val sizeLines =
                     report.findings.map { method ->
                         val crossed =
                             method.crossed.joinToString(", ") { "${it.flag} (${it.bytes})" }
                         "${method.className}.${method.name}${method.descriptor}: " +
                             "${method.bytes} bytes — over $crossed"
                     }
+
+                // A PATTERN BUILT ON EVERY CALL, which is the same class-file walk answering a
+                // different question. `Regex(…)` is a constant with a compiler attached: in
+                // `<clinit>` it is paid for once, in a method body it is paid for per invocation —
+                // on the zavarnik stand this was the largest user-code source of allocation, 6.5% of
+                // bytes. `<clinit>` is not counted, so what is listed is the rebuilt ones.
+                val patternLines =
+                    report.patternsCompiled.map { method ->
+                        "${method.className}.${method.name}${method.descriptor}: " +
+                            "${method.patternsCompiled} pattern(s) built per call — " +
+                            "a Regex in <clinit> is built once"
+                    }
+
+                // THE NULL CHECKS, as a count rather than a list. Kotlin emits `Intrinsics.check…`
+                // on parameters and on the results of Java calls; `-Xno-param-assertions` and
+                // `-Xno-call-assertions` remove them. Naming every method that has one would name
+                // most of the build, so the report says how many there are and which bodies carry
+                // the most — enough to decide whether the flags would remove anything worth arguing
+                // about, and not a list anybody would read.
+                val assertionSites = report.assertions.sumOf { it.assertions }
+                val assertionLines =
+                    if (report.assertions.isEmpty()) {
+                        emptyList()
+                    } else {
+                        listOf(
+                            "assertions: $assertionSites Intrinsics.check* call site(s) in " +
+                                "${report.assertions.size} method(s) — what -Xno-param-assertions " +
+                                "and -Xno-call-assertions would remove",
+                        ) +
+                            report.assertions.take(10).map { method ->
+                                "  ${method.className}.${method.name}${method.descriptor}: " +
+                                    "${method.assertions}"
+                            }
+                    }
+
+                // A BODY THE WALK REFUSED IS NAMED, NOT COUNTED AS ZERO. The two questions above are
+                // answered by stepping through instructions; a walk that did not land exactly on the
+                // end of a body has not answered them, and printing its zeroes would be the silence
+                // this task exists to end.
+                val unwalkedLines =
+                    if (report.unwalked.isEmpty()) {
+                        emptyList()
+                    } else {
+                        listOf(
+                            "NOT WALKED — the call counts above do not include these " +
+                                "${report.unwalked.size} method(s):",
+                        ) + report.unwalked.take(10).map { "  $it" }
+                    }
+
+                val lines = sizeLines + patternLines + assertionLines + unwalkedLines
 
                 val summary =
                     "kapkanMethodSizes: ${report.classesRead} class file(s), " +
