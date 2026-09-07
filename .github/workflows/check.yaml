@@ -21,6 +21,40 @@ jobs:
       - name: Check
         run: ./gradlew check --no-daemon
 
+      # WHAT A CONSUMER CAN NAME, ASKED BEFORE THE MERGE RATHER THAN AFTER IT.
+      #
+      # This check already existed and ran in the wrong place. `publish-snapshot.yaml` puts proba on
+      # the published artefacts, which is the first moment there is something to resolve — and so the
+      # first moment anybody learns that the public API hands out a type the consumer cannot name.
+      # That is how `kotlin.Pair` reached `main` in #30: it compiled, the tests passed, this workflow
+      # was green, ktlint had no opinion, and two publishes went red before a person read the log.
+      #
+      # There is no need to wait. `check` already publishes the conventions into
+      # `build/local-repo-plugins` for `verifyBuildLogicPublications`, and proba reads a `file:`
+      # repository off the disk. So the same question is asked here, on the pull request, against the
+      # artefacts this run just built.
+      #
+      # `core` ONLY, AND THE OMISSIONS ARE DELIBERATE. `conventions` and `settings` come back
+      # UNDETERMINED wherever proba runs them: their consumer build cannot resolve
+      # `org.jlleitschuh.gradle:ktlint-gradle`, which lives on the plugin portal. `kapkan` is a rule
+      # set loaded by ktlint through `META-INF/services` with its ktlint dependencies `compileOnly`,
+      # so proba reports its whole API as unreachable — correctly, about a question nobody is asking.
+      # `core` is the plain library of the four, and it is the one that broke.
+      - name: The version this build published locally
+        id: published
+        run: |
+          set -euo pipefail
+          version="$(grep -E '^sborka\.version=' gradle.properties | head -1 | cut -d= -f2- | tr -d '[:space:]')"
+          test -d "build/local-repo-plugins/io/github/youndie/sborka/core/$version" ||
+            { echo "::error::nothing published at $version — did the check step change?"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: What a consumer can name
+        uses: youndie/proba@main
+        with:
+          coordinate: io.github.youndie.sborka:core:${{ steps.published.outputs.version }}
+          repository: file://${{ github.workspace }}/build/local-repo-plugins
+
       # THE REPORT TASKS, RUN ONCE SO THAT THEY ARE RUN AT ALL.
       #
       # Neither is in `check` by design — both write a list for a person — and a task nobody ever
