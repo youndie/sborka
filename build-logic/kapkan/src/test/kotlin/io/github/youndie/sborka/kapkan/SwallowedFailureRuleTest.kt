@@ -56,7 +56,13 @@ class SwallowedFailureRuleTest {
                 }
             }
             """.trimIndent()
-        assertEquals(listOf("kapkan:swallowed-failure"), lint(code).ids())
+        // BOTH RULES ANSWER THIS ONE, and the snippet is where they meet: the Result is dropped on
+        // the floor (this rule) and the cancellation became a value on the way (`cancellation-
+        // swallowed`). Fixing one still owes the other.
+        assertEquals(
+            listOf("kapkan:cancellation-swallowed", "kapkan:swallowed-failure"),
+            lint(code).ids().sorted(),
+        )
     }
 
     @Test
@@ -101,7 +107,10 @@ class SwallowedFailureRuleTest {
                 }
             }
             """.trimIndent()
-        assertEquals(emptyList<String>(), lint(code).ids())
+        // What this test says is that THIS rule is silent. `cancellation-swallowed` is not, and
+        // correctly: `async`'s lambda suspends, so the `runCatching` in it swallows a cancellation
+        // whatever happens to the Result afterwards.
+        assertEquals(listOf("kapkan:cancellation-swallowed"), lint(code).ids())
     }
 
     @Test
