@@ -30,12 +30,13 @@ internal fun ruleId(name: String): RuleId = RuleId("$KAPKAN:$name")
  * kapkan's rules, as ktlint loads them.
  *
  * Found through `META-INF/services`, which is why the class is public and its name is in a file
- * nobody reads twice. Four rules, and the set is the whole configuration surface: a rule is here or
+ * nobody reads twice. Five rules, and the set is the whole configuration surface: a rule is here or
  * it is not.
  */
 public class KapkanRuleSetProvider : RuleSetProviderV3(RuleSetId(KAPKAN)) {
     override fun getRuleProviders(): Set<RuleProvider> =
         setOf(
+            RuleProvider { CancellationSwallowedRule() },
             RuleProvider { ForeignImportInCommonRule() },
             RuleProvider { SwallowedFailureRule() },
             RuleProvider { WallClockRule() },

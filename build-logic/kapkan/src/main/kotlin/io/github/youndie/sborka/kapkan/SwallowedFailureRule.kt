@@ -48,6 +48,11 @@ import org.jetbrains.kotlin.psi.KtValueArgument
  * **The suppressions this produces are the point, not a defect.** `finally { runCatching {
  * session.close() } }` is right, and so is a worker that must not die on one bad message. The rule
  * asks each of them to say so once.
+ *
+ * **Not [CancellationSwallowedRule], though from a distance they look like one rule.** This one asks
+ * whether a failure is READ. That one asks whether one particular failure — a cancellation — had any
+ * business becoming a value, and fires on sites that read their failure impeccably. A `runCatching`
+ * in a `suspend fun` whose Result is folded onto the screen answers this rule and not that one.
  */
 public class SwallowedFailureRule :
     Rule(
