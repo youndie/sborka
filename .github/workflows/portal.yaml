@@ -1,0 +1,135 @@
+# Publishes a Gradle plugin of the portfolio to the Gradle Plugin Portal.
+#
+# The same shape as central.yaml next door, for the same reason: the portal's API key and secret
+# are one pair for the whole account, a personal GitHub account has no shared secret store, and a
+# copy in every plugin repository is a rotation that is silently half done the moment one is
+# missed. Here they exist once, guarding one job, and whoever can dispatch here can publish any
+# plugin of ours — which is the same person.
+#
+# WHAT A PLUGIN HAS TO DO TO BE PUBLISHABLE FROM HERE: apply `com.gradle.plugin-publish` itself,
+# with the metadata the portal insists on (website, vcsUrl, tags per plugin), and set
+# `sborka.portal=true` in gradle.properties. The conventions do not apply that plugin for a
+# repository: its metadata is the repository's own, and a convention that pulled the portal's
+# plugin onto every consumer's classpath would pay for one repository on all of them.
+#
+# THE FIRST VERSION OF A NEW PLUGIN IS APPROVED BY HAND at the portal, usually within a few days;
+# until then the id resolves for nobody, and the run here is green anyway — it uploaded. Later
+# versions of an approved plugin are live at once. A version, once live, cannot be replaced.
+name: portal
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: The repository to publish, owner/name — for example youndie/zavarnik
+        required: true
+        type: string
+      ref:
+        description: The tree to build, a tag or a branch
+        required: true
+        default: main
+        type: string
+      version:
+        description: The plugin version to publish it as, without the v — for example 0.1.0
+        required: true
+        type: string
+      gate:
+        description: Run the repository's own `check` on the tree being uploaded.
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      # ONLY THIS ACCOUNT'S REPOSITORIES — the step after this checks out a tree named at dispatch
+      # time and runs Gradle on it beside the portal's secret. See central.yaml for the longer form.
+      - name: The repository is one of ours
+        env:
+          REPO: ${{ inputs.repository }}
+        run: |
+          name=${REPO#youndie/}
+          case "$REPO" in
+            youndie/*) ;;
+            *) name='' ;;
+          esac
+          case "$name" in
+            '' | *[!A-Za-z0-9._-]*)
+              echo "::error::'$REPO' is not a youndie/<name> repository; this workflow uploads with" >&2
+              echo "a credential that must not build a tree from anywhere else." >&2
+              exit 3 ;;
+          esac
+
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      # REFUSED HERE RATHER THAN BY A MISSING TASK: without the plugin applied, `publishPlugins`
+      # does not exist, and Gradle's answer reads as a typo in this file.
+      - name: The tree being built can publish to the portal
+        run: |
+          grep -q '^sborka.portal=true' gradle.properties || {
+            echo "::error::sborka.portal is not set in ${{ inputs.repository }}@${{ inputs.ref }}," >&2
+            echo "so nothing there is meant for the portal. Build a tree that has it." >&2
+            exit 3
+          }
+
+      - name: Say how this tree relates to the tag of the same version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          tag="v$VERSION"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            changed=$(git diff --name-only "$tag"..HEAD -- '*/src/*' 'src/*' | wc -l)
+            if [ "$changed" -eq 0 ]; then
+              echo "sources identical to $tag"
+            else
+              echo "::warning::$changed source files differ from $tag, and this publishes as" \
+                   "$VERSION anyway. A version on the portal cannot be replaced."
+            fi
+          else
+            echo "there is no tag $tag; publishing $VERSION from ${{ inputs.ref }}"
+          fi
+
+      - uses: youndie/sborka/.github/actions/setup-kotlin@main
+
+      - name: Gate
+        if: inputs.gate
+        run: ./gradlew check --no-daemon
+
+      # The plugin reads GRADLE_PUBLISH_KEY and GRADLE_PUBLISH_SECRET from the environment; the
+      # names are its, read out of its documentation rather than remembered. `--validate-only`
+      # first: the portal's checks on metadata answer in seconds, and an upload that would have been
+      # refused for a missing tag is not attempted.
+      - name: Validate, then upload
+        env:
+          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          for name in GRADLE_PUBLISH_KEY GRADLE_PUBLISH_SECRET; do
+            if [ -z "${!name}" ]; then
+              echo "::error::the secret $name is empty or not set in youndie/sborka, where this" >&2
+              echo "workflow keeps it; nothing was uploaded." >&2
+              exit 3
+            fi
+          done
+          case $VERSION in
+            v*) echo "::error::the version is a plugin version, without the v: ${VERSION#v}" >&2; exit 3 ;;
+          esac
+          ./gradlew -PVERSION="$VERSION" publishPlugins --validate-only --no-daemon
+          echo "uploading ${{ inputs.repository }} $VERSION to the Gradle Plugin Portal"
+          ./gradlew -PVERSION="$VERSION" publishPlugins --no-daemon
+
+      - name: What to do next
+        run: |
+          echo "A first version of a new plugin waits for the portal's approval, usually a few days;"
+          echo "the plugin page at https://plugins.gradle.org/plugin/<id> is where it appears."
+          echo "A later version of an approved plugin is live at once."
