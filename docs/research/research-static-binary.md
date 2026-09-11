@@ -129,6 +129,13 @@ runtime image does not carry it, and the workaround drags a glibc-version-couple
 the builder. One linker option removes all three. This is D1, and it is the brief's shippable
 outcome regardless of what happens to `scratch`.
 
+**Done, 2026-09-11 (B-18).** The option is in `sborka.kmp`, on Linux native executables only — not
+in `sborka.native-service` as first planned, because no repository in the portfolio applies that
+convention yet. On `stand/native-service`, the one module that links an executable through the
+conventions, it takes `NEEDED` from ten entries to **six** — `libcrypt`, `libresolv`, `libutil` and
+`librt` all go — and the binary runs in `gcr.io/distroless/cc-debian13` with nothing copied beside
+it. tracy and katcher get it when they take a sborka release: B-22.
+
 **Why `--as-needed` drops three of the six and keeps `libpthread`, `librt` and `libdl`:** because
 they are named twice. `-lresolv -lutil -lcrypt` appear only in the `platform.posix` manifest, and
 `-ldl -lm -lpthread` appear there *and* again in `linkerKonanFlags.linux_x64`, which the toolchain

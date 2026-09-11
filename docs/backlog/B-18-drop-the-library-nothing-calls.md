@@ -1,7 +1,7 @@
 ---
 id: B-18
 title: "Link with --as-needed, and delete the COPY line two Dockerfiles carry because of it"
-status: open
+status: done
 priority: P0
 size: XS
 stage: stage-6-static-binary
@@ -47,3 +47,41 @@ beside it** and resolves a hostname (§1.3, §1.4).
   `tracy/server/Dockerfile`, `katcher/server/Dockerfile`
 
 Settles hypothesis H1 of the research.
+
+## Done, 2026-09-11 — in `sborka.kmp`, not `sborka.native-service`, and the reason matters
+
+**Deviation from this item's own decision.** It said the option goes into `sborka.native-service`.
+That convention is applied by exactly one module in the portfolio — sborka's own
+`stand/native-service` — and by none of the repositories that ship a binary; they take
+`sborka.kmp`. Putting it where the item said would have shipped it to nobody and left both
+Dockerfiles exactly as they are.
+
+So it is in `sborka.kmp`, on Linux native executables only:
+
+```kotlin
+targets.withType<KotlinNativeTarget>()
+    .matching { it.konanTarget.family == Family.LINUX }
+    .configureEach { binaries.withType<Executable>().configureEach { linkerOpts("-Wl,--as-needed") } }
+```
+
+**Linux-only is not caution.** `ld64` and `lld-link` do not accept the flag, so an ungated version
+fails every Apple and mingw link in the portfolio. `./gradlew -p stand check` on macOS passes, which
+is the regression that would have caught it.
+
+Measured on `stand/native-service`, the one module that links a real executable through the
+conventions, built on the Linux box:
+
+| | before | after |
+|---|---|---|
+| `NEEDED` | 10 | **6** — `libdl libm libpthread libgcc_s libc ld-linux` |
+| dropped | — | `libcrypt`, `libresolv`, `libutil`, `librt` |
+| runs in `gcr.io/distroless/cc-debian13` with nothing copied beside it | — | **yes**, 10 816 122 B image |
+
+Four dropped rather than the three the probe saw (research §1.3): `librt` goes too in a module that
+does not reference it. `NativeImageReference` lost the pairing paragraph and gained one saying that
+if the image ever fails with `cannot open shared object file`, the answer is that the convention did
+not apply — not another `COPY` line.
+
+**Not done, and it is not this item's size:** tracy's and katcher's Dockerfiles still carry the
+`COPY … libcrypt.so.1` line, because they cannot drop it until they take a sborka release carrying
+this flag. That is a release plus two bumps plus an image rebuild each, and it is B-22.
