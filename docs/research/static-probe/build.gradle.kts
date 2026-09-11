@@ -42,14 +42,42 @@ kotlin {
                     linkerOpts("-static")
                     freeCompilerArgs += "-Xoverride-konan-properties=targetSysRoot.linux_x64=/"
                 }
-                // The sysroot has to be BUILT, not pointed at: the toolchain looks for `crt1.o` under
-                // `<sysroot>/usr/lib` and for `crtbegin.o` under `<sysroot>/../../lib/gcc/<triple>/8.3.0`,
-                // so a distribution's musl directory cannot be used as-is whatever the property says.
-                // `-PmuslSysRoot=` names one assembled to that shape; `experiments.sh` assembles it.
+                // FOUR PROPERTIES, NOT ONE, and reading them was worth more than the first attempt.
+                //
+                // `targetSysRoot` alone leaves the crt paths pointing into the glibc toolchain, because
+                // `libGcc` is its own key — documented in konan.properties as "targetSysroot-relative",
+                // which is why the first attempt assembled a directory tree two levels deep instead of
+                // setting it. `linkerGccFlags` is where `-lgcc_s` comes from, and musl has no archive
+                // under that name; `linkerKonanFlags` is where `-lstdc++` comes from, and Alpine has a
+                // musl-built one.
+                //
+                // What no property reaches: `-lresolv -lm -lpthread -lutil -lcrypt -lrt`, which live in
+                // the `platform.posix` klib's manifest. Alpine happens to ship an archive for each, so
+                // they resolve — on a sysroot that did not, nothing in a build file could help.
                 "musl" -> {
                     val root = (findProperty("muslSysRoot") as String?) ?: error("-PmuslSysRoot= is required")
-                    linkerOpts("-static")
-                    freeCompilerArgs += "-Xoverride-konan-properties=targetSysRoot.linux_x64=$root"
+                    val libGcc = (findProperty("muslLibGcc") as String?) ?: "../gcc"
+                    // `-PmuslLinker=` swaps in a shim that records the linker's argv and execs the
+                    // real one. Reading the command is how the `PT_INTERP` in a `-static` binary
+                    // stopped being a guess — the same property mechanism, used to look rather than
+                    // to change.
+                    val linker = (findProperty("muslLinker") as String?)
+                    // `--no-dynamic-linker` is not belt and braces. The linker driver emits
+                    // `-dynamic-linker /lib64/ld-linux-x86-64.so.2` — GLIBC's loader — before `-static`
+                    // and regardless of the sysroot, and it is in none of the properties, so this is
+                    // the only place it can be undone. Without it the kernel hands a statically linked
+                    // musl binary to glibc's dynamic loader, which relocates it as though it were
+                    // dynamic; the result is a segfault with no output, which is what the first
+                    // attempt recorded as "musl links and does not run".
+                    linkerOpts("-static", "--no-dynamic-linker")
+                    freeCompilerArgs +=
+                        "-Xoverride-konan-properties=" +
+                        (linker?.let { "linker.linux_x64=$it;" } ?: "") +
+                        "targetSysRoot.linux_x64=$root;" +
+                        "libGcc.linux_x64=$libGcc;" +
+                        "linkerGccFlags=-lgcc -lgcc_eh -lc;" +
+                        "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -lsupc++ " +
+                        "--defsym __cxa_demangle=Konan_cxa_demangle --gc-sections"
                 }
                 else -> error("linkMode: default, asneeded, static, statichost or musl; got $linkMode")
             }

@@ -1,0 +1,52 @@
+musl, by setting the properties rather than working around them. 2026-09-12, Ubuntu 24.04 (WSL2),
+Kotlin 2.4.10, sysroot from alpine:3.21 (gcc 14.2.0, musl-built libstdc++.a).
+
+--- LINKS, with no shims at all
+size=430904
+type=ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux), statically linked
+INTERP segments: 0
+NEEDED: 0
+
+Nothing had to be faked. Alpine ships libcrypt.a, libresolv.a, libutil.a and librt.a, which is what
+makes this possible at all: those four are named by the `platform.posix` klib's manifest and no
+property overrides them, so a sysroot missing them could not have been rescued from a build file.
+
+--- THE FIFTH SOURCE, read out of the linker's real argv
+A shim in place of `linker.linux_x64` recorded what ld.lld was actually given. Forty arguments; the
+ones that matter:
+
+     1  --sysroot=/home/youndie/alpine-out/sysroot
+     7  -dynamic-linker
+     8  /lib64/ld-linux-x86-64.so.2
+    11  <sysroot>/usr/lib/crt1.o
+    13  <sysroot>/../gcc/crtbegin.o
+    23  -static
+    24  -lresolv -lm -lpthread -lutil -lcrypt -lrt     <- platform.posix manifest
+    30  -Bstatic -lstdc++ -lsupc++                     <- linkerKonanFlags
+    36  -lgcc -lgcc_eh -lc                             <- linkerGccFlags
+
+`-dynamic-linker /lib64/ld-linux-x86-64.so.2` — GLIBC's loader — is emitted BEFORE `-static`,
+regardless of the sysroot, and is in none of the properties. So the "statically linked" binary the
+first attempt produced still declared an interpreter, the kernel handed it to glibc's ld.so, and
+ld.so relocated a static binary. That is the segfault, and it was never the C++ runtime.
+
+--- WITH THE INTERPRETER UNDONE
+`linkerOpts("-static", "--no-dynamic-linker")` — the only place it can be undone, since no property
+reaches it:
+
+    INTERP segments: 0
+    NEEDED: 0
+    rc=124 under `timeout 20`
+
+It no longer crashes. It HANGS, before its first `println`, so the Kotlin/Native runtime does not
+finish starting up against musl. That is where this stops, and it is a far better thing to report
+than a segfault: everything up to `main` is now accounted for.
+
+--- WHAT THE TICKET SAYS
+1. `platform.posix`'s klib manifest hardcodes `-lresolv -lm -lpthread -lutil -lcrypt -lrt` for every
+   Linux program, whether or not anything imports them. No property reaches a klib manifest.
+2. `-dynamic-linker <glibc loader>` is emitted unconditionally, so `-linker-option -static` cannot
+   by itself produce a static binary. Neither `targetSysRoot`, `libGcc`, `linkerGccFlags` nor
+   `linkerKonanFlags` reaches it.
+3. With both worked around, a musl-linked binary hangs during runtime start-up. Reproduction: this
+   directory, `experiments.sh`, on a host with docker.

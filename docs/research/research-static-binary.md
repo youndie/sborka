@@ -206,6 +206,9 @@ And one more measured detail that says the link is not what it claims: the "stat
 binary still carries a `PT_INTERP` segment, so in `scratch` it fails with the loader error of §1.4
 rather than running. A 173 054-byte image that cannot start.
 
+**Superseded 2026-09-12 (B-19) — see §1.6b.** Every work-around in that table was one, and the
+segfault was not about the C++ runtime at all.
+
 **Consequence — the deliverable here is a flags list, not a symbol list.** The brief expected to
 end with "the symbols the Kotlin/Native runtime takes from glibc", and that list would have been
 the JetBrains ticket. What the experiment produces instead is a set of `-l` flags and a crt layout
@@ -253,6 +256,44 @@ rewritten accordingly.
 **Hypothesis for the segfault, with its address:** the `libstdc++.a` shim is glibc-built and was
 linked against musl's libc, which is the one shim of the three that cannot be right. Settled by
 retrying with a musl-built `libstdc++.a` — Alpine's `g++` builds one — which is B-19.
+
+### 1.6b Setting the properties instead: it links cleanly, and then hangs
+
+Redone with the sysroot taken from an `alpine:3.21` image — where `g++` builds `libstdc++.a` against
+musl — and with `libGcc.linux_x64`, `linkerGccFlags` and `linkerKonanFlags.linux_x64` set rather
+than worked around. Full output:
+[`results/2026-09-12-musl.txt`](static-probe/results/2026-09-12-musl.txt).
+
+**It links with no shims at all.** Alpine ships `libcrypt.a`, `libresolv.a`, `libutil.a` and
+`librt.a`, which is what makes this possible: those four are named by `platform.posix`'s manifest,
+no property overrides them, and a sysroot missing them could not have been rescued from a build file.
+
+**And a fifth source turned up, read out of the linker's real argv** rather than inferred — a shim
+in place of `linker.linux_x64` recorded what `ld.lld` was given:
+
+```
+ 7  -dynamic-linker
+ 8  /lib64/ld-linux-x86-64.so.2
+23  -static
+```
+
+`-dynamic-linker` pointing at **glibc's** loader, emitted before `-static`, regardless of the
+sysroot, and in none of the properties. So the first attempt's binary declared an interpreter, the
+kernel handed a static musl program to glibc's `ld.so`, and `ld.so` relocated it. **That is the
+segfault**, and it was never the C++ runtime that §1.6 suspected.
+
+`linkerOpts("--no-dynamic-linker")` — the only place it can be undone — produces a real static
+binary: **430 904 bytes, no `PT_INTERP`, no `NEEDED`**. It does not crash. It **hangs, before its
+first `println`**, so the Kotlin/Native runtime does not finish starting against musl.
+
+**Consequence — that is where this stops, and it is a reportable place.** Everything up to `main` is
+now accounted for by name: two hardcoded sources that no property reaches, and a runtime start-up
+that does not complete. §2 D3's ticket has a body.
+
+**Consequence — the hypothesis in §1.6 was wrong and the correction is the useful part.** The
+glibc-built `libstdc++.a` shim looked like the one thing that could not be right, and replacing it
+with a musl-built one changed nothing about the crash. A plausible explanation that survives because
+nobody tests it is how a wrong suspicion gets written into a document; this one was tested.
 
 ### 1.7 What the image would buy — RQ5
 

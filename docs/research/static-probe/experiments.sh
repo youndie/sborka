@@ -63,14 +63,49 @@ else
     link_failure static
 fi
 
-# RQ3 route 1 — the same override pointed at musl.
+# RQ3 — musl, by setting the properties rather than working around them.
 #
-# The sysroot has to be ASSEMBLED. The toolchain looks for `crt1.o` under `<sysroot>/usr/lib` and for
-# `crtbegin.o` under `<sysroot>/../../lib/gcc/<triple>/<gcc version>`, so the sysroot must sit exactly
-# two levels below the directory holding the gcc auxiliaries — pointing the property at a
-# distribution's musl directory fails before it reaches a single symbol.
-section "musl (route 1: -Xoverride-konan-properties targetSysRoot)"
-ROOT="${MUSL_ROOT:-$HOME/muslroot}"
+# The sysroot comes out of an Alpine image, where `g++` builds `libstdc++.a` against musl. That is the
+# one archive the first attempt had to fake with a glibc-built copy, and faking it is what the segfault
+# turned out NOT to be about — see below — but it could never have been right either.
+#
+# `libGcc` is its own property and is documented as sysroot-relative, so the sysroot sits beside a
+# `gcc/` directory rather than two levels under one. The first attempt assembled a directory tree to
+# satisfy a path it could have set.
+section "musl (properties, with an Alpine-built C++ runtime)"
+ROOT="${MUSL_ROOT:-$HOME/alpine-out}"
+if command -v docker > /dev/null; then
+    # Everything from one image: musl's libc.a and crt files, AND a musl-built libstdc++.a. Alpine
+    # also ships libcrypt.a, libresolv.a, libutil.a and librt.a, which matters more than it looks:
+    # those four are named by the `platform.posix` klib's manifest, which no property overrides, so a
+    # sysroot without them cannot be rescued from a build file.
+    rm -rf "$ROOT"
+    mkdir -p "$ROOT/sysroot/usr/lib" "$ROOT/gcc"
+    docker run --rm -v "$ROOT":/out alpine:3.21 sh -c '
+        apk add --no-cache g++ musl-dev > /dev/null 2>&1
+        G=$(dirname "$(find / -name libgcc.a 2>/dev/null | head -1)")
+        cp /usr/lib/*.a /usr/lib/*.o /out/sysroot/usr/lib/ 2>/dev/null
+        cp /usr/lib/libstdc++.a /usr/lib/libsupc++.a /out/sysroot/usr/lib/ 2>/dev/null
+        cp "$G"/libgcc.a "$G"/libgcc_eh.a /out/sysroot/usr/lib/ 2>/dev/null
+        cp "$G"/crtbegin.o "$G"/crtend.o "$G"/libgcc.a "$G"/libgcc_eh.a /out/gcc/ 2>/dev/null
+    ' > /dev/null 2>&1
+    if build musl -PmuslSysRoot="$ROOT/sysroot"; then
+        b="build/bin/linuxX64/releaseExecutable/probe-musl.kexe"
+        inspect "$b"
+        # TIMED, and not out of tidiness: with the interpreter removed the binary stops segfaulting
+        # and starts HANGING before its first line of output, and an untimed run here leaves a stuck
+        # process behind on every invocation.
+        out=$(timeout 20 ./"$b" 2>&1); rc=$?
+        echo "run on the host: rc=$rc (124 = hung) out=$(echo "$out" | tr "\n" " ")"
+    else
+        link_failure musl
+    fi
+else
+    echo "SKIPPED: needs docker for the Alpine sysroot"
+fi
+
+# The old route, kept because its failure is the reason the one above sets properties.
+section "musl (route 1 as first attempted: targetSysRoot only, against the distribution's musl)"
 if [ -d /usr/lib/x86_64-linux-musl ] && [ -n "$GCCDIR" ]; then
     rm -rf "$ROOT"
     mkdir -p "$ROOT/tgt/sysroot/usr/lib" "$ROOT/lib/gcc/x86_64-unknown-linux-gnu/$(basename "$GCCDIR")"
@@ -91,14 +126,7 @@ if [ -d /usr/lib/x86_64-linux-musl ] && [ -n "$GCCDIR" ]; then
     cp "$ROOT/lib/gcc/x86_64-unknown-linux-gnu/$(basename "$GCCDIR")/libgcc_eh.a" \
         "$ROOT/tgt/sysroot/usr/lib/libgcc_s.a"
 
-    if build musl -PmuslSysRoot="$ROOT/tgt/sysroot"; then
-        b="build/bin/linuxX64/releaseExecutable/probe-musl.kexe"
-        inspect "$b"
-        out=$(./"$b" 2>&1); rc=$?
-        echo "run on the host: rc=$rc out=$(echo "$out" | tr '\n' ' ')"
-    else
-        link_failure musl
-    fi
+    echo "SKIPPED: superseded by the section above; kept for the record, not re-run"
 else
     echo "SKIPPED: needs musl-tools/musl-dev and a konan gcc dependency"
 fi
