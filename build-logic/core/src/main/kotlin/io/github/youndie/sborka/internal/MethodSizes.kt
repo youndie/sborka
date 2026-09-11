@@ -188,6 +188,25 @@ object MethodSizes {
          */
         val materialisations: Int = 0,
         /**
+         * The compilation outputs this body was found in, relative to the scanned directory.
+         *
+         * More than one when a multiplatform build wrote the same class twice —
+         * `kotlin/jvm/main` beside `kotlin/androidDebug` — which is the ordinary case and not a
+         * defect. The finding is reported once; the list is what says how many copies stood behind
+         * it, so "1058 findings" and "1058 methods" cannot drift apart silently.
+         */
+        val outputs: List<String> = emptyList(),
+        /**
+         * Whether the copies disagreed about this body.
+         *
+         * Two targets can compile the same source differently — an `expect`/`actual`, an `inline`
+         * function expanded against a different implementation — and then one copy's finding hides
+         * the other's. The largest body wins and this says the choice was made, because a silent
+         * pick is the shape of wrong this package exists to avoid. Not covered by a test: producing
+         * two genuinely different bodies for one class needs two real compilations.
+         */
+        val divergent: Boolean = false,
+        /**
          * Whether the instruction walk got through this body.
          *
          * `false` means the counts above are not answers, and the report says so by name rather
@@ -212,6 +231,13 @@ object MethodSizes {
         /** Methods that materialise [CHAIN_FROM] containers or more, most first. */
         val chains: List<Method> = emptyList(),
         /**
+         * Copies of a method beyond the first, collapsed into one finding.
+         *
+         * [classesRead] and [methodsRead] count distinct classes and methods, so this is what says
+         * how much of the tree was read to get them.
+         */
+        val duplicateCopies: Int = 0,
+        /**
          * Bodies the instruction walk refused, by name.
          *
          * A method whose walk did not land exactly on the end of its code array is not counted as
@@ -229,14 +255,14 @@ object MethodSizes {
      * method.
      */
     fun scan(classDirs: Iterable<File>): Report {
-        var classesRead = 0
-        var methodsRead = 0
-        val findings = ArrayList<Method>()
-
-        val assertions = ArrayList<Method>()
-        val patterns = ArrayList<Method>()
-        val chains = ArrayList<Method>()
-        val unwalked = ArrayList<String>()
+        // ONE ENTRY PER METHOD, KEYED BY ITS SIGNATURE, because a multiplatform build compiles one
+        // class into more than one output directory and a reader that walks directories sees the
+        // same method two or three times. The probe that measured this portfolio hit exactly that:
+        // one `socketUrl` in shashki arrived twice, and nine pattern findings were eight methods.
+        // Insertion-ordered, so a report reads in the order the tree was walked.
+        val byMethod = LinkedHashMap<String, Method>()
+        val classes = HashSet<String>()
+        var copies = 0
 
         classDirs.filter { it.isDirectory }.forEach { root ->
             root
@@ -244,25 +270,68 @@ object MethodSizes {
                 .filter { it.isFile && it.extension == "class" }
                 .forEach { file ->
                     val methods = parse(file) ?: return@forEach
-                    classesRead++
-                    methodsRead += methods.size
-                    findings += methods.filter { it.bytes > REPORT_FROM.bytes }
-                    assertions += methods.filter { it.assertions > 0 }
-                    patterns += methods.filter { it.patternsCompiled > 0 }
-                    chains += methods.filter { it.materialisations >= CHAIN_FROM }
-                    unwalked += methods.filter { it.bytes > 0 && it.walked.not() }.map { it.toString() }
+                    val output = outputOf(root, file, methods.firstOrNull()?.className)
+                    methods.forEach { method ->
+                        classes += method.className
+                        val key = method.toString()
+                        val seen = byMethod[key]
+                        byMethod[key] =
+                            if (seen == null) {
+                                method.copy(outputs = listOf(output))
+                            } else {
+                                copies++
+                                // THE LARGEST BODY WINS, and the fact that a choice was made is
+                                // carried rather than swallowed: two targets can compile one source
+                                // differently, and then the copy that is not reported is a finding
+                                // nobody sees.
+                                val winner = if (method.bytes > seen.bytes) method else seen
+                                winner.copy(
+                                    outputs = seen.outputs + output,
+                                    divergent =
+                                        seen.divergent ||
+                                            method.bytes != seen.bytes ||
+                                            method.patternsCompiled != seen.patternsCompiled ||
+                                            method.materialisations != seen.materialisations,
+                                )
+                            }
+                    }
                 }
         }
 
+        val methods = byMethod.values.toList()
         return Report(
-            classesRead = classesRead,
-            methodsRead = methodsRead,
-            findings = findings.sortedByDescending { it.bytes },
-            assertions = assertions.sortedByDescending { it.assertions },
-            patternsCompiled = patterns.sortedByDescending { it.patternsCompiled },
-            chains = chains.sortedByDescending { it.materialisations },
-            unwalked = unwalked,
+            classesRead = classes.size,
+            methodsRead = methods.size,
+            findings = methods.filter { it.bytes > REPORT_FROM.bytes }.sortedByDescending { it.bytes },
+            assertions = methods.filter { it.assertions > 0 }.sortedByDescending { it.assertions },
+            patternsCompiled =
+                methods
+                    .filter { it.patternsCompiled > 0 }
+                    .sortedByDescending { it.patternsCompiled },
+            chains =
+                methods
+                    .filter { it.materialisations >= CHAIN_FROM }
+                    .sortedByDescending { it.materialisations },
+            duplicateCopies = copies,
+            unwalked = methods.filter { it.bytes > 0 && it.walked.not() }.map { it.toString() },
         )
+    }
+
+    /**
+     * Which compilation wrote this file: the path from the scanned directory with the package cut
+     * off the end, e.g. `kotlin/jvm/main`.
+     *
+     * The package comes from the class rather than from the path, because the two can disagree —
+     * and when they do, the whole relative path is the honest answer.
+     */
+    private fun outputOf(
+        root: File,
+        file: File,
+        className: String?,
+    ): String {
+        val relative = file.relativeTo(root).invariantSeparatorsPath
+        val tail = className?.replace('.', '/')?.plus(".class") ?: return relative
+        return relative.removeSuffix(tail).trimEnd('/').ifEmpty { "." }
     }
 
     /**

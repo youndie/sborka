@@ -40,19 +40,19 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (3)
+## Open (2)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
 | [B-04](docs/backlog/B-04-read-the-compose-chain-findings.md) `[?]` | Read the chain findings inside Compose code and decide whether the rule applies there | P2 | S | B-01 |
 | [B-06](docs/backlog/B-06-answer-the-interpolated-pattern.md) `[?]` | Decide what the pattern rule tells a caller who interpolates the pattern | P2 | S | B-03 |
-| [B-07](docs/backlog/B-07-count-a-method-once-in-a-multiplatform-build.md) `[ ]` | Count a method once when a multiplatform build compiles it into several directories | P2 | XS | - |
 
-## Closed (4)
+## Closed (5)
 
 **The detectors match what was measured**
 
 - [B-01](docs/backlog/B-01-chain-question-in-the-class-file-walk.md) `[x]` - Ask the class-file walk how many containers a body materialises
+- [B-07](docs/backlog/B-07-count-a-method-once-in-a-multiplatform-build.md) `[x]` - Count a method once when a multiplatform build compiles it into several directories
 
 **One rule becomes a gate, inside a declared scope**
 
