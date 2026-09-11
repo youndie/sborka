@@ -230,17 +230,18 @@ alternated, three repetitions each, k6 at a constant 200 rps against the chart's
 output in [`probe/results-ab-2026-09-11.txt`](probe/results-ab-2026-09-11.txt); the arithmetic is
 [`probe/ab-report.py`](probe/ab-report.py).
 
-| run | bytes/request | user code owns | the named methods own | dropped iterations | p95 |
+| run | bytes/request | user code owns | the chain's owners, whatever they are called | dropped iterations | p95 |
 |---|---|---|---|---|---|
 | A rep1 | 85.23 KiB | 4.48 % | 1.302 % | 753 | 315 ms |
 | A rep2 | 83.90 KiB | 5.09 % | 1.017 % | 0 | 2.54 ms |
 | A rep3 | 87.70 KiB | 4.33 % | 1.484 % | 0 | 1.65 ms |
-| B rep1 | 85.12 KiB | 4.19 % | **0.000 %** | 343 | 166 ms |
-| B rep2 | 82.82 KiB | 3.55 % | **0.000 %** | 0 | 1.64 ms |
-| B rep3 | 84.59 KiB | 3.78 % | **0.000 %** | 0 | 2.13 ms |
+| B rep1 | 85.12 KiB | 4.19 % | 0.401 % | 343 | 166 ms |
+| B rep2 | 82.82 KiB | 3.55 % | 0.258 % | 0 | 1.64 ms |
+| B rep3 | 84.59 KiB | 3.78 % | 0.378 % | 0 | 2.13 ms |
 
-Medians: **85.23 → 84.59 KiB per request (−0.75 %)**, user-owned **4.48 % → 3.78 %**, the named
-methods **1.30 % → 0.00 %**. The spread within A's own three repetitions is **4.46 %**.
+Medians: **85.23 → 84.59 KiB per request (−0.75 %)**, user-owned **4.48 % → 3.78 %**, the chain's
+owners **1.302 % → 0.378 %** — a 71 % reduction on that path. The spread within A's own three
+repetitions is **4.46 %**.
 
 **Consequence 1 — the rule was right and the A/B cannot see it.** The aggregate moved by less than
 one sixth of the spread between one variant's own repetitions. A shape worth ~1 % of a service's
@@ -249,27 +250,27 @@ repetitions at this spread fixes that. So the defensible claim for every rule in
 removes what the profile charges", verified inside the profile — **not** "it makes the service
 faster". §2 is phrased that way for this reason.
 
-**Correction, 2026-09-11, and it is a correction to this section's strongest number.** The column
-above says the named methods went to **0.00 %**, and that sentence used to read "what the rule named
-disappeared from the profile entirely". It did not. The metric was keyed on the two method *names*
-the rule had listed, and the fix **renamed the method**: the work moved into
-`io.konekt.text.DigitGroups.grouped`, which the same profiles charge **0.258 / 0.378 / 0.401 %**
-(median 0.378 %). So the honest reading of the same runs is
-
-| on that path, share of all allocated bytes | A (median) | B (median) |
-|---|---|---|
-| the chain's owners, whatever they are called | 1.302 % | **0.378 %** |
-
-— a **71 %** reduction rather than the whole of it, which is what one expects from replacing four
-intermediates with one `StringBuilder` and the string it must build anyway. Nothing else in §1.7
-changes: bytes per request still moved −0.75 % against a 4.46 % spread, and the service-level A/B
-still says nothing.
+**Correction, 2026-09-11, and it is a correction to this section's strongest number.** That fourth
+column first read **1.30 % → 0.00 %**, and the text beside it said "what the rule named disappeared
+from the profile entirely". It did not. The metric was keyed on the two method *names* the rule had
+listed, and the fix **renamed the method**: the work moved into `io.konekt.text.DigitGroups.grouped`,
+which the same profiles charge 0.258 / 0.378 / 0.401 %. The table above now reads by owner, and the
+answer is a **71 %** reduction rather than the whole of it — which is what one expects from replacing
+four intermediates with one `StringBuilder` and the string it must build anyway. Nothing else in
+§1.7 changes: bytes per request still moved −0.75 % against a 4.46 % spread, and the service-level
+A/B still says nothing.
 
 It was found by measuring something else — konekt's roaming screen (`B-126` there) — where
 `DigitGroups.grouped` turned up as the largest single user-code owner in the profile. **A metric
 keyed on the name of the subject goes to zero when the subject is renamed**, and a rewrite is
-exactly the moment a name changes. The acceptance rule of §5 is worded against the shape for this
-reason, not against the name.
+exactly the moment a name changes. Two things were changed so that the next reader cannot repeat it:
+the acceptance rule of §5 is worded against the shape rather than the name, and
+[`probe/ab-report.py`](probe/ab-report.py) no longer takes a list of names at all. It compares the
+**owners** of each variant, prints what moved between them, marks an owner that exists on one side
+only — the shape a rename makes — and warns when most of what one owner lost turned up under
+another. On these six profiles it says: `MoneyFormat.group` −0.876 pp and `UsageUnits.grouped`
+−0.426 pp, both *only in A*; `DigitGroups.grouped` +0.378 pp, *only in B*; 65 % of what was lost
+reappeared elsewhere.
 
 **Consequence 2 — the flattering number was available, and it was wrong.** The first round of the
 same A/B ran without resetting the stand between runs and reported **−8.55 %**. Every k6 setup signs
