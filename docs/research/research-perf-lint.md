@@ -99,6 +99,16 @@ a person" half is 791 findings, and the largest bodies in the portfolio are Comp
 (`metrik`'s `ServiceGridCard`, 7 180 b), where the inline threshold decides nothing anybody cares
 about.
 
+**The implementation agrees with the probe where the two read the same files** *(added with
+`B-01`, 2026-09-11)*. The chain question now lives in `MethodSizes` and was run over the same
+eleven repositories through a small driver. On the three repositories with a single JVM output —
+bochka, proba, boulab — the two readers give **identical** chain counts (90, 35, 11) and identical
+pattern counts (3, 2, 0); bochka's size count differs by one, because the probe uses the last
+instruction's offset as the body size and so understates a body by the length of that instruction.
+Everywhere else the task reports more, and the reason is not the rule: a multiplatform build writes
+one class into several output directories and the task counts every copy while the probe counted
+distinct methods. That gap is `B-07`, not a disagreement about what a chain is.
+
 **Every one of the eight pattern findings, since eight is a number one can print:**
 
 | Finding | Reading |
@@ -138,17 +148,17 @@ as a surprise.
 
 | Fact | Where verified |
 |---|---|
-| `kapkanMethodSizes` already prints bodies over `FreqInlineSize`, **and** patterns built outside `<clinit>`, **and** an `Intrinsics.check*` count | `build-logic/settings/src/main/kotlin/io/github/youndie/sborka/settings.settings.gradle.kts` |
+| `kapkanMethodSizes` prints bodies over `FreqInlineSize`, patterns built outside `<clinit>`, **chains of two or more eager materialisations** (`B-01`, 2026-09-11) and an `Intrinsics.check*` count | `build-logic/settings/src/main/kotlin/io/github/youndie/sborka/settings.settings.gradle.kts` |
 | The reader is sborka's own, no ASM: constant pool, class header, method bodies, an instruction walk | `build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/MethodSizes.kt`, `ConstantPool.kt`, `Bytecode.kt` |
 | A pattern build is recognised as `kotlin.text.Regex.<init>` or `java.util.regex.Pattern.compile`, and `<clinit>` is excluded by name | `MethodSizes.isPatternBuild`, `MethodSizes.parse` |
 | The task is registered by the **settings** plugin, depends on every `*Classes` task, and is deliberately **not** in `check` | same settings script, `gradle.projectsEvaluated` block |
 | The instruction walk refuses to answer rather than answering zero: a body it could not walk is named in the report (`unwalked`) | `MethodSizes.Report.unwalked` |
 | kapkan's five ktlint rules are all source-level and none is about performance | `build-logic/kapkan/src/main/kotlin/io/github/youndie/sborka/kapkan/` |
 
-**Consequence.** Two of the three rules already exist as *report lines* and neither exists as a
-*rule*: nothing fails, nothing is suppressed, nothing is scoped. The work in the backlog is
-therefore mostly not "write a detector" — it is "decide what each finding obliges a person to do",
-which is the part the usual checklist skips.
+**Consequence.** All three questions now exist as *report lines* and none exists as a *rule*:
+nothing fails, nothing is suppressed, nothing is scoped. The work in the backlog is therefore
+mostly not "write a detector" — it is "decide what each finding obliges a person to do", which is
+the part the usual checklist skips.
 
 ### 1.6 Five mechanics that changed a rule, found while measuring
 
@@ -266,8 +276,8 @@ often it fires here, what it obliges, and what it does **not** claim.
   named, and the service-level A/B could not see it.
 * **How often it fires.** 325 methods in 53 423 — 43 in konekt, 90 in bochka. Readable per
   repository, not readable per portfolio.
-* **Obliges.** Nothing yet: it prints. Where a repository names its hot modules (§3 D4), a finding
-  there is a gate.
+* **Obliges.** Nothing yet: it prints, as of `B-01`. Where a repository names its hot modules
+  (§3 D4), a finding there is a gate.
 * **Does not claim.** That the two materialisations are the same chain. Bytecode has no dataflow
   here, so two unrelated lists in one body count as two — an upper bound by construction. And it
   misses a single materialisation, which is where konekt's third- and fourth-largest owners are.

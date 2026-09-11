@@ -35,7 +35,7 @@ builds it.
 | | Today | Target |
 |---|---|---|
 | pattern built per call | detected, printed by `kapkanMethodSizes` | fails inside a declared hot module — `B-03` |
-| two or more materialisations | **not detected at all** | detected and printed — `B-01`; the counts are in the research already, from a probe |
+| two or more materialisations | detected, printed (`B-01`) | a gate inside a declared hot module, if `B-04` says the rule holds for client code |
 | body over `FreqInlineSize` | detected, printed | stays printed, permanently — a decision, not an item |
 | a declared scope (`sborka.perflint.hot`) | does not exist | `B-02`, and every gate is blocked on it |
 
@@ -49,8 +49,7 @@ method body. `<clinit>` is excluded: that is where a pattern belongs. `<init>` i
 and the finding there is a question — a pattern in a constructor costs per instance, and bytecode
 does not carry how long an instance lives.
 
-**R2 — two or more eager materialisations in one body are a finding** *(target — the detector
-does not exist yet; `B-01`)*. A materialisation is a fresh
+**R2 — two or more eager materialisations in one body are a finding.** A materialisation is a fresh
 `ArrayList`/`LinkedHashMap`/`LinkedHashSet` emitted by an inlined operator, or a call to a
 non-inline eager operator over a collection **or a string** (`sortedWith`, `chunked`, `reversed`,
 `joinToString`, `split`, …). `asSequence()` and `Flow` chains are not findings — they materialise
@@ -132,11 +131,18 @@ already does this and the reports print it; a rule inherits the same obligation.
 * **Then:** the task fails with `read no class files under N build directories`, naming the fix
 * **Automated:** manual — the guard is a `check(...)` in the settings script with no test behind it
 
-### Scenario: an eager chain is a finding and its sequence form is not *(target)*
-* **Given:** two methods, `xs.filter { }.map { }.sortedBy { }` and the same with `asSequence()`
+### Scenario: an eager chain is a finding and its sequence form is not
+* **Given:** two methods, `numbers.filter { }.map { }.sortedBy { }.map { }` and the same with `asSequence()`
 * **When:** the chain question runs over their compiled bodies
-* **Then:** the first is a finding with four materialisations and the second is not a finding
-* **And:** `docs/research/probe/Control.kt` holds both shapes as the control the probe was checked against
+* **Then:** the first is a finding and the second is not, and neither is a method with one operator
+* **And:** the count agrees with what `javap` prints for the same body
+* **Automated:** `BytecodeTest`
+
+### Scenario: a string chain is a finding too
+* **Given:** `value.toString().reversed().chunked(3).joinToString(",").reversed()` — four intermediates, no collection operator
+* **When:** the same question runs
+* **Then:** it is a finding, because a reader watching only `kotlin.collections` named none of the methods a real service's profile charges
+* **Automated:** `BytecodeTest`
 
 ### Scenario: a hot module turns a pattern finding into a failure *(target)*
 * **Given:** `sborka.perflint.hot=:server` and a `Regex` built per call in `:server`

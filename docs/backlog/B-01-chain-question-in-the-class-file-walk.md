@@ -1,7 +1,7 @@
 ---
 id: B-01
 title: "Ask the class-file walk how many containers a body materialises"
-status: open
+status: done
 priority: P1
 size: M
 stage: stage-1-evidence
@@ -40,3 +40,26 @@ methods that answer "two or more" own 30–32 % of everything user code allocate
 - Anchors: `sborka/build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/MethodSizes.kt`,
   `sborka/build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/Bytecode.kt`,
   `sborka/docs/research/probe/perfprobe.py`
+
+## Done, 2026-09-11
+
+The walk now records `new` as well as the invokes (`Bytecode.NEW`), the pool can name a class
+(`ConstantPool.Pool.className`), and `MethodSizes` counts materialisations per body:
+`CHAIN_FROM = 2`, containers from an inlined operator plus calls into the five eager facades —
+`CollectionsKt`, `ArraysKt`, `MapsKt`, `SetsKt` and **`StringsKt`**. `kapkanMethodSizes` prints a
+fourth section and names the count in its summary line.
+
+- **Verified against the probe where both read the same files.** On the three single-output
+  repositories — bochka, proba, boulab — the task and the probe give identical chain counts
+  (90, 35, 11) and identical pattern counts (3, 2, 0). bochka's size count differs by one: the
+  probe takes the last instruction's offset as the body size, which understates a body by the
+  length of that instruction.
+- **Elsewhere the task reports more, and it is not the rule.** A multiplatform build writes one
+  class into several output directories; the task counts every copy, the probe counted distinct
+  methods. That is `B-07`.
+- **The controls are compiled by the build**: `MethodSizesChainFixture` holds an eager chain (a
+  finding), one operator (not), an `asSequence()` chain (not), a string chain (a finding) and
+  arithmetic (not). A third test counts the same materialisations out of `javap` — the second
+  reader that would catch a pool index read from the wrong place.
+- Not covered: dataflow. Two unrelated containers in one body count as two, and the report says so
+  rather than pretending the number is exact.

@@ -16,7 +16,8 @@ publishes: [io.github.youndie.sborka:core]
 What both halves of sborka need and neither owns: the reference `.editorconfig`, the version of the
 release the jar came from (generated, not typed), and the two readers of compiled output —
 `Joins` ("what did this repository build and never call") and `MethodSizes` (bodies against the C2
-inline thresholds, patterns built per call, `Intrinsics.check*` counts). Both readers exist here
+inline thresholds, patterns built per call, chains of eager materialisations, `Intrinsics.check*`
+counts). Both readers exist here
 rather than in the conventions because the **settings** plugin registers the tasks that use them,
 and `core` is the only module a settings plugin is allowed to depend on.
 

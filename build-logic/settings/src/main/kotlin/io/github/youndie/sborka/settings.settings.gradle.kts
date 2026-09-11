@@ -352,6 +352,23 @@ gradle.rootProject {
                             "a Regex in <clinit> is built once"
                     }
 
+                // A CHAIN THAT ALLOCATES A CONTAINER PER LINK, which is the same class-file walk
+                // asking its third question. `filter`/`map` are inline, so the chain is not visible
+                // as calls — what is visible is the container each link materialises, and a
+                // sequence or a flow materialises once at the end. Two or more in one body is the
+                // finding; the count is an upper bound, because a class file carries no dataflow
+                // and two unrelated containers in one method look the same from here.
+                //
+                // The number behind the question: on konekt the methods that answer "two or more"
+                // own 30–32 % of everything user code allocates, and rewriting the two largest took
+                // them to zero — see docs/research/research-perf-lint.md §1.4 and §1.7.
+                val chainLines =
+                    report.chains.map { method ->
+                        "${method.className}.${method.name}${method.descriptor}: " +
+                            "${method.materialisations} eager materialisation(s) — " +
+                            "a sequence materialises once, at the end"
+                    }
+
                 // THE NULL CHECKS, as a count rather than a list. Kotlin emits `Intrinsics.check…`
                 // on parameters and on the results of Java calls; `-Xno-param-assertions` and
                 // `-Xno-call-assertions` remove them. Naming every method that has one would name
@@ -388,12 +405,14 @@ gradle.rootProject {
                         ) + report.unwalked.take(10).map { "  $it" }
                     }
 
-                val lines = sizeLines + patternLines + assertionLines + unwalkedLines
+                val lines = sizeLines + patternLines + chainLines + assertionLines + unwalkedLines
 
                 val summary =
                     "kapkanMethodSizes: ${report.classesRead} class file(s), " +
                         "${report.methodsRead} method(s) with a body, " +
-                        "${report.findings.size} over ${MethodSizes.REPORT_FROM.flag} " +
+                        "${report.chains.size} with ${MethodSizes.CHAIN_FROM} or more eager " +
+                        "materialisations, ${report.patternsCompiled.size} building a pattern per " +
+                        "call, ${report.findings.size} over ${MethodSizes.REPORT_FROM.flag} " +
                         "(${MethodSizes.REPORT_FROM.bytes} bytes), of which " +
                         "${report.findings.count { it.bytes > MethodSizes.HUGE_METHOD_LIMIT.bytes }} " +
                         "over ${MethodSizes.HUGE_METHOD_LIMIT.flag} — a method that long is not " +

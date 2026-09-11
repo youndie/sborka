@@ -65,6 +65,100 @@ object MethodSizes {
 
     val REPORT_FROM = FREQ_INLINE_SIZE
 
+    /**
+     * How many eager materialisations in one body make it a finding.
+     *
+     * Two, because one is a method that builds a collection and two is a chain that builds one and
+     * throws it away. The number is not a guess about taste: on the zavarnik stand the intermediate
+     * containers of `filter`/`map` chains were 2.7–4.2 % of every byte allocated, and on konekt —
+     * a service written before any of this — the methods that answer "two or more" own 30–32 % of
+     * everything user code allocates. `docs/research/research-perf-lint.md` §1.4.
+     */
+    const val CHAIN_FROM = 2
+
+    /**
+     * The containers an inlined operator leaves behind.
+     *
+     * `filter`, `map` and `groupBy` are `inline`, so a chain of them compiles to no calls at all —
+     * each link becomes a fresh container plus a loop. These are the containers the standard
+     * library's own implementations allocate.
+     */
+    private val CONTAINERS =
+        setOf(
+            "java.util.ArrayList",
+            "java.util.LinkedHashMap",
+            "java.util.LinkedHashSet",
+            "java.util.HashMap",
+            "java.util.HashSet",
+            "java.util.TreeMap",
+        )
+
+    /**
+     * Where the operators that are NOT inline live — and `kotlin.text` is on the list on evidence.
+     *
+     * A definition watching only `kotlin.collections` named none of the methods konekt's allocation
+     * profile charges: its largest single user-code owner is `MoneyFormat.group`, whose body was
+     * `reversed().chunked(3).joinToString(sep).reversed()` — four intermediates, not one of them a
+     * collection. Widening to strings named the top two. The measurement corrected the rule rather
+     * than confirming it.
+     */
+    private val EAGER_OWNERS =
+        setOf(
+            "kotlin.collections.CollectionsKt",
+            "kotlin.collections.ArraysKt",
+            "kotlin.collections.MapsKt",
+            "kotlin.collections.SetsKt",
+            "kotlin.text.StringsKt",
+        )
+
+    /**
+     * Operators that return a new collection or a new string, by name.
+     *
+     * The inline ones are absent on purpose — they are not calls (see [CONTAINERS]) — and so is
+     * everything lazy: a `Sequence` or a `Flow` chain materialises once at the end, which is the fix
+     * this question exists to ask for. In bytecode the two are different call targets, so no type
+     * resolution is needed to tell them apart, and that is the reason this is a class-file question
+     * rather than a ktlint rule.
+     */
+    private val EAGER_OPERATORS =
+        setOf(
+            "sorted",
+            "sortedArray",
+            "sortedWith",
+            "reversed",
+            "distinct",
+            "flatten",
+            "zip",
+            "toList",
+            "toMutableList",
+            "toSet",
+            "toMutableSet",
+            "toTypedArray",
+            "toCharArray",
+            "take",
+            "takeLast",
+            "drop",
+            "dropLast",
+            "chunked",
+            "windowed",
+            "plus",
+            "minus",
+            "joinToString",
+            "split",
+            "lines",
+            "padStart",
+            "padEnd",
+            "repeat",
+            "replace",
+            "substringAfter",
+            "substringAfterLast",
+            "substringBefore",
+            "substringBeforeLast",
+            "trim",
+            "removePrefix",
+            "removeSuffix",
+        )
+
     data class Method(
         val className: String,
         val name: String,
@@ -84,9 +178,19 @@ object MethodSizes {
          */
         val patternsCompiled: Int = 0,
         /**
+         * Eager containers and strings this body materialises.
+         *
+         * [CHAIN_FROM] or more of them is a chain that allocates one container per link. THE COUNT
+         * IS AN UPPER BOUND and the report says so: a class file carries no dataflow here, so two
+         * unrelated lists built in one method count as two. What it is not is a guess — the shape
+         * it counts is the one an allocation profile charged, and the same count from a probe over
+         * eleven repositories is in the research beside the number of findings it produces.
+         */
+        val materialisations: Int = 0,
+        /**
          * Whether the instruction walk got through this body.
          *
-         * `false` means the two counts above are not answers, and the report says so by name rather
+         * `false` means the counts above are not answers, and the report says so by name rather
          * than printing their zeroes.
          */
         val walked: Boolean = true,
@@ -105,6 +209,8 @@ object MethodSizes {
         val assertions: List<Method> = emptyList(),
         /** Methods that build a pattern on every call, most first. */
         val patternsCompiled: List<Method> = emptyList(),
+        /** Methods that materialise [CHAIN_FROM] containers or more, most first. */
+        val chains: List<Method> = emptyList(),
         /**
          * Bodies the instruction walk refused, by name.
          *
@@ -129,6 +235,7 @@ object MethodSizes {
 
         val assertions = ArrayList<Method>()
         val patterns = ArrayList<Method>()
+        val chains = ArrayList<Method>()
         val unwalked = ArrayList<String>()
 
         classDirs.filter { it.isDirectory }.forEach { root ->
@@ -142,6 +249,7 @@ object MethodSizes {
                     findings += methods.filter { it.bytes > REPORT_FROM.bytes }
                     assertions += methods.filter { it.assertions > 0 }
                     patterns += methods.filter { it.patternsCompiled > 0 }
+                    chains += methods.filter { it.materialisations >= CHAIN_FROM }
                     unwalked += methods.filter { it.bytes > 0 && it.walked.not() }.map { it.toString() }
                 }
         }
@@ -152,6 +260,7 @@ object MethodSizes {
             findings = findings.sortedByDescending { it.bytes },
             assertions = assertions.sortedByDescending { it.assertions },
             patternsCompiled = patterns.sortedByDescending { it.patternsCompiled },
+            chains = chains.sortedByDescending { it.materialisations },
             unwalked = unwalked,
         )
     }
@@ -208,6 +317,7 @@ object MethodSizes {
                                 } else {
                                     calls.orEmpty().count { pool.member(it.poolIndex).isPatternBuild() }
                                 },
+                            materialisations = calls.orEmpty().count { pool.isMaterialisation(it) },
                             walked = calls != null,
                         )
                 }
@@ -255,6 +365,32 @@ object MethodSizes {
         }
         return found
     }
+
+    /**
+     * Whether this call site allocates something a chain would throw away.
+     *
+     * Two shapes, because a chain has two: `new java/util/ArrayList` is what an INLINED operator
+     * leaves in its caller, and a call into one of the [EAGER_OWNERS] facades is the operator that
+     * was not inline. `$default` is stripped — an operator called with a default argument arrives
+     * as `joinToString$default` and is the same operator.
+     */
+    private fun ConstantPool.Pool.isMaterialisation(call: Bytecode.Call): Boolean =
+        when (call.opcode) {
+            Bytecode.NEW -> {
+                className(call.poolIndex) in CONTAINERS
+            }
+
+            Bytecode.INVOKESTATIC -> {
+                val member = member(call.poolIndex)
+                val owner = member?.substringBeforeLast('.')
+                val name = member?.substringAfterLast('.')?.substringBefore("\$default")
+                owner in EAGER_OWNERS && name in EAGER_OPERATORS
+            }
+
+            else -> {
+                false
+            }
+        }
 
     /** The null checks Kotlin emits; the two `-Xno-*-assertions` flags remove them. */
     private fun String?.isAssertion(): Boolean = this != null && startsWith("kotlin.jvm.internal.Intrinsics.check")

@@ -28,6 +28,16 @@ internal object Bytecode {
     const val INVOKEINTERFACE = 185
     const val INVOKEDYNAMIC = 186
 
+    /**
+     * `new`, which is a call site for the purposes of the third question.
+     *
+     * A chain of collection operators does not survive compilation as calls: `filter`, `map` and
+     * `groupBy` are `inline`, so what is left in the caller is the container each link allocates —
+     * a `new java/util/ArrayList` and a loop. Without this opcode the walk can see a chain built
+     * out of the non-inline operators and is blind to the ordinary one.
+     */
+    const val NEW = 187
+
     /** Total width of each fixed-length instruction, opcode included; 0 marks the variable ones. */
     private val WIDTHS =
         IntArray(256).also { w ->
@@ -50,7 +60,7 @@ internal object Bytecode {
     )
 
     /**
-     * Every method or field reference the body invokes, in order.
+     * Every method reference the body invokes and every class it instantiates, in order.
      *
      * Returns `null` when the walk does not land exactly on the end of the code array — which is how
      * a wrong width shows up. A walker that guessed and carried on would report calls that are not
@@ -62,7 +72,7 @@ internal object Bytecode {
         while (offset < code.size) {
             val opcode = code[offset].toInt() and 0xFF
             when (opcode) {
-                INVOKEVIRTUAL, INVOKESPECIAL, INVOKESTATIC, INVOKEINTERFACE, INVOKEDYNAMIC -> {
+                INVOKEVIRTUAL, INVOKESPECIAL, INVOKESTATIC, INVOKEINTERFACE, INVOKEDYNAMIC, NEW -> {
                     calls += Call(opcode, u2(code, offset + 1))
                 }
             }

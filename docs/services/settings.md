@@ -28,7 +28,7 @@ plugin jars share a classloader, would take the project conventions down with it
 | What | Code |
 |---|---|
 | the plugin | `build-logic/settings/src/main/kotlin/io/github/youndie/sborka/settings.settings.gradle.kts` |
-| `kapkanMethodSizes` | same file — registration, the `classesRead > 0` guard, the three report sections |
+| `kapkanMethodSizes` | same file — registration, the `classesRead > 0` guard, the four report sections |
 | dependency on the readers | `build-logic/settings/build.gradle.kts` — `api(projects.core)` |
 
 ## 3. How it is built

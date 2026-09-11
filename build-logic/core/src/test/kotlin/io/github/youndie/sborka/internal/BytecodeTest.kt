@@ -1,6 +1,7 @@
 package io.github.youndie.sborka.internal
 
 import io.github.youndie.sborka.internal.sizes.MethodSizesCallsFixture
+import io.github.youndie.sborka.internal.sizes.MethodSizesChainFixture
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -26,6 +27,9 @@ class BytecodeTest {
         )
 
     private val mainClasses = File(compiledFixtures.parentFile, "main")
+
+    private val chainFixture =
+        File(compiledFixtures, "io/github/youndie/sborka/internal/sizes/MethodSizesChainFixture.class")
 
     @Test
     fun `every compiled body in this module walks to its exact end`() {
@@ -69,6 +73,67 @@ class BytecodeTest {
             "a <clinit> was counted: ${methods.filter { it.name == "<clinit>" }}",
         )
     }
+
+    @Test
+    fun `an eager chain is a finding and its sequence form is not`() {
+        val methods = MethodSizes.parse(chainFixture)!!
+
+        val eager = methods.single { it.name == "eagerChain" }
+        assertTrue(
+            eager.materialisations >= MethodSizes.CHAIN_FROM,
+            "the eager chain materialised ${eager.materialisations}, which is not a finding",
+        )
+        // The two controls, and they are the point of the threshold: one operator is a method that
+        // builds a collection, and a sequence builds one at the end however long the chain is.
+        assertEquals(1, methods.single { it.name == "oneOperator" }.materialisations)
+        assertEquals(0, methods.single { it.name == "lazyChain" }.materialisations)
+        assertEquals(0, methods.single { it.name == "arithmetic" }.materialisations)
+    }
+
+    @Test
+    fun `a string chain counts, which a collection-only reader would miss`() {
+        val methods = MethodSizes.parse(chainFixture)!!
+        val strings = methods.single { it.name == "stringChain" }
+
+        // `reversed`, `chunked`, `joinToString`, `reversed` — four calls into `StringsKt` and
+        // `CollectionsKt`, not one of them a collection operator a `filter`/`map` reader watches
+        // for. This is the shape konekt's profile charged more than any other user method.
+        assertTrue(
+            strings.materialisations >= MethodSizes.CHAIN_FROM,
+            "the string chain materialised ${strings.materialisations}",
+        )
+    }
+
+    @Test
+    fun `the materialisation count agrees with javap`() {
+        val fromReader = MethodSizes.parse(chainFixture)!!.single { it.name == "eagerChain" }
+        val body = bodyOf(javap(chainFixture), "eagerChain")
+
+        // The same count out of the disassembly: a container the compiler instantiates for an
+        // inlined operator, plus an operator that stayed a call. Counted by a different reader, on
+        // the same bytes — which is what would catch a pool index read from the wrong place.
+        val containers =
+            body.lineSequence().count { line ->
+                line.contains("new ") &&
+                    listOf("java/util/ArrayList", "java/util/LinkedHashMap", "java/util/LinkedHashSet")
+                        .any { line.contains("// class $it") }
+            }
+        val operators = body.lineSequence().count { it.contains("kotlin/collections/CollectionsKt.sortedWith:") }
+
+        assertTrue(containers > 0, "javap found no containers at all — has the fixture changed?")
+        assertEquals(containers + operators, fromReader.materialisations)
+    }
+
+    /** The lines of one method's `Code`, from its signature to the next member's. */
+    private fun bodyOf(
+        disassembly: String,
+        method: String,
+    ): String =
+        disassembly
+            .substringAfter(" $method(")
+            .lineSequence()
+            .takeWhile { !Regex("^ {2}\\S.*[;{]\\s*$").containsMatchIn(it) }
+            .joinToString("\n")
 
     private fun javap(classFile: File): String {
         val out = StringWriter()
