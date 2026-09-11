@@ -40,18 +40,21 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (6)
+## Open (5)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-01](docs/backlog/B-01-chain-question-in-the-class-file-walk.md) `[ ]` | Ask the class-file walk how many containers a body materialises | P1 | M | - |
 | [B-02](docs/backlog/B-02-declare-which-modules-are-hot.md) `[ ]` | Let a repository name the modules whose findings are gates | P1 | S | - |
 | [B-03](docs/backlog/B-03-fail-on-a-pattern-built-per-call.md) `[ ]` | Fail on a pattern built per call inside a hot module | P1 | S | B-02 |
 | [B-04](docs/backlog/B-04-read-the-compose-chain-findings.md) `[?]` | Read the chain findings inside Compose code and decide whether the rule applies there | P2 | S | B-01 |
 | [B-06](docs/backlog/B-06-answer-the-interpolated-pattern.md) `[?]` | Decide what the pattern rule tells a caller who interpolates the pattern | P2 | S | B-03 |
 | [B-07](docs/backlog/B-07-count-a-method-once-in-a-multiplatform-build.md) `[ ]` | Count a method once when a multiplatform build compiles it into several directories | P2 | XS | - |
 
-## Closed (1)
+## Closed (2)
+
+**The detectors match what was measured**
+
+- [B-01](docs/backlog/B-01-chain-question-in-the-class-file-walk.md) `[x]` - Ask the class-file walk how many containers a body materialises
 
 **A measured saving, not only a measured share**
 

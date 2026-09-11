@@ -60,6 +60,9 @@ internal object ConstantPool {
         val nameOfNameAndType: Map<Int, Int>,
         val methodRefs: Map<Int, MethodRef>,
     ) {
+        /** The class named at this pool index, or `null` if it names something else — for `new`. */
+        fun className(index: Int): String? = classNameIndex[index]?.let { utf8[it] }?.replace('/', '.')
+
         /** `owner.member` for a reference at this pool index, or `null` if it names something else. */
         fun member(index: Int): String? {
             val reference = methodRefs[index] ?: return null
