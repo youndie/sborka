@@ -129,11 +129,13 @@ runtime image does not carry it, and the workaround drags a glibc-version-couple
 the builder. One linker option removes all three. This is D1, and it is the brief's shippable
 outcome regardless of what happens to `scratch`.
 
-**What is not established:** why `--as-needed` drops three of the six zero-symbol libraries and
-keeps `libpthread`, `librt` and `libdl`. Most likely those three are listed before the option takes
-effect, or are pulled by an object rather than by a `-l` flag. It costs nothing to leave them —
-every glibc since 2.34 ships them as stubs and every base image has them — so this is H2, not a
-blocker.
+**Why `--as-needed` drops three of the six and keeps `libpthread`, `librt` and `libdl`:** because
+they are named twice. `-lresolv -lutil -lcrypt` appear only in the `platform.posix` manifest, and
+`-ldl -lm -lpthread` appear there *and* again in `linkerKonanFlags.linux_x64`, which the toolchain
+emits after the point the option covers (§1.6a). `librt` is the odd one and is not explained by
+that reading. This is read out of the distribution, not confirmed against a dumped link line, and
+it costs nothing either way: every glibc since 2.34 ships those as stubs and every candidate base
+image has them.
 
 ### 1.4 Which base image each variant starts in — RQ1
 
@@ -189,7 +191,7 @@ differently:
 | Step | Result |
 |---|---|
 | point the property at `/usr/lib/x86_64-linux-musl` | `cannot open /usr/lib/x86_64-linux-musl/usr/lib/crt1.o` — the toolchain looks for crt files under `<sysroot>/usr/lib` and for `crtbegin.o` under `<sysroot>/../../lib/gcc/<triple>/8.3.0`. **A distribution's musl directory can never be used as-is**, whatever the property says |
-| assemble a sysroot in that shape | `unable to find library -lcrypt`, `-lstdc++`, `-lgcc_s` — all three are named unconditionally by `linkerKonanFlags`, and musl has none of them under those names |
+| assemble a sysroot in that shape | `unable to find library -lcrypt`, `-lstdc++`, `-lgcc_s` — musl has none of the three under those names. §1.6a says where each one comes from, and it is not one place |
 | shim the three: an **empty** `libcrypt.a` (§1.2 says nothing imports it), `libgcc_eh.a` as `libgcc_s.a`, and the toolchain's own **glibc-built** `libstdc++.a` | **links.** 398 840 bytes, `file` says "statically linked" |
 | run it | **`rc=139`, segmentation fault, no output at all** |
 
@@ -199,20 +201,51 @@ rather than running. A 173 054-byte image that cannot start.
 
 **Consequence — the deliverable here is a flags list, not a symbol list.** The brief expected to
 end with "the symbols the Kotlin/Native runtime takes from glibc", and that list would have been
-the JetBrains ticket. What the experiment actually produces is three unconditional `-l` flags and a
-hardcoded crt layout in `linkerKonanFlags` / `targetSysRoot` handling — none of them reachable from
-`-linker-option`, all of them the same mechanism that puts `libcrypt` on a line nothing needs
-(§1.3). The upstream request is "let a target's libc flags be replaced without replacing the whole
-property", and it is a smaller ask than a runtime change.
+the JetBrains ticket. What the experiment produces instead is a set of `-l` flags and a crt layout
+that come from four different places — §1.6a — none of them reachable from `-linker-option`.
 
-**Consequence — route 2 was not tried, and that is a gap and not a result.** `zig cc` as the linker
-is the brief's second route; `zig` is not installed on the box and the three-day box was spent on
-route 1. H3.
+### 1.6a Where each of those flags actually comes from
+
+Read out of the distribution rather than inferred from the failures, which is what the first
+version of this section did and got wrong. `konan.properties` and the platform klib manifests of
+`kotlin-native-prebuilt-macos-aarch64-2.4.10`:
+
+| Flags | Source |
+|---|---|
+| `-lresolv -lm -lpthread -lutil -lcrypt -lrt` | **the `platform.posix` klib's own manifest** — `klib/platform/linux_x64/org.jetbrains.kotlin.native.platform.posix/default/manifest`, key `linkerOpts` |
+| `-Bstatic -lstdc++ -Bdynamic -ldl -lm -lpthread --defsym __cxa_demangle=… --gc-sections` | `linkerKonanFlags.linux_x64` |
+| `-lgcc --as-needed -lgcc_s --no-as-needed -lc …` | the **global** `linkerGccFlags` — note it already wraps `-lgcc_s` in `--as-needed` itself |
+| `<sysroot>/usr/lib/crt1.o` and `<sysroot>/../../lib/gcc/x86_64-unknown-linux-gnu/8.3.0/crtbegin.o` | `targetSysRoot.linux_x64` and **`libGcc.linux_x64`, which is its own key** and is documented in the file as "targetSysroot-relative" |
+| `ld.lld` | `linker.linux_x64` |
+
+**Consequence — `-lcrypt` is not a target setting at all, it is part of the standard library.** It
+travels in the `platform.posix` klib's manifest, which every Kotlin/Native program on Linux links,
+which is why §1.2 finds the identical ten-entry `NEEDED` list on two servers, a CLI and a
+hello-world. Nothing about a repository's build can opt out of it, and `--as-needed` (§1.3) works by
+letting the linker discard what the flag asked for after seeing that nothing referenced it.
+
+**Consequence — the crt gymnastics of §1.6 were unnecessary.** `libGcc.linux_x64` is a property with
+its own key; assembling a directory tree two levels deep to satisfy a relative path was working
+around a setting that could have been set. That is the cost of reading a link failure instead of
+the file that produced it, and it is the correction this section exists for.
+
+**Consequence — the upstream ask is now precise.** Not "let a target's libc flags be replaced": the
+target's own flags *are* replaceable, one key at a time. The ask is that **`platform.posix` should
+not hardcode a libc's library names in a klib manifest**, because that is the one of the four that
+no property override reaches and the one that names `-lcrypt`.
+
+**Consequence — route 2 was not tried, and after §1.6a it is no longer the obvious next step.**
+`zig cc` is the brief's second route and it was carried into the backlog on the brief's authority
+rather than on evidence. What §1.6a shows is that three of the four obstructions are properties
+that can simply be set, and the fourth — the C++ runtime — is answered more directly by a
+musl-built `libstdc++.a`, which Alpine's `g++` produces and which replaces exactly the one shim
+known to be wrong. zig's argument is a different and weaker one: it would remove sysroot assembly
+altogether and cross-link `linuxArm64` from an x86 host. It is a fallback, not the lever. B-19 was
+rewritten accordingly.
 
 **Hypothesis for the segfault, with its address:** the `libstdc++.a` shim is glibc-built and was
 linked against musl's libc, which is the one shim of the three that cannot be right. Settled by
-retrying with a musl-built libstdc++ (Alpine's, or one built by `zig cc`, which brings its own) —
-which is also route 2, so H3 covers both.
+retrying with a musl-built `libstdc++.a` — Alpine's `g++` builds one — which is B-19.
 
 ### 1.7 What the image would buy — RQ5
 
@@ -272,11 +305,12 @@ otherwise — which is also why the musl attempt had to shim `-lgcc_s` before it
 The brief's green deliverable is not earned: nothing produces a binary that starts in `scratch`.
 
 Nor is the red deliverable, quite. The brief's red was "a KT ticket with the symbol list", and §1.6
-shows the symbol list is not what the experiment produces — it produces three hardcoded `-l` flags,
-a hardcoded crt layout, and a segfault with no diagnostic. A ticket whose body is "this segfaults"
-is a ticket that gets closed as needing more information. H3 is what makes it filable: route 2
-either produces a running binary, in which case the ask is a documented recipe, or it fails at a
-namable point, in which case that point is the ticket.
+shows the symbol list is not what the experiment produces — it produces a segfault with no
+diagnostic and four sources of link flags, three of which are properties anyone can set (§1.6a).
+The one that is not is `platform.posix`'s manifest, and *that* is the ticket: a klib that hardcodes
+`-lcrypt -lresolv -lutil` for every Linux program whether or not anything calls them. But a ticket
+filed today would also have to say "and then it segfaults for a reason we did not chase", which is
+how a ticket gets closed as needing more information. B-19 is what makes it filable.
 
 ### D4. The probe is a hello-world, and that is justified rather than convenient
 
@@ -333,15 +367,17 @@ measured on the probe, whose `NEEDED` list is identical to theirs; the servers w
 `--as-needed`. Settled by B-18, which is the change itself: if a real service's link drops a library
 the probe's does not, the build says so.
 
-**H2 — `libpthread`, `librt` and `libdl` stay in `NEEDED` because of flag order, not because
-anything needs them.** They supply zero symbols (§1.2) and survive `--as-needed` (§1.3). Costs
-nothing today: every glibc since 2.34 ships them as stubs. Settled, if anyone cares, by reading the
-link line the toolchain generates — which is also what B-19 has to read anyway.
+**H2 — mostly closed by reading (§1.6a).** `-ldl -lm -lpthread` are named a second time in
+`linkerKonanFlags.linux_x64`, after the point `--as-needed` covers, which is why they survive it.
+`librt` is not explained by that and nothing depends on the answer; confirming it needs the link
+line the toolchain generates, which B-19 has to look at anyway.
 
-**H3 — route 2 (`zig cc`) gets further than route 1, because it brings a musl-built libstdc++.**
-The one shim in §1.6 that cannot be right is a glibc-built `libstdc++.a` on musl libc, and that is
-precisely what zig supplies for itself. Settled by B-19. Prediction: it links, and either runs — in
+**H3 — the segfault is the glibc-built `libstdc++.a` on musl libc.** It is the one shim of the
+three that cannot be right (§1.6). Settled by B-19: set `libGcc.linux_x64` and
+`linkerKonanFlags.linux_x64` properly instead of working around them, and take `libstdc++.a` from
+an Alpine image, where `g++` builds it against musl. Prediction: it links, and either runs — in
 which case RQ4 and RQ5 become answerable — or fails at a point that can be named in a ticket.
+`zig cc` is the fallback if that fails, not the first move (§1.6).
 
 **H4 — the static-glibc seven are a sysroot completeness problem, not a Kotlin/Native one.**
 `__libc_setup_tls`, `_dl_pagesize` and the rest are provided by a complete glibc `libc.a`. Settled
