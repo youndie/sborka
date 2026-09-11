@@ -1,7 +1,7 @@
 ---
 id: B-17
 title: "Make a Kotlin or kotlinx bump re-run the stdlib probe, so the transcript cannot silently rot"
-status: open
+status: done
 priority: P2
 size: S
 stage: stage-5-parity-gate
@@ -40,3 +40,36 @@ JDK 17.
   numbers or is updated in the same pull request.
 - Anchors: `catalog/sborka.versions.toml`, `docs/research/parity-probe/run.sh`,
   `docs/research/parity-probe/compare.py`, `renovate.json`
+
+## Done, 2026-09-12 — a note for the person and a summary for the machine, neither of them a gate
+
+Two pieces, because the item asked for two and they answer different halves.
+
+**`renovate.json`** gains a rule matching `org.jetbrains.kotlin*` and `org.jetbrains.kotlinx*` whose
+`prBodyNotes` carry the three commands that refresh the transcript. It is in sborka's own
+`renovate.json` rather than in the shared preset: the transcript is this repository's artefact, and
+a note about it in every repository's bump would be noise.
+
+**`.github/workflows/parity-probe.yaml`** runs the probe on `ubuntu-latest` and `macos-14` — a
+native test binary is not cross-run, so each host produces its own — diffs each fresh transcript
+against the newest committed one for that target, and writes the result into the job summary.
+Nothing in it can fail the pull request: every step is `continue-on-error`, and the comparison step
+is `if: always()`.
+
+**Path-filtered, unlike `check.yaml`, and the difference is the point.** There a filter buys seconds
+and costs a red default branch; here the filter *is* the trigger — the question is only worth asking
+when one of the versions the transcript is a property of has moved.
+
+**"No baseline" is reported, not skipped.** A missing previous transcript and no differences look
+identical in a log and mean opposite things, so the summary says which it is.
+
+Dry-run against a deliberately altered row: `129 rows compared, 1 differ`, naming the row and both
+values. The glob picks `2026-09-11-jvm.tsv` and ignores `2026-09-11-jvm-jdk17.tsv`, which is the
+separate JDK-17 baseline and not a previous run.
+
+**The residual gap, stated because the item asked for it.** The JDK is the variable that moves the
+most rows, and the probe does not pin one — it uses whatever the runner provides. `gradle.properties`
+and the setup action are watched, so a deliberate toolchain change triggers the job; **a change in
+what `ubuntu-latest` ships does not**, because no file in this repository moves. Pinning a toolchain
+in the probe would fix that and would also stop the probe measuring the JDK a developer actually
+has, which is the more useful of the two. Left as it is, on purpose, and written down here.

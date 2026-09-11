@@ -1,0 +1,98 @@
+name: parity probe
+
+# WHAT THIS IS NOT: a gate. `docs/research/research-parity.md` D3 says why — the 129 stdlib rows are
+# a property of Kotlin, the kotlinx libraries AND the JDK, they do not move between commits, and a
+# red build over a moved row would teach people to update an expected file without reading it. This
+# job runs the probe and prints the diff. Nothing here can fail the pull request.
+#
+# PATH-FILTERED ON PURPOSE, unlike `check.yaml`. There the filter would buy seconds and cost a red
+# default branch; here the filter IS the trigger — the question is only worth asking when one of the
+# versions the transcript is a property of has moved.
+#
+# The JDK is on that list and is the one that moves the most rows: five of 129 between JDK 17 and
+# JDK 25, and `\bé` is not a JVM/native difference at all on 17. It is not in the catalog, so the
+# setup action and gradle.properties are watched as well as the versions file.
+
+on:
+  pull_request:
+    paths:
+      - 'catalog/sborka.versions.toml'
+      - 'gradle.properties'
+      - '.github/actions/setup-kotlin/**'
+      - 'docs/research/parity-probe/**'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    # Two hosts because a native test binary is not cross-run: the Mac produces the macosArm64
+    # transcript and the Linux runner the linuxX64 one. Both are standard runners and this
+    # repository is public, so neither is billed.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            native: linuxX64
+          - os: macos-14
+            native: macosArm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-kotlin
+        with:
+          konan-cache: "true"
+
+      - name: Run the probe on both runtimes
+        id: run
+        continue-on-error: true
+        working-directory: docs/research/parity-probe
+        run: |
+          set -x
+          DATE=pr ./run.sh jvm
+          DATE=pr ./run.sh ${{ matrix.native }}
+
+      # The comparison is against the newest COMMITTED pair, which is what the research quotes. A
+      # missing previous transcript is reported rather than skipped: "no baseline" and "no
+      # differences" look identical in a log and mean opposite things.
+      - name: Diff against the committed transcripts
+        if: always()
+        continue-on-error: true
+        working-directory: docs/research/parity-probe
+        run: |
+          {
+            echo "## parity probe — ${{ matrix.os }}"
+            echo
+            for target in jvm ${{ matrix.native }}; do
+              fresh="results/pr-$target.tsv"
+              previous=$(ls results/2*-"$target".tsv 2>/dev/null | sort | tail -1)
+              echo "### $target"
+              if [ ! -f "$fresh" ]; then
+                echo "the probe did not produce a transcript — see the step above"
+              elif [ -z "$previous" ]; then
+                echo "no committed transcript for \`$target\` to compare against"
+              else
+                echo "against \`$previous\`:"
+                echo '```'
+                ./compare.py "$previous" "$fresh" 2>&1 || true
+                echo '```'
+              fi
+              echo
+            done
+            echo "_Not a gate. A moved row is usually an improvement in one of the runtimes; refresh"
+            echo "the transcripts and research §1.2 in this pull request if one moved._"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The fresh `pr-*` transcripts go up with the committed ones: reading a summary is enough to
+      # see THAT a row moved, and reading the file is what says what to commit.
+      - name: The probe's own transcripts, for downloading
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: parity-transcripts-${{ matrix.os }}
+          path: docs/research/parity-probe/results/
+          retention-days: 7
+          if-no-files-found: ignore

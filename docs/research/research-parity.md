@@ -460,9 +460,11 @@ what it covered — "6 platform assertions on jvm, linuxX64, linuxArm64; stdlib 
 `parity-probe/`, last run 2026-09-11" — so the gap is visible in the same line as the green.
 
 **Risk 2 — the stdlib probe rots into a file nobody re-runs.** It is not on the pull-request path by
-design (D3), which is exactly how a check stops happening. Mitigation: the trigger is a renovate
-bump to Kotlin or a kotlinx library, and that trigger is an item with a checker behind it (B-17),
-not an intention.
+design (D3), which is exactly how a check stops happening. **Mitigated 2026-09-12 (B-17):** a
+renovate rule puts the refresh commands in the body of every Kotlin or kotlinx bump, and
+`parity-probe.yaml` runs the probe on both hosts and prints the diff into the job summary, failing
+nothing. The gap that remains is named in that item: the JDK moves the most rows and the probe does
+not pin one, so a change in what `ubuntu-latest` ships triggers nothing.
 
 **Risk 3 — the platform probe needs the network and becomes flaky, then gets disabled.** A TLS
 request to a public host is an outage away from a red build on an innocent pull request.
