@@ -71,7 +71,7 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (9)
+## Open (8)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
@@ -83,9 +83,8 @@ feature document, so re-prioritising must never move a file.
 | [B-14](docs/backlog/B-14-the-process-level-gate-where-it-is-buildable.md) `[ ]` | Run razves as two processes and diff the output — the gate the brief asked for, where it fits | P2 | S | - |
 | [B-17](docs/backlog/B-17-re-run-the-stdlib-probe-when-a-version-moves.md) `[ ]` | Make a Kotlin or kotlinx bump re-run the stdlib probe, so the transcript cannot silently rot | P2 | S | - |
 | [B-20](docs/backlog/B-20-strip-the-binary.md) `[ ]` | Strip the release binary: a third of the scratch prize, for one flag, today | P2 | XS | - |
-| [B-21](docs/backlog/B-21-print-what-the-binary-declares.md) `[ ]` | Print the binary's NEEDED list into the build log, so a new dependency shows up in a diff | P2 | XS | - |
 
-## Closed (14)
+## Closed (15)
 
 **The detectors match what was measured**
 
@@ -118,6 +117,7 @@ feature document, so re-prioritising must never move a file.
 **Take the win that does not depend on `scratch`, then decide about `scratch`**
 
 - [B-18](docs/backlog/B-18-drop-the-library-nothing-calls.md) `[x]` - Link with --as-needed, and delete the COPY line two Dockerfiles carry because of it
+- [B-21](docs/backlog/B-21-print-what-the-binary-declares.md) `[x]` - Print the binary's NEEDED list into the build log, so a new dependency shows up in a diff
 
 <!-- END INDEX -->
 

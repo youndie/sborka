@@ -34,6 +34,8 @@ interface NativeServiceExtension {
     val baseName: Property<String>
 }
 
+private val neededLine = Regex("Shared library: \\[(.+)]")
+
 val nativeService = extensions.create<NativeServiceExtension>("nativeService")
 nativeService.baseName.convention(project.name)
 
@@ -108,6 +110,58 @@ val stageNativeImage =
         )
         into(layout.buildDirectory.dir("native-image"))
         rename { nativeService.baseName.get() }
+
+        // WHAT THE BINARY DECLARES, IN THE LOG OF THE BUILD THAT CHANGED IT.
+        //
+        // The runtime image carries the binary and nothing else, and that is only correct while the
+        // binary needs nothing the base image lacks. A dependency arriving through a new library —
+        // `libz` for a compression engine, `libcurl` for a client — changes this list, and today
+        // nobody would learn that until a container failed to start with `cannot open shared object
+        // file`, which names the library and nothing about the commit that added it.
+        //
+        // NOT A GATE, deliberately. A check that failed on a new entry would fail the pull request
+        // that legitimately adds one, and the fix would be to update an expected list — a rubber
+        // stamp within two sprints. What is wanted is visibility at the moment it changes: a line in
+        // the log of the build that introduced the dependency, read by the person adding it.
+        //
+        // Never fails. `readelf` is binutils, and a Mac has neither it nor an ELF to point it at, so
+        // the absence of an answer is reported as an absence rather than as a problem.
+        val imageDir = layout.buildDirectory.dir("native-image")
+        val binaryName = nativeService.baseName
+        doLast {
+            val binary = imageDir.get().asFile.resolve(binaryName.get())
+            val needed =
+                runCatching {
+                    val process =
+                        ProcessBuilder("readelf", "-d", binary.path)
+                            .redirectErrorStream(true)
+                            .start()
+                    val text = process.inputStream.bufferedReader().readText()
+                    process.waitFor()
+                    text
+                        .lineSequence()
+                        .mapNotNull { neededLine.find(it)?.groupValues?.get(1) }
+                        .toList()
+                }.getOrNull()
+
+            val line =
+                when {
+                    needed == null -> "${binary.name}: readelf is not on PATH, so this is unchecked"
+                    needed.isEmpty() -> "${binary.name} declares no shared libraries (not an ELF?)"
+                    else -> "${binary.name} declares ${needed.size} — ${needed.joinToString(" ")}"
+                }
+            logger.lifecycle("stageNativeImage: $line")
+
+            val report = StringBuilder()
+            report.appendLine("# What ${binary.name} asks the loader for. A change here is a change in")
+            report.appendLine("# what the runtime image has to carry.")
+            report.appendLine("#")
+            report.appendLine("# NOT LISTED, AND NEVER WILL BE: ca-certificates. It is not a library, so readelf")
+            report.appendLine("# cannot name it; without it every outbound TLS call fails with a message about a")
+            report.appendLine("# certificate path and nothing about this file.")
+            needed?.forEach(report::appendLine) ?: report.appendLine("# readelf unavailable")
+            binary.resolveSibling(binary.name + ".needed.txt").writeText(report.toString())
+        }
     }
 
 tasks.matching { it.name == "assemble" }.configureEach { dependsOn(stageNativeImage) }

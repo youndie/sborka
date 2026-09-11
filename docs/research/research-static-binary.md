@@ -398,9 +398,10 @@ it comes free with B-19.
 **Risk 1 — D1 is applied and a repository's image silently starts needing a library again.** A
 future dependency with a real `libcrypt` or `libresolv` call would be dropped from `NEEDED` by
 `--as-needed` only if unused, so this is safe by construction — but the *check* that it is safe is
-`readelf -d` on the produced binary, not an argument. Mitigation: `stageNativeImage` already exists
-in the convention and is the place to print the `NEEDED` list into the build log, so a change in it
-appears in a diff someone reads.
+`readelf -d` on the produced binary, not an argument. **Mitigated 2026-09-12 (B-21):**
+`stageNativeImage` prints the list at `lifecycle` and writes it beside the binary, so a change
+appears in the log of the build that introduced it. It is not a gate, and on a Mac it reports that
+it could not look rather than reporting nothing.
 
 **Risk 2 — the shimmed musl result is mistaken for "musl nearly works".** It links and segfaults,
 and a link that succeeds is the most persuasive kind of false progress. Mitigation: §1.6 records

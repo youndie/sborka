@@ -1,7 +1,7 @@
 ---
 id: B-21
 title: "Print the binary's NEEDED list into the build log, so a new dependency shows up in a diff"
-status: open
+status: done
 priority: P2
 size: XS
 stage: stage-6-static-binary
@@ -32,3 +32,29 @@ nobody would learn that until a container failed to start with `cannot open shar
   introduced it.
 - Anchors: `build-logic/conventions/src/main/kotlin/io/github/youndie/sborka/native-service.gradle.kts`,
   `docs/research/static-probe/experiments.sh`
+
+## Done, 2026-09-12
+
+`stageNativeImage` gained a `doLast` that runs `readelf -d` on the staged binary, logs the list at
+`lifecycle`, and writes it beside the binary as `<name>.needed.txt` with the `ca-certificates`
+caveat in its header.
+
+| Host | Output |
+|---|---|
+| Linux | `stageNativeImage: stand-service declares 6 — libdl.so.2 libm.so.6 libpthread.so.0 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2` |
+| macOS | `stageNativeImage: stand-service: readelf is not on PATH, so this is unchecked` |
+
+**The macOS line is the design, not a shortfall.** `readelf` is binutils and a Mac has neither it nor
+an ELF to point it at, so the absence of an answer is reported as an absence. A version that failed
+there would make every developer's local `assemble` red for a check that cannot apply — and one that
+said nothing would let a reader take silence for six entries.
+
+**Two things ktlint refused that are worth remembering**, since both were "cannot be auto-corrected"
+and both were mine: a `private val NEEDED_LINE` at the top of a precompiled script plugin is a
+property rather than a constant and has to be camel case; and a multiline `when` entry drags the
+whole `when` into brace-and-blank-line rules, which is why the message is built as one short entry
+per case rather than one long expression.
+
+The `Regex` is a file-level `val` rather than built inside the action — a pattern compiled per
+invocation is the shape sborka's own perf-lint fails a build over ([B-03](B-03-fail-on-a-pattern-built-per-call.md)),
+and the convention that ships that rule should not be the thing breaking it.
