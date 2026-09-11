@@ -31,10 +31,13 @@ list of where they do not. The research is
 [research-parity](docs/research/research-parity.md); the brief it answers is
 [source-brief-parity](docs/research/source-brief-parity.md).
 
-The order here is set by one measurement and one absence. The measurement: 129 probes, 17
-differences, and every one of them taken on macOS — so nothing downstream is worth building until
-the probe has run on the target that ships. The absence: two of the five subjects have no JVM tests
-at all, and a gate that compares two suites needs both of them to exist.
+The order here is set by what the measurements turned out to say. 129 probes found 17 differences
+between the two standard libraries and **none of them has ever cost this portfolio anything**; the
+three that did are platform APIs — a socket that will not resolve a hostname, a missing TLS stack,
+a Ktor plugin published for one target — and a fourth entry on that list was not a divergence at
+all but a compiler message read as a fact. So the gate is a platform probe (B-13), the stdlib
+transcript moves to a version-bump trigger (B-17), and the item everything waits on is B-10: two of
+the five subjects run no JVM tests at all, and a gate needs a second half to run on.
 
 ## Stages
 
@@ -46,8 +49,8 @@ feature document, so re-prioritising must never move a file.
 | `stage-1-evidence` | The detectors match what was measured | The chain question does not exist yet, and two of the counts it will report are known to be wrong in ways the probe already found. |
 | `stage-2-gate` | One rule becomes a gate, inside a declared scope | A rule that obliges nothing is a report. The cheapest rule (8 findings across eleven repositories) is the one that can afford to fail a build. |
 | `stage-3-saving` | A measured saving, not only a measured share | Every number so far says what a shape owns. None says what removing it bought. |
-| `stage-4-parity-evidence` | The parity numbers survive leaving one machine | The 17 differences were measured on `macosArm64`, and two subjects have no JVM test run to compare against at all. Both are cheap to settle and everything below waits on them. |
-| `stage-5-parity-gate` | A gate that is red on a real divergence, and honest about what it skipped | The diff is seconds — the native link is already in the pull-request build. What needs deciding is what a test run writes down, and how a gate says what it did not test. |
+| `stage-4-parity-evidence` | Find out which claimed divergences are real | One is already gone — `Dispatchers.IO` on native was a misread compiler message — and the biggest open question is why two subjects run no JVM tests. Cheap items, and everything below depends on their answers. |
+| `stage-5-parity-gate` | A gate at the layer that has actually broken | The native link is already inside the pull-request build, so a dozen platform assertions cost seconds. What needs deciding is what they assert and how the task reports the scope it did *not* cover. |
 
 ## Marks
 
@@ -59,15 +62,15 @@ feature document, so re-prioritising must never move a file.
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-09](docs/backlog/B-09-run-the-probe-on-linux.md) `[ ]` | Run the parity probe on linuxX64 and say which of its numbers were about macOS | P0 | XS | - |
 | [B-10](docs/backlog/B-10-move-a-native-only-server-test-to-common.md) `[ ]` | Move one native-only server test to commonTest and find out what stops it | P0 | S | - |
-| [B-12](docs/backlog/B-12-a-transcript-a-test-run-can-be-compared-by.md) `[ ]` | Give a test run something to compare: a normalised transcript, written by the suite itself | P1 | M | B-10 |
-| [B-13](docs/backlog/B-13-parity-check-that-reports-its-own-blind-spot.md) `[ ]` | parityCheck: fail on an unlisted difference, and say in the same line what it did not test | P1 | L | B-12 |
-| [B-15](docs/backlog/B-15-the-page-people-will-search-for.md) `[ ]` | The page people will search for: what the JVM and Kotlin/Native actually do differently | P1 | S | B-09 |
+| [B-13](docs/backlog/B-13-a-platform-probe-that-runs-on-every-target.md) `[ ]` | parityCheck: a dozen tests that make the platform layer answer on every target | P0 | M | B-10 |
+| [B-15](docs/backlog/B-15-where-the-two-runtimes-actually-diverge.md) `[ ]` | The page: where the JVM and Kotlin/Native actually diverge, and it is not in the stdlib | P1 | S | - |
 | [B-11](docs/backlog/B-11-sort-the-series-metrik-puts-on-the-wire.md) `[ ]` | Sort the series metrik's agent puts on the wire, the way its histogram already does | P2 | XS | - |
 | [B-14](docs/backlog/B-14-the-process-level-gate-where-it-is-buildable.md) `[ ]` | Run razves as two processes and diff the output — the gate the brief asked for, where it fits | P2 | S | - |
+| [B-16](docs/backlog/B-16-drop-the-workaround-a-wrong-comment-justifies.md) `[ ]` | Correct booblik's Dispatchers.IO comment, and decide whether the thread it justifies is still wanted | P2 | XS | - |
+| [B-17](docs/backlog/B-17-re-run-the-stdlib-probe-when-a-version-moves.md) `[ ]` | Make a Kotlin or kotlinx bump re-run the stdlib probe, so the transcript cannot silently rot | P2 | S | - |
 
-## Closed (8)
+## Closed (10)
 
 **The detectors match what was measured**
 
@@ -85,6 +88,14 @@ feature document, so re-prioritising must never move a file.
 **A measured saving, not only a measured share**
 
 - [B-05](docs/backlog/B-05-measure-a-saving-not-a-share.md) `[x]` - Measure a saving, not only a share: fix one named finding and A/B it
+
+**Find out which claimed divergences are real**
+
+- [B-09](docs/backlog/B-09-run-the-probe-on-linux.md) `[x]` - Run the parity probe on linuxX64 and say which of its numbers were about macOS
+
+**A gate at the layer that has actually broken**
+
+- [B-12](docs/backlog/B-12-a-transcript-a-test-run-can-be-compared-by.md) `[-]` - Give a test run something to compare: a normalised transcript, written by the suite itself
 
 <!-- END INDEX -->
 

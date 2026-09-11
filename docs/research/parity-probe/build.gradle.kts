@@ -12,6 +12,11 @@ kotlin {
     macosArm64()
     linuxX64()
 
+    // `-PprobeJdk=17` runs the JVM half on that toolchain, downloaded if it is not installed. It
+    // exists for one row: `Regex("\\bé")` changed behaviour in JDK 19, so "the JVM does X" is a
+    // claim about a JDK as much as about Kotlin, and the only way to say which is to run both.
+    (findProperty("probeJdk") as String?)?.let { jvmToolchain(it.toInt()) }
+
     sourceSets {
         commonTest.dependencies {
             implementation(kotlin("test"))

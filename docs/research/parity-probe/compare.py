@@ -16,7 +16,10 @@ def read(path):
     with open(path, encoding="utf-8") as fh:
         for line in fh:
             line = line.rstrip("\n")
-            if not line:
+            # `#` lines are the header: which runtime, which host, which versions. They are recorded
+            # precisely because the two sides differ there, so comparing them would report the setup
+            # as a finding.
+            if not line or line.startswith("#"):
                 continue
             cls, name, value = line.split("\t", 2)
             rows[(cls, name)] = value

@@ -75,7 +75,7 @@ no file behind it, fails `coverage_map.py`.
 ### Research (3)
 
 - [x] [research-perf-lint](research/research-perf-lint.md) — the three rules, their profiles, how often each fires, and what none of them claims
-- [x] [research-parity](research/research-parity.md) — 129 probes on two runtimes, the 17 that disagree, and why none of the four divergences this portfolio was actually bitten by is among them
+- [x] [research-parity](research/research-parity.md) — 129 probes on two runtimes, the 17 that disagree, and why the gate belongs at the platform layer instead: none of the seventeen has ever cost anything, and the three that did are sockets, TLS and a plugin
 - [x] [source-brief-parity](research/source-brief-parity.md) — the parity brief as it arrived, kept so the deviations from it stay readable
 
 ### Services (3)

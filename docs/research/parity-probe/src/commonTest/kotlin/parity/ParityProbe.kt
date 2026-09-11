@@ -34,6 +34,29 @@ private fun p(cls: String, name: String, value: () -> Any?) {
     println("PARITY\t$cls\t$name\t" + v.replace("\n", "\\n").replace("\t", "\\t"))
 }
 
+/*
+ * THE PROBE'S OWN TRAP, and it cost a wrong conclusion before it was found.
+ *
+ * Kotlin folds `toString()` on a constant primitive expression at compile time. `1e23.toString()`
+ * written against a literal is therefore evaluated by the **compiler's** JVM and baked into the
+ * class file, so the row records what the machine that built the probe printed and not what the
+ * target prints. It was caught by running the JVM half on JDK 17: `serialization/double-1e23` moved
+ * and `number-format/1e23`, which is the same value through the same formatter, did not.
+ *
+ * `opaque` is a plain function — not `const`, not `inline`, no default argument — so the folding
+ * lowering cannot see through it. Every literal that feeds a formatting or parsing probe goes
+ * through it.
+ */
+private fun opaque(value: Double): Double = value
+
+private fun opaque(value: Float): Float = value
+
+private fun opaque(value: Int): Int = value
+
+private fun opaque(value: Long): Long = value
+
+private fun opaque(value: String): String = value
+
 @Serializable
 private data class Point(val x: Int, val y: String)
 
@@ -77,38 +100,38 @@ class ParityProbe {
 
     @Test
     fun numberFormatting() {
-        p("number-format", "sum-0.1-0.2") { (0.1 + 0.2).toString() }
-        p("number-format", "one-third") { (1.0 / 3.0).toString() }
-        p("number-format", "1e23") { 1e23.toString() }
-        p("number-format", "1e7") { 1e7.toString() }
-        p("number-format", "1e-5") { 1e-5.toString() }
-        p("number-format", "1e-4") { 1e-4.toString() }
-        p("number-format", "whole-100") { 100.0.toString() }
-        p("number-format", "negative-zero") { (-0.0).toString() }
-        p("number-format", "double-min-value") { Double.MIN_VALUE.toString() }
-        p("number-format", "double-max-value") { Double.MAX_VALUE.toString() }
-        p("number-format", "nan") { Double.NaN.toString() }
-        p("number-format", "positive-infinity") { Double.POSITIVE_INFINITY.toString() }
-        p("number-format", "float-one-third") { (1.0f / 3.0f).toString() }
-        p("number-format", "float-0.1") { 0.1f.toString() }
-        p("number-format", "float-widened") { (0.1f.toDouble()).toString() }
-        p("number-format", "int-to-radix-36") { 123456789.toString(36) }
-        p("number-format", "long-min-to-radix-2") { Long.MIN_VALUE.toString(2).length }
+        p("number-format", "sum-0.1-0.2") { opaque(0.1 + 0.2).toString() }
+        p("number-format", "one-third") { opaque(1.0 / 3.0).toString() }
+        p("number-format", "1e23") { opaque(1e23).toString() }
+        p("number-format", "1e7") { opaque(1e7).toString() }
+        p("number-format", "1e-5") { opaque(1e-5).toString() }
+        p("number-format", "1e-4") { opaque(1e-4).toString() }
+        p("number-format", "whole-100") { opaque(100.0).toString() }
+        p("number-format", "negative-zero") { opaque(-0.0).toString() }
+        p("number-format", "double-min-value") { opaque(Double.MIN_VALUE).toString() }
+        p("number-format", "double-max-value") { opaque(Double.MAX_VALUE).toString() }
+        p("number-format", "nan") { opaque(Double.NaN).toString() }
+        p("number-format", "positive-infinity") { opaque(Double.POSITIVE_INFINITY).toString() }
+        p("number-format", "float-one-third") { opaque(1.0f / 3.0f).toString() }
+        p("number-format", "float-0.1") { opaque(0.1f).toString() }
+        p("number-format", "float-widened") { opaque(0.1f).toDouble().toString() }
+        p("number-format", "int-to-radix-36") { opaque(123456789).toString(36) }
+        p("number-format", "long-min-to-radix-2") { opaque(Long.MIN_VALUE).toString(2).length }
     }
 
     @Test
     fun numberParsing() {
-        p("number-parse", "1e400") { "1e400".toDouble() }
-        p("number-parse", "leading-dot") { ".5".toDouble() }
-        p("number-parse", "trailing-dot") { "5.".toDouble() }
-        p("number-parse", "hex-float") { "0x1p3".toDoubleOrNull() }
-        p("number-parse", "plus-sign") { "+5".toIntOrNull() }
-        p("number-parse", "whitespace-padded") { " 5 ".toIntOrNull() }
-        p("number-parse", "unicode-digits") { "٣٤".toIntOrNull() }
-        p("number-parse", "int-overflow-message") { "2147483648".toInt() }
-        p("number-parse", "empty-double") { "".toDouble() }
-        p("number-parse", "infinity-word") { "Infinity".toDouble() }
-        p("number-parse", "nan-word") { "NaN".toDouble() }
+        p("number-parse", "1e400") { opaque("1e400").toDouble() }
+        p("number-parse", "leading-dot") { opaque(".5").toDouble() }
+        p("number-parse", "trailing-dot") { opaque("5.").toDouble() }
+        p("number-parse", "hex-float") { opaque("0x1p3").toDoubleOrNull() }
+        p("number-parse", "plus-sign") { opaque("+5").toIntOrNull() }
+        p("number-parse", "whitespace-padded") { opaque(" 5 ").toIntOrNull() }
+        p("number-parse", "unicode-digits") { opaque("٣٤").toIntOrNull() }
+        p("number-parse", "int-overflow-message") { opaque("2147483648").toInt() }
+        p("number-parse", "empty-double") { opaque("").toDouble() }
+        p("number-parse", "infinity-word") { opaque("Infinity").toDouble() }
+        p("number-parse", "nan-word") { opaque("NaN").toDouble() }
     }
 
     @Test

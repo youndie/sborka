@@ -1,11 +1,10 @@
 ---
 id: B-12
 title: "Give a test run something to compare: a normalised transcript, written by the suite itself"
-status: open
+status: dropped
 priority: P1
 size: M
 stage: stage-5-parity-gate
-blocked_by: [B-10]
 ---
 
 # B-12 — Give a test run something to compare: a normalised transcript, written by the suite itself
@@ -39,3 +38,18 @@ nothing writes down what either run *saw*.
 - Anchors: `docs/research/parity-probe/compare.py`,
   `tracy/server/src/commonTest/kotlin/io/github/youndie/tracy/server`,
   `build-logic/conventions/src/main/kotlin/io/github/youndie/sborka/kmp.gradle.kts`
+
+## Dropped, 2026-09-11 — the gate it was machinery for is not the gate
+
+This item existed to feed a transcript diff on every pull request. Research D1 replaced that design
+with a platform probe (B-13), and D3 moved the stdlib transcript off the pull-request path
+altogether: those rows move at a Kotlin or JDK bump, not between commits, and running them per pull
+request would spend the budget where nothing changes while growing an allowlist of message texts
+nobody ever prunes.
+
+What the item was reaching for exists anyway, one level up: `parity-probe/` already writes a
+normalised transcript per target and `compare.py` already diffs two of them. What is left is the
+*trigger* — B-17.
+
+Nothing here is worth reviving unless B-13 finds a class of divergence that a platform assertion
+cannot express.

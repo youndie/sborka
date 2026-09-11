@@ -2,7 +2,7 @@
 # target   jvm
 # kotlin   2.4.10; kotlinx-serialization-json 1.11.0; kotlinx-datetime 0.8.0
 # host	Mac OS X aarch64
-# runtime	JVM 25.0.2+10-69 (Oracle Corporation)
+# runtime	JVM 17.0.20.1+1 (Eclipse Adoptium)
 collections	groupby-key-order	5,4,7,3
 collections	hashmap-int-keys	49,35,84,21,70,7,56,42,28,77,14,63
 collections	hashmap-iteration-order	epsilon,zeta,eta,alpha,delta,theta,beta,gamma
@@ -29,8 +29,8 @@ exception	list-index-out-of-bounds	!ArrayIndexOutOfBoundsException: Index 7 out 
 exception	map-getvalue-missing	!NoSuchElementException: Key b is missing in the map.
 exception	not-null-assertion	!NullPointerException: null
 exception	require-message	!IllegalArgumentException: nope
-exception	string-index-out-of-bounds	!StringIndexOutOfBoundsException: Index 7 out of bounds for length 3
-exception	substring-bad-range	!StringIndexOutOfBoundsException: Range [2, 1) out of bounds for length 3
+exception	string-index-out-of-bounds	!StringIndexOutOfBoundsException: String index out of range: 7
+exception	substring-bad-range	!StringIndexOutOfBoundsException: begin 2, end 1, length 3
 hashing	boolean-hashcode	1231
 hashing	char-hashcode	233
 hashing	data-class-hashcode	109330662
@@ -43,7 +43,7 @@ hashing	string-hashcode	1794106052
 hashing	string-hashcode-unicode	500183061
 number-format	1e-4	1.0E-4
 number-format	1e-5	1.0E-5
-number-format	1e23	1.0E23
+number-format	1e23	9.999999999999999E22
 number-format	1e7	1.0E7
 number-format	double-max-value	1.7976931348623157E308
 number-format	double-min-value	4.9E-324
@@ -92,13 +92,13 @@ regex	split-trailing-empty	4
 regex	unicode-letter-property	héllo
 regex	unicode-script-property	абв
 regex	variable-lookbehind	b
-regex	word-boundary-unicode	null
+regex	word-boundary-unicode	é
 regex	word-class-on-accent	h
 serialization	big-number-to-double	!JsonDecodingException: Unexpected JSON token at offset 5: Unexpected special floating-point value Infinity. By default, non-finite floating point values are prohibited because they do not conform JSON specification. at path: $\nIt is possible to deserialize them using 'JsonBuilder.allowSpecialFloatingPointValues = true'\nJSON input: 1e400
 serialization	default-not-encoded	{"a":1}
 serialization	descriptor-tostring	parity.Point(x: kotlin.Int, y: kotlin.String)
 serialization	double-0.1-0.2	0.30000000000000004
-serialization	double-1e23	1.0E23
+serialization	double-1e23	9.999999999999999E22
 serialization	escaped-output	"a b\u0007c/"
 serialization	float-one-third	0.33333334
 serialization	infinity-allowed	Infinity

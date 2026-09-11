@@ -1,6 +1,6 @@
 ---
 id: research-parity
-title: One contract, two binaries — where the JVM and Kotlin/Native halves disagree
+title: One contract, two binaries — and the gate belongs at the platform layer, not the stdlib
 type: research
 status: active
 date: 2026-09-11
@@ -8,25 +8,29 @@ date: 2026-09-11
 
 # Research: the JVM/native parity gate
 
-Five of this portfolio's repositories compile one Kotlin source into two runtimes, develop against
-the fast one and ship the slow-to-build one. That trade rests on the two behaving the same, and
-until this document that was a belief with nothing behind it. The brief that asked for the
-investigation is [source-brief-parity.md](source-brief-parity.md); this is what came back.
+Five of this portfolio's repositories compile one Kotlin source into two runtimes. The pattern they
+are supposed to be following is "develop on the JVM, ship native"; what the build files actually
+say is **"test on the JVM — and not everywhere"**, which is a different and worse thing. The brief
+that asked the question is [source-brief-parity.md](source-brief-parity.md).
 
-The short version is that the belief is mostly right and wrong in a way nobody would have guessed.
-A probe of 129 behaviours across the standard library, the regex engine, kotlinx-serialization and
-kotlinx-datetime found **17 disagreements**, and not one of them is in the two places the brief
-predicted them. Number formatting, string case mapping, hashing and seeded randomness agree
-**exactly**, row for row. What disagrees is hash-map iteration order, the text and sometimes the
-class of exceptions, and a single regex construct. Meanwhile the four divergences this portfolio
-has actually been bitten by are in none of those categories: they are platform APIs — a socket that
-does not resolve a hostname, a TLS stack that is not there, a Ktor plugin that is not published for
-native, a dispatcher that is `internal` — and a stdlib-level parity gate would have caught none of
-them.
+The finding is not the measured behaviour of the two standard libraries. That was measured, it is
+in §1.2, and it is close to a non-event: 129 probes, 17 rows apart, and of those seventeen not one
+has ever cost this portfolio anything. **The three divergences that did cost something are all in
+the platform layer** — a socket that does not resolve a hostname, a TLS stack that is not there, a
+Ktor plugin published for one target only — and no amount of stdlib diffing sees any of them. A
+fourth case, long recorded as a divergence, turns out not to be one at all: it was a compiler
+message read as a fact (§1.5), and a probe that merely compiled the line would have said so.
+
+So the gate this brief asked for changes shape. Not a diff of stdlib transcripts, which is a
+*version-bump probe* and is already written; but a **platform probe** — a dozen tests in
+`commonTest` that open a real socket to a hostname, make a real TLS request, and assert that every
+pinned Ktor plugin resolves on the target being built. They run on every target in the
+pull-request build that already exists, in seconds, and they are exactly what would have caught all
+three real cases.
 
 This document records **verified facts** (measured here, or read in the files named beside them),
 **decisions**, **deviations from the brief**, and **hypotheses that say where they get settled**.
-The probe is committed in [`parity-probe/`](parity-probe/); §1.2 says why.
+The probe is committed in [`parity-probe/`](parity-probe/); §2 D4 says why.
 
 ---
 
@@ -54,91 +58,117 @@ target nobody ships.
 
 **Consequence — booblik is a different question wearing the same word.** Its JVM broker and its
 Kotlin/Native client are two programs that speak one protocol, which is what
-`booblik/booblik-conformance` and
-`booblik/booblik-native-conformance` already test. That is
+`booblik/booblik-conformance` and `booblik/booblik-native-conformance` already test. That is
 protocol conformance across implementations, and it is well covered. Brief B is about one source
 producing two behaviours, and booblik has no module with that shape.
 
 **Consequence — katcher's native half is whichever machine compiled it.** `:server` resolves one
 native target from `os.name` and `os.arch`, so a parity run on a Mac compares the JVM against a
-macOS binary and never against the Linux one that ships. For the other four that is a caveat about
-the timezone table; for katcher it is the whole native side of the comparison. Any gate on katcher
-has to run where the binary is built.
+macOS binary and never against the Linux one that ships. Any gate on katcher has to run where the
+binary is built.
 
-**Consequence — razves is the only subject where the brief's gate is buildable today.** See §1.5:
-it is a CLI, so "run it and diff the output" needs a process and a command line, not a service, a
-database and a stand.
+**Consequence — razves is the only subject where a process-level gate is buildable today** (D2).
+It is a CLI, so "run it and diff the output" needs a command line, not a service, a database and a
+stand.
 
-### 1.2 What the two runtimes actually do differently
+### 1.2 What the two standard libraries do differently — the least important section here
 
-Measured on 2026-09-11 by [`parity-probe/`](parity-probe/) — one `commonTest` source set, 129
-probes, run on `jvm` and on `macosArm64`, each probe printing one row of a transcript. Kotlin
-2.4.10, kotlinx-serialization 1.11.0, kotlinx-datetime 0.8.0, all three read out of
-[`catalog/sborka.versions.toml`](../../catalog/sborka.versions.toml) rather than picked: a
-divergence on a version nobody ships is a divergence nobody has.
+Measured on 2026-09-11 by [`parity-probe/`](parity-probe/): one `commonTest` source set, 129
+probes, each printing one row of a transcript. Kotlin 2.4.10, kotlinx-serialization 1.11.0,
+kotlinx-datetime 0.8.0, read out of [`catalog/sborka.versions.toml`](../../catalog/sborka.versions.toml)
+rather than picked. Nothing is asserted in the probe: an assertion would encode which target is
+right, and that is the question rather than the setup.
 
-Nothing is asserted in the probe. An assertion would encode which target is right, and that is the
-question rather than the setup; [`compare.py`](parity-probe/compare.py) prints both values and
-names neither a reference.
+Four transcripts, because two variables turned out to matter besides the target:
 
-```
-129 rows compared, 17 differ, 0 present on one side only
-```
+| Comparison | Rows apart | Transcripts |
+|---|---|---|
+| JVM (JDK 25.0.2) vs `macosArm64` | **17** | [`…-jvm.tsv`](parity-probe/results/2026-09-11-jvm.tsv), [`…-macosArm64.tsv`](parity-probe/results/2026-09-11-macosArm64.tsv) |
+| JVM (JDK 25.0.4) vs `linuxX64`, *the pair that ships* | **17** — the same rows | [`…-linuxX64.tsv`](parity-probe/results/2026-09-11-linuxX64.tsv) |
+| JVM (JDK **17**.0.20.1) vs `macosArm64` | **18** — and not the same eighteen | [`…-jvm-jdk17.tsv`](parity-probe/results/2026-09-11-jvm-jdk17.tsv) |
+| `macosArm64` vs `linuxX64` | **1** | the two native transcripts |
+| JVM on macOS vs JVM on Linux, same JDK line | **0** | — |
+
+By class, for the pair that ships:
 
 | Class | Rows | Differ | What differs |
 |---|---|---|---|
-| number formatting | 17 | **0** | nothing — `0.1+0.2`, `1e23`, `1e-5`, `-0.0`, `Double.MIN_VALUE`, `1f/3f`, radix conversion |
+| number formatting | 17 | 0 *(1 on JDK 17)* | `1e23` — and only because the JDK changed, see below |
 | strings and Unicode | 19 | **0** | nothing — `"straße".uppercase()`, the `ﬁ` ligature, dotted `İ`, the `ǅ` digraph, surrogate pairs, `sorted()`, `trim()` on NBSP and ideographic space |
 | hashing | 10 | **0** | nothing — `String.hashCode` including non-BMP text, data-class, list, map, `Double`, `Long`, `Char` |
 | seeded randomness | 3 | **0** | nothing — `Random(42)` sequence, `nextDouble`, `shuffled` |
-| regex | 22 | 2 | `\b` before a non-ASCII letter; the text of a bad-pattern exception |
-| serialization | 19 | 1 | key order of a map built as a `HashMap` — and nothing else |
+| regex | 22 | 2 *(1 on JDK 17)* | the text of a bad-pattern exception; `\b` before a non-ASCII letter — a JDK row, see below |
+| serialization | 19 | 1 *(2 on JDK 17)* | key order of a map built as a `HashMap` |
 | number parsing | 11 | 2 | the message of `NumberFormatException`, twice |
 | datetime | 12 | 3 | the size of the zone table and two message texts; **every offset agreed** |
 | exceptions | 10 | 6 | messages, and in one case the class |
 | collections | 6 | 3 | `HashMap` / `HashSet` iteration order |
 
-The rows themselves, verbatim from
-[`parity-probe/results/2026-09-11-jvm.tsv`](parity-probe/results/2026-09-11-jvm.tsv) and
-[`…-macosArm64.tsv`](parity-probe/results/2026-09-11-macosArm64.tsv):
+The rows that matter, verbatim:
 
 | Probe | JVM | Kotlin/Native |
 |---|---|---|
 | `collections/hashmap-iteration-order` | `epsilon,zeta,eta,alpha,delta,theta,beta,gamma` | `alpha,beta,gamma,delta,epsilon,zeta,eta,theta` |
 | `collections/hashmap-int-keys` | `49,35,84,21,70,7,56,42,28,77,14,63` | `7,14,21,28,35,42,49,56,63,70,77,84` |
 | `serialization/map-from-hashmap` | `{"a":1,"b":3,"z":0,"m":2}` | `{"z":0,"a":1,"m":2,"b":3}` |
-| `regex/word-boundary-unicode` — `Regex("\\bé").find("é")` | `null` | `é` |
-| `exception/string-index-out-of-bounds` | `StringIndexOutOfBoundsException: Index 7 out of bounds for length 3` | `ArrayIndexOutOfBoundsException: null` |
+| `exception/string-index-out-of-bounds` | `StringIndexOutOfBoundsException: Index 7 …` | `ArrayIndexOutOfBoundsException: null` |
 | `exception/integer-division-by-zero` | `ArithmeticException: / by zero` | `ArithmeticException: null` |
-| `exception/cast-failure` | `class java.lang.String cannot be cast to class java.lang.Integer …` | `class kotlin.String cannot be cast to class kotlin.Int` |
-| `number-parse/int-overflow-message` | `NumberFormatException: For input string: "2147483648"` | `NumberFormatException: null` |
-| `datetime/available-zone-count` | `604` | `597` |
+| `datetime/available-zone-count` | `604` | `597` on macOS, `496` on Linux |
 
-**Consequence — the catalogue in the brief is mostly a list of things that agree.** Seven of the
-eleven classes it names were measured and came back identical. Publishing the *negative* result is
-the point: a portfolio that believes `Double.toString` might differ writes defensive formatting
-code forever, and 17 rows of evidence retire that belief in one commit. This is the finding worth
-putting on kotlin.website, more than the disagreements are.
+**Consequence — `HashMap` order is the only row here with a silent consequence.** Every other one
+surfaces as a message a human reads, or as an exception class (`"abc"[7]` raises
+`StringIndexOutOfBoundsException` on the JVM and `ArrayIndexOutOfBoundsException` on native; both
+are `IndexOutOfBoundsException`, so a `catch` on the base type is unaffected, but a `when (e)` chain
+in common code takes a different branch). Hash order shows up as different bytes in a payload, and
+§1.4 finds it in shipped code.
 
-**Consequence — `HashMap` order is the one divergence with an ordinary, silent consequence.** The
-other sixteen show up as a message a human reads. This one shows up as a different byte sequence in
-a payload, and §1.3 finds it in shipped code.
+**Consequence — "the JVM does X" is a claim about a JDK.** Running the same probe on JDK 17 moves
+five rows, and two of the movements change what this document would otherwise assert:
 
-**Consequence — an exception's class is not only its message.** `"abc".substring(2, 1)` and
-`"abc"[7]` raise `StringIndexOutOfBoundsException` on the JVM and `ArrayIndexOutOfBoundsException`
-on native. Both are `IndexOutOfBoundsException` subclasses, so a `catch` on the base class behaves
-the same and a `catch` on the JVM class compiles only on the JVM — but a `when (e)` chain written in
-common code against the broader type will take a different branch. No occurrence was found in this
-portfolio; it is recorded because it is the one row that changes control flow rather than text.
+- `regex/word-boundary-unicode` — `Regex("\bé").find("é")` returns `null` on JDK 25 and **`é` on
+  JDK 17, which is what Kotlin/Native returns**. This is JDK-19 behaviour (JDK-8264160 aligned `\b`
+  with the ASCII `\w` it is defined against), not a Kotlin/Native divergence at all. On a JDK 17
+  service the two targets agree here.
+- `number-format/1e23` and `serialization/double-1e23` print `9.999999999999999E22` on JDK 17 and
+  `1.0E23` on JDK 25 — the shortest-representation fix that also landed in JDK 19. Native prints
+  `1.0E23`, so **on JDK 17 there are two double-formatting divergences that do not exist on JDK 25.**
+- two `StringIndexOutOfBoundsException` messages were reworded between the two JDKs as well.
 
-**Caveat that has to travel with these numbers: the native half was `macosArm64`, not `linuxX64`.**
-Kotlin/Native tests are not cross-run, and the machine this probe was written on is a Mac. For the
-stdlib, the regex engine and kotlinx-serialization that is a distinction without a difference —
-same runtime, same sources. For `datetime/available-zone-count` it is exactly the difference:
-kotlinx-datetime reads the host's zone database, so 597 is macOS's number and Linux will give
-another. That row is a hypothesis until H1 closes.
+Every transcript therefore carries a header naming its runtime, its JDK and its host, and
+`compare.py` skips those lines rather than reporting the setup as a finding.
 
-### 1.3 Where a differing row reaches shipped code
+**Correction found while building the probe — one of its own rows was measuring the compiler.**
+Kotlin folds `toString()` on a constant primitive expression at compile time, so `1e23.toString()`
+written against a literal was evaluated by the *compiler's* JVM and baked into the class file. The
+row recorded the build machine, not the target. It was caught because
+`serialization/double-1e23` moved between the two JDKs and `number-format/1e23`, which is the same
+value through the same formatter, did not. Every literal feeding a formatting or parsing probe now
+goes through a non-inline `opaque(…)`, and after the fix the row moves with the JDK as it should.
+The lesson is the probe's, not the platform's: **a measurement of a runtime has to be forced
+through the runtime.**
+
+**Consequence — the negative result is the publishable half, and it is now a sharper claim.**
+Strings and Unicode, hashing and seeded randomness are identical on every JDK tried; number
+formatting is identical on any JDK from 19 onward. A portfolio that half-believes
+`Double.toString` might differ between its two targets writes defensive code forever, and 129
+measured rows retire that belief — with the caveat, which is itself the finding, that the JDK is
+the variable at least as often as the target is.
+
+### 1.3 The two native targets agree with each other; the JVM carries its own timezone database
+
+`macosArm64` and `linuxX64` differ in **one** row of 129 —
+`datetime/available-zone-count`, 597 against 496 — and the JVM's two hosts differ in none, at 604
+on both.
+
+**Consequence.** kotlinx-datetime on Kotlin/Native reads the host's zone database and the JDK ships
+its own. The difference is therefore not JVM-versus-native at all; it is "native inherits the
+image" — and for a service in a container that makes the zone table a property of the **base
+image**, not of the language. Every other number in §1.2 is a property of the runtimes and carries
+over between native hosts unchanged, which is what makes the probe worth running on a Mac.
+
+*(This closes hypothesis H1 as it was written: 128 of 129 identical, the zone count the exception.)*
+
+### 1.4 Where a differing row reaches shipped code
 
 Two places in the portfolio put a `HashMap` between the program and the wire. One of them was
 already immune, and the contrast is the useful part.
@@ -151,37 +181,58 @@ already immune, and the contrast is the useful part.
 | `Histogram.toSparse()` sorts its bucket keys before serialising, so the same `HashMap` reaches the wire in a target-independent order | `metrik/shared/src/commonMain/kotlin/io/github/youndie/metrik/wire/Histogram.kt` |
 
 **Consequence.** A metrik window payload sent by a JVM-hosted agent and by a native one lists the
-same series in a different order. Nothing in metrik depends on that order today — the server merges
-by key — so this is not a defect being reported, it is the shape the gate exists to notice *before*
-something starts depending on it: a golden file, a payload hash, an idempotency key, a diff-based
-test. The sorted `Histogram` next door shows the fix costs one `.sorted()`.
+same series in a different order. Nothing depends on that order today — the server merges by key —
+so this is not a defect being reported; it is the one shape worth removing before a golden file, a
+payload hash or an idempotency key starts depending on it. The sorted `Histogram` next door shows
+the fix costs one `.sorted()`.
 
-**Consequence — the existing test proves the brief's premise rather than disproving it.** It passes
-on both targets *because* it was written not to look. That is the failure mode the brief describes,
-sitting in the repository, green.
+**Consequence — the existing test demonstrates the brief's premise rather than refuting it.** It
+passes on both targets *because* it was written not to look.
 
-### 1.4 The divergences this portfolio has actually paid for, and where they were
+### 1.5 The divergences this portfolio actually paid for — and the one that was never a divergence
 
 None of them is in the standard library.
 
-| Divergence | Cost | Where recorded |
+| Case | Cost | Where recorded |
 |---|---|---|
 | `InetSocketAddress(host, port)` does not resolve a hostname on Kotlin/Native — `connect` fails with `EINVAL`; on the JVM the same code works | every native agent reporting through a Kubernetes service name was silent **from its first day**, and the monitoring rule for "no data" reported a healthy service as dead | metrik `docs/research/research-architecture.md` §1.6 |
 | `ktor-client-cio` has no TLS on native — `IllegalStateException: TLS sessions are not supported` | Telegram notifications never left the server; fixed with `ktor-client-curl` on native and `ktor-client-cio` on the JVM, through `expect/actual` | metrik `docs/research/research-architecture.md` §1.7; the split is visible in `metrik/server/build.gradle.kts` |
 | `ktor-server-compression` is published for the JVM only | compression moved into the image build as pre-made `.gz` files | metrik `docs/research/research-architecture.md` §1.8 |
-| `Dispatchers.IO` is `internal` on Kotlin/Native in coroutines 1.11.0 — "checked by compiling, not read in the documentation, which says otherwise" | the producer owns a thread through `newSingleThreadContext` instead of offloading | comment in `booblik/booblik-native/build.gradle.kts` |
+| ~~`Dispatchers.IO` is `internal` on Kotlin/Native~~ — **it is not** | a thread booblik does not need | see the correction below |
 
-**Consequence — the gate has to be able to see the platform layer, and the stdlib probe cannot.**
-Every entry above is a library or a system call behaving differently, not a language primitive. A
-`parityCheck` that only diffs pure-function output would have been green through all four.
+**Correction, verified 2026-09-11: `Dispatchers.IO` exists on Kotlin/Native in coroutines 1.11.0.**
+`booblik/booblik-native/build.gradle.kts` says it is `internal` and gives that as the reason the
+producer owns a thread through `newSingleThreadContext`. Compiled against coroutines 1.11.0, three
+results:
 
-**Consequence — and the metrik §1.6 story says exactly how to see them.** Quoting its own
-post-mortem: the tests were green because the plugin test substitutes a fake sender, *so a real
-socket was never opened once*. The divergence was reachable only by a check that runs the real
-transport. That is an argument for the gate being end-to-end — and an argument against believing a
-green `parityCheck` that runs in-process.
+| Source | `macosArm64` | `linuxX64` |
+|---|---|---|
+| `Dispatchers.IO` with only `import kotlinx.coroutines.Dispatchers` | `e: Cannot access 'val IO: CoroutineDispatcher': it is internal in 'kotlinx.coroutines.Dispatchers'` | — |
+| the same line plus `import kotlinx.coroutines.IO` | compiles | compiles |
+| `withContext(Dispatchers.IO) { … }` at runtime | runs; `Dispatchers.IO` prints `Dispatchers.IO` | — |
 
-### 1.5 What runs on which target today
+`Dispatchers.IO` on native is an **extension property** in package `kotlinx.coroutines`, so it needs
+its own import; without it the compiler resolves the internal member of the same name and says so.
+The message is accurate and reads exactly like "IO is internal on native", which is how it was
+recorded. **The comment in booblik is wrong and the `newSingleThreadContext` it justifies is
+probably unnecessary** — probably, because whether the producer wants a dispatcher or a dedicated
+thread is a design question this document has not asked. That is B-16.
+
+**Consequence — the gate has to reach the platform layer, and the stdlib probe cannot.** Every
+entry above is a library, a system call or an import behaving differently, not a language
+primitive. A `parityCheck` built out of §1.2 would have been green through all four.
+
+**Consequence — and metrik §1.6 says exactly why a green in-process gate is not enough.** Quoting
+its own post-mortem: the tests were green because the plugin test substitutes a fake sender, *so a
+real socket was never opened once*. The divergence was reachable only by a check that runs the real
+transport.
+
+**Consequence — three of the four are answerable by a test that merely compiles and runs.** Resolve
+a hostname through the real socket API; make one TLS request; reference each pinned Ktor plugin on
+the target being built. The fourth would have been answered by compiling one line. That is a
+platform probe, and it is what D1 makes the gate.
+
+### 1.6 "Develop on the JVM" is really "test on the JVM", and not everywhere
 
 Files named `*Test.kt`, counted per source set on 2026-09-11. A test in `commonTest` runs on every
 declared target; a test in `nativeTest` never runs on the JVM, and vice versa.
@@ -199,24 +250,27 @@ declared target; a test in `nativeTest` never runs on the JVM, and vice versa.
 | katcher `:server` | 10 | 0 | **11** | 0 |
 | razves (whole repo) | 15 | 3 | 0 | 0 |
 
-**Consequence — metrik's server has no JVM test coverage at all.** Its eight route, ingest and
-query tests live in `nativeTest`; the `jvm()` target compiles the production code and runs nothing
-against it. For that module "develop on the JVM, ship native" is already not what happens, and a
-parity gate that assumed both halves ran the same suite would be comparing a suite against an empty
-set. katcher is the same shape with eleven tests.
+**Consequence — metrik's server has no JVM test coverage at all**, and katcher's has half. Their
+route, ingest and query tests live in `nativeTest`; the `jvm()` target compiles the production code
+and runs nothing against it. For those two modules the pattern is not "develop on the JVM, ship
+native" — the JVM half is a compile check.
 
-**What is *not* established:** why. `openDatabase` — the one thing those tests need that looked
-platform-specific — is in `commonMain` on both
+**Consequence — and that makes the JVM target's purpose worth stating out loud.** No subject's
+server module applies the `application` plugin, declares a `mainClass`, or produces an installable
+distribution; shildik's only `application` module, `:distribution`, declares **`linuxX64` alone**.
+The JVM targets exist so common tests run in seconds. Nothing ships on a JVM. Once that is written
+down, most of the brief's design follows from it (D1).
+
+**What is *not* established:** why those tests are where they are. `openDatabase` — the one call
+that looked platform-specific — is in `commonMain` in both repositories
 (`metrik/server/src/commonMain/kotlin/io/github/youndie/metrik/server/Application.kt`,
-`tracy/server/src/commonMain/kotlin/io/github/youndie/tracy/server/Application.kt`),
-so nothing in the type system forced the choice, and nothing in either repository records it. It is
-H2, not a finding.
+`tracy/server/src/commonMain/kotlin/io/github/youndie/tracy/server/Application.kt`), so nothing in
+the type system forced the choice. It is H2, not a finding.
 
 **Consequence — tracy is the reference subject.** 37 of its 39 tests are in `commonTest` and its CI
-runs them on `jvm`, `linuxX64` and `macosArm64` on every pull request. Whatever the gate turns out
-to be, tracy is where it is cheapest to prove and where a red result means the most.
+runs them on `jvm`, `linuxX64` and `macosArm64` on every pull request.
 
-### 1.6 What a pull-request build already costs
+### 1.7 What a pull-request build already costs
 
 Wall time of the Gradle job on the most recent successful `main` run of each repository,
 2026-09-09, `ubuntu-latest`, read from `gh run view --json jobs`.
@@ -228,7 +282,7 @@ Wall time of the Gradle job on the most recent successful `main` run of each rep
 | katcher | `build` | 7 m 29 s |
 | metrik | `build` | 10 m 03 s |
 
-And what those minutes already contain — task list from the log of tracy's run `34400536457`:
+And what those minutes already contain:
 
 | Fact | Where verified |
 |---|---|
@@ -239,147 +293,154 @@ And what those minutes already contain — task list from the log of tracy's run
 
 **Consequence — RQ4's question has the wrong subject.** The brief budgets ten minutes for
 `parityCheck` on the assumption that the native link is what it buys. The native release link for
-every declared target is **already inside the existing PR build**, and so is running the test suite
-on both. The marginal cost of a parity gate is not a compile; it is capturing two transcripts and
-diffing them, which is seconds. The ten-minute question answers itself and the real budget question
-is metrik's ten minutes, which is a separate problem from this brief.
+every declared target is **already inside the existing pull-request build**, and so is running the
+suite on both. A platform probe is a dozen more tests in a suite that already runs on every target:
+seconds, on hardware that is already paid for.
 
 ---
 
 ## 2. Decisions
 
-### D1. The gate diffs two transcripts of the same suite, not two running services *(deviation from the brief)*
+### D1. The gate is a platform probe, not a stdlib diff *(deviation from the brief)*
 
-Brief: "`parityCheck`: builds both targets, **starts each** against the same stand, runs the same
-suite, applies the normaliser, and fails on any diff".
+Brief: "`parityCheck`: builds both targets, starts each against the same stand, runs the same suite,
+applies the normaliser, and **fails on any diff** not listed in `parity-allowlist.yaml`".
 
-Decision: for the four services, the gate runs one `commonTest` suite on both targets, has each run
-write a normalised transcript of what it observed, and diffs the transcripts.
+Decision: `parityCheck` is a set of ordinary `commonTest` tests — perhaps a dozen — that assert the
+**platform layer** behaves on the target being built:
 
-Why:
+- resolve a hostname through the real socket API and connect (metrik §1.6's exact failure);
+- make one HTTPS request with the client engine this repository pins, so a missing TLS stack fails
+  here rather than in production (§1.7's);
+- reference every pinned Ktor server and client plugin, so one published for the JVM only fails to
+  resolve at compile time on the target that lacks it (§1.8's);
+- and, as the cheapest possible member of the family, compile the coroutine dispatchers the code
+  uses (§1.5's correction, which a single compiling line would have settled).
 
-- **There is no JVM service to start.** No subject's server module applies the `application`
-  plugin, declares a `mainClass`, or produces an installable distribution; the only `application`
-  in any of them is shildik's `:distribution`, and that module declares **`linuxX64` only**
-  (`shildik/distribution/build.gradle.kts`). The `jvm()` targets exist so common tests run in
-  seconds, not so a JVM process ships.
-- Building one would be a real piece of work — an entry point, a runtime classpath, a JVM image or
-  a start script, per repository — and it would exist only to be tested. That is not a three-day
-  box, and it puts an artefact nobody ships between the question and the answer.
-- `ktor-server-test-host` is already a `commonTest` dependency in tracy and metrik and already runs
-  on `linuxX64` in CI, so the HTTP surface is reachable in-process **on both targets** with no new
-  machinery.
-- The price, stated plainly: the in-process route does not exercise the real socket, the real DNS
-  resolver or the real TLS stack — which is exactly where all four of §1.4's divergences lived.
-  This gate would not have caught any of them. That is not a reason to skip it; it is a reason not
-  to let it be mistaken for coverage it does not provide, and it is why Risk 1 in §5 exists.
+They run on every declared target in the build that already exists, they need no second process and
+no allowlist, and a failure names a platform capability rather than a differing string.
 
-### D2. razves keeps the brief's design, because it can
+Why this and not the brief's design:
 
-razves is a CLI with `jvm()` and two native executables. "Run the binary, capture stdout, diff" is
-one script, needs no stand, and gives the portfolio one instance of the process-level gate the
-brief actually asked for. Where the two designs disagree, razves is the one that tells us what the
-in-process version is missing.
+- **It is the only shape that would have caught anything.** All three real cases in §1.5 are
+  platform APIs; a transcript diff of §1.2 would have been green through every one of them.
+- **There is no JVM service to start** (§1.6): no server module produces a runnable JVM artifact,
+  and building one per repository, to be tested and never shipped, is not a three-day box.
+- **A failing platform probe is a sentence, not a diff.** "linuxX64 cannot resolve `postgres`" is
+  actionable; "row 41 differs" needs a reader to decide whether it matters, which is the work an
+  allowlist then accumulates.
+- The price, stated plainly: this gate says nothing about the 17 rows of §1.2. Those move at a
+  Kotlin or JDK bump, not at a pull request, and D4 puts them where things that move on a bump go.
 
-### D3. Neither target is the reference
+### D2. razves keeps a process-level gate, because it can
 
-The JVM is older, better documented and wrong more often than a reader expects — `\bé` matching
-nothing is the JVM's answer, not native's. `compare.py` prints `left` and `right` and refuses to
-label either. A divergence is resolved by deciding what the *contract* says, which is sometimes
-"the JVM", sometimes "native", and sometimes "neither, both get a `.sorted()`".
+razves is a CLI with `jvm()` and two native executables. "Run the binary on the fixture, capture
+stdout, diff" is one script and needs no stand. It is the portfolio's one instance of the brief's
+original design, and worth keeping for exactly that reason: where it and D1's probe disagree about
+the same commit, the difference is what the in-process design cannot see.
+
+### D3. The stdlib transcript is a probe for version bumps, not a gate
+
+The 17 rows are a property of Kotlin 2.4.10, kotlinx-serialization 1.11.0, kotlinx-datetime 0.8.0
+**and the JDK** — §1.2 shows five of them moving between JDK 17 and JDK 25. Re-running is two
+commands. Making it a per-pull-request gate would spend the budget where nothing changes between
+pull requests, and would grow an allowlist of message texts that nobody ever removes an entry from.
+
+So: `run.sh` on a version bump, the transcript committed beside the previous one, and the diff read
+by a person. A renovate bump to Kotlin or to a kotlinx library is the trigger, and that is B-17.
 
 ### D4. The probe is committed, and it is not the gate
 
 [`parity-probe/`](parity-probe/) is a standalone Gradle build under `docs/research/`, deliberately
 outside sborka's own build: applying `sborka.kmp` to it would put this repository's explicit-API
-rule, ktlint pass and test gate between the question and the answer. It is re-runnable on a version
-bump, which is the whole point — the 17 rows are true of Kotlin 2.4.10 and of nothing else, and the
-next bump is when anyone will want to know whether they still are.
+rule, ktlint pass and test gate between the question and the answer. `-PprobeJdk=17` runs the JVM
+half on another toolchain, because for at least three rows the JDK is the variable rather than the
+target.
 
 Same reasoning as the perf-lint probe in [`probe/`](probe/), and the same benefit: two readers
-answering one question is what catches a defect in the first reader.
+answering one question is what catches a defect in the first reader — here, literally, the
+constant-folding defect in §1.2 that only showed up because a second JDK disagreed with the first.
 
-### D5. The allowlist is per-row, not per-class
+### D5. Neither target is the reference
 
-`parity-allowlist.yaml`, one entry per differing transcript row: the probe id, the class from §1.2,
-the reason, and the value each side produces. A class-level entry ("exception messages may differ")
-would silence the row that changes an exception's *class* along with the sixteen that only change
-text. The allowlist is the platform-differences page in machine form, and a page that says
-"messages differ" teaches nobody anything.
+`compare.py` prints `left` and `right` and labels neither. The JVM is the older runtime and is not
+automatically the right one: `\bé` matching nothing is JDK 19+'s answer, and JDK 17 agrees with
+Kotlin/Native rather than with JDK 25. A divergence is resolved by deciding what the *contract*
+says, which is sometimes "the JVM", sometimes "native", and sometimes "neither, both get a
+`.sorted()`".
 
 ---
 
 ## 3. Deviations from the brief, collected
 
-Each of these is a place where the brief asked for something the code does not support. They are
-gathered here rather than scattered because this list, not the RQ table, is what the next person
-needs before they start.
-
 1. **Seven subjects, five.** telek has no JVM target; booblik's two halves are two programs (§1.1).
-2. **"Starts each against the same stand" is not buildable today** — no JVM runnable exists for any
-   of the four services (D1).
-3. **"Under 10 minutes with cache" is not the question.** The native link is already in the PR
-   build; the marginal cost of the gate is a diff (§1.6).
-4. **The predicted divergences were wrong in both directions.** The brief predicted 2–5, with
-   "key order in JSON produced from a map and a regex with a character class or a look-around"
-   first. Key order: confirmed, and it is the only serialization row that moved. Regex character
-   classes and look-arounds: `\w` on accented text, `\d` on Arabic-Indic digits, `\p{L}`,
-   `\p{IsCyrillic}`, `[[:alpha:]]`, fixed and variable look-behind, named groups, back-references,
-   possessive quantifiers and atomic groups **all agreed**. Total: 17, mostly in classes the brief
-   did not rank.
-5. **"Both binaries pass their unit tests" understates it for metrik and katcher** — their server
-   suites do not run on the JVM at all (§1.5).
-6. **The brief's non-goal "performance parity" is the right call and its reason is now stronger.**
-   The measurable behavioural surface turned out to be small and mostly identical; the interesting
-   risk moved to the platform layer, which is a behaviour question, not a speed one.
+2. **The gate is a platform probe, not a transcript diff** (D1) — the brief's design would have
+   caught none of the three cases the portfolio has paid for.
+3. **"Starts each against the same stand" is not buildable today** — no JVM runnable exists for any
+   of the four services (§1.6).
+4. **"Under 10 minutes with cache" is not the question.** The native link is already in the
+   pull-request build; a dozen more tests cost seconds (§1.7).
+5. **The predicted divergences were wrong in both directions.** The brief predicted 2–5, with "key
+   order in JSON produced from a map and a regex with a character class or a look-around" first.
+   Key order: confirmed, and the only serialization row that moved. Regex character classes and
+   look-arounds: `\w` on accented text, `\d` on Arabic-Indic digits, `\p{L}`, `\p{IsCyrillic}`,
+   `[[:alpha:]]`, fixed and variable look-behind, named groups, back-references, possessive
+   quantifiers and atomic groups **all agreed**.
+6. **"Both binaries pass their unit tests" understates it for metrik and katcher** — their server
+   suites do not run on the JVM at all (§1.6).
+7. **One entry of the portfolio's own divergence list was wrong** (§1.5) — and it had been carried
+   in a build file's comment, as a reason for a workaround, since the module was written.
 
 ---
 
 ## 4. Hypotheses, each with the milestone that settles it
 
-**H1 — the `macosArm64` results carry over to `linuxX64` except for the zone table.** Settled by
-re-running [`parity-probe/run.sh`](parity-probe/run.sh) on the Linux box and diffing the two native
-transcripts against each other. Prediction: 128 of 129 rows identical, `datetime/available-zone-count`
-differs. If more than one row moves, every number in §1.2 is about macOS and says so.
+**H1 — closed, 2026-09-11.** The `macosArm64` results carry over to `linuxX64` except for the zone
+table: 128 of 129 rows identical, `datetime/available-zone-count` the exception (§1.3). The
+prediction held exactly.
 
 **H2 — metrik's and katcher's server tests are in `nativeTest` by habit, not by necessity.**
-Everything they call is in `commonMain` (§1.5). Settled by moving one file to `commonTest` and
-running `jvmTest`. If it compiles and passes, the parity gate for those two repositories is mostly
-a `git mv`; if it does not, the reason it does not is the most interesting fact in this document.
+Everything they call is in `commonMain` (§1.6). Settled by moving one file to `commonTest` and
+running `jvmTest` — B-10. If it compiles and passes, those two repositories join the gate for the
+price of a `git mv`; if it does not, *what* stops it is the most interesting fact this strand can
+produce, because it is a platform-layer divergence found by trying rather than by reading.
 
-**H3 — the four platform-layer divergences of §1.4 are a closed set for the libraries this
-portfolio pins.** Settled by the first `parityCheck` run that exercises a real socket. Prediction:
-it is not closed, and the next one is in file-system or process APIs.
+**H3 — the three platform-layer cases of §1.5 are not a closed set.** Prediction: the next one is
+in file-system or process APIs. Settled by the first `parityCheck` that exercises a real socket and
+a real file system — B-13.
 
 **H4 — no shipped payload in the portfolio depends on `HashMap` order except metrik's `routes`.**
-Settled by the gate itself, on the first run over all five subjects. §1.3 searched by hand and found
-one; a hand search over five repositories is a hypothesis, not a fact.
+§1.4 searched by hand over five repositories, which is a hypothesis, not a fact. Settled by a
+`kapkan`-style scan for a `Map` reaching a serializer without an ordering step.
+
+**H5 — booblik's `newSingleThreadContext` can be replaced by `Dispatchers.IO`.** The reason recorded
+for it is false (§1.5); whether the replacement is right is a design question about a blocking
+socket, not a platform one. Settled by B-16.
 
 ---
 
 ## 5. Risks, with the machinery that mitigates them
 
-**Risk 1 — the gate is mistaken for coverage of the platform layer.** An in-process `parityCheck`
-that is green says the stdlib agrees, and §1.4 is four cases where the stdlib agreed and production
-was broken for months. Mitigation: the task's own output names what it did not test, in the same
-line as the result — "42 rows compared on jvm and linuxX64; no socket, DNS or TLS path was
-exercised". A gate that reports its own blind spot is the only kind that does not accumulate
-misplaced trust.
+**Risk 1 — the platform probe is mistaken for a behavioural equivalence proof.** It says the socket
+resolves and the plugins are there; it says nothing about the 17 rows. Mitigation: the task reports
+what it covered — "6 platform assertions on jvm, linuxX64, linuxArm64; stdlib behaviour is
+`parity-probe/`, last run 2026-09-11" — so the gap is visible in the same line as the green.
 
-**Risk 2 — the allowlist becomes the place differences go to be forgotten.** Sixteen of the
-seventeen rows are message text, which is exactly the kind of entry that gets allowlisted on sight.
-Mitigation: an entry carries the two values, so a row whose *values* change still fails even though
-the row is allowlisted — the allowlist pins the known difference rather than muting the probe.
+**Risk 2 — the stdlib probe rots into a file nobody re-runs.** It is not on the pull-request path by
+design (D3), which is exactly how a check stops happening. Mitigation: the trigger is a renovate
+bump to Kotlin or a kotlinx library, and that trigger is an item with a checker behind it (B-17),
+not an intention.
 
-**Risk 3 — a normaliser that is written to make the build green.** Timestamps and generated ids have
-to be normalised; the same mechanism can normalise away a real difference, and nothing distinguishes
-the two from inside. Mitigation: the normaliser is a declared list of field names, not a regex over
-the payload, and adding to it is a diff a reviewer sees.
+**Risk 3 — the platform probe needs the network and becomes flaky, then gets disabled.** A TLS
+request to a public host is an outage away from a red build on an innocent pull request.
+Mitigation: the DNS and TLS targets are the repository's own stand, brought up for the test; the
+probe fails with "the stand did not answer" and that message is different from "the target cannot
+do TLS".
 
-**Risk 4 — the probe's own numbers rot at the next Kotlin bump.** 17 of 129 is a property of 2.4.10.
-Mitigation: `run.sh` and `compare.py` are committed and take one command each; re-running is cheaper
-than reading this document. **The numbers in §1.2 name their date and their versions for that
-reason** — a table that does not is a table nobody can re-check.
+**Risk 4 — a number in §1.2 is quoted after it stops being true.** Five rows already move between
+two JDKs, and one row was measuring the compiler until it was caught. Mitigation: every transcript
+carries a header with its runtime, JDK and host; every claim in §1.2 names the comparison it comes
+from; and `opaque(…)` keeps the formatting probes on the runtime.
 
 ---
 
@@ -388,20 +449,20 @@ reason** — a table that does not is a table nobody can re-check.
 | What | Where |
 |---|---|
 | the probe, its runner and its comparison tool | [`docs/research/parity-probe/`](parity-probe/) |
-| the two transcripts these numbers come from | [`docs/research/parity-probe/results/`](parity-probe/results/) |
+| the four transcripts these numbers come from | [`docs/research/parity-probe/results/`](parity-probe/results/) |
 | the versions every measurement was taken at | [`catalog/sborka.versions.toml`](../../catalog/sborka.versions.toml) |
 | where the gate would be wired, as `sborka.kmp` wires the test gate today | [`build-logic/conventions/src/main/kotlin/io/github/youndie/sborka/kmp.gradle.kts`](../../build-logic/conventions/src/main/kotlin/io/github/youndie/sborka/kmp.gradle.kts) |
 | the reference subject | `tracy/server` |
 | the only shipped payload found to depend on hash order | `metrik/agent/src/commonMain/kotlin/io/github/youndie/metrik/agent/WindowAggregator.kt` |
 | the same shape, already immune | `metrik/shared/src/commonMain/kotlin/io/github/youndie/metrik/wire/Histogram.kt` |
-| the platform-layer divergences, in the repository that paid for them | `metrik/docs/research/research-architecture.md` §§1.6–1.8 |
+| the comment §1.5 corrects | `booblik/booblik-native/build.gradle.kts` |
+| the platform-layer cases, in the repository that paid for them | `metrik/docs/research/research-architecture.md` §§1.6–1.8 |
 
 ---
 
 ## 7. What happens next
 
 The order is in [backlog.md](../../backlog.md), stages `stage-4-parity-evidence` and
-`stage-5-parity-gate`. The first two items are the ones everything else waits on: H1, because every
-number here is provisional until the probe has run on Linux, and H2, because if metrik's and
-katcher's suites cannot move to `commonTest` then the gate has nothing to compare for two of the
-five subjects.
+`stage-5-parity-gate`. H1 is closed; what everything else waits on is B-10, because if metrik's and
+katcher's suites cannot run on the JVM then two of the five subjects have no second half to gate.
+B-13 — the platform probe — is the item this document exists to argue for.

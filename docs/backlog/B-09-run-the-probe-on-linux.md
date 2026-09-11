@@ -1,7 +1,7 @@
 ---
 id: B-09
 title: "Run the parity probe on linuxX64 and say which of its numbers were about macOS"
-status: open
+status: done
 priority: P0
 size: XS
 stage: stage-4-parity-evidence
@@ -37,3 +37,24 @@ macOS's answer.
   `docs/research/research-parity.md`
 
 Settles hypothesis H1 of the research.
+
+## Done, 2026-09-11 — the prediction held, and the mechanism is worth more than the row
+
+`run.sh linuxX64` on the Linux box (Ubuntu 24.04 under WSL2, JDK 25.0.4), transcript committed as
+`results/2026-09-11-linuxX64.tsv`. Three comparisons, not one:
+
+- **`macosArm64` vs `linuxX64`: 1 row of 129.** `datetime/available-zone-count`, 597 against 496.
+  Everything else — including all seventeen JVM/native differences — is identical, so §1.2's
+  numbers are about the runtimes and not about macOS.
+- **JVM on macOS vs JVM on Linux: 0 rows.** 604 zones on both.
+- **JVM on Linux vs `linuxX64`, the pair that actually ships: the same 17.**
+
+The reason those two facts sit together is the finding: **kotlinx-datetime on Kotlin/Native reads
+the host's zone database and the JDK ships its own.** For a service in a container the zone table
+is therefore a property of the base image, not of the language — which is a Brief A question
+wearing a Brief B row, and it is now written into §1.3 as such.
+
+Two things came out of the same run that were not in this item's scope and changed the document
+more than it did: the transcripts now carry a header naming the JDK, and one probe row turned out
+to be measuring the compiler rather than the runtime (research §1.2, "Correction found while
+building the probe").
