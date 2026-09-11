@@ -115,8 +115,9 @@ shares it rests on, the rules as behaviour, and one document per module — star
 | `io.github.youndie.sborka:settings` | the settings plugin |
 | `io.github.youndie.sborka:core` | what both halves share: the reference `.editorconfig` and the release version |
 | `io.github.youndie.sborka:catalog` | the versions several repositories have to keep identical |
+| `io.github.youndie.sborka:kapkan` | the ktlint rule set `sborka.lint` puts on `ktlintRuleset` — not a plugin: ktlint loads it through `META-INF/services` |
 
-Three jars rather than one, and that is not cosmetic. Gradle picks a classloader by classpath: a
+The plugins are three jars rather than one, and that is not cosmetic. Gradle picks a classloader by classpath: a
 settings plugin and a project plugin shipped in one jar share a loader — the one that has no Kotlin
 plugin beneath it — and the project plugin then fails with `NoClassDefFoundError` on a class that is
 demonstrably among its own dependencies. The details are in
