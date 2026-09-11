@@ -448,8 +448,18 @@ gradle.rootProject {
                 // bytes. `<clinit>` is not counted, so what is listed is the rebuilt ones.
                 val patternLines =
                     report.patternsCompiled.map { method ->
-                        "${label(method)}: ${method.patternsCompiled} pattern(s) built per call — " +
-                            "a Regex in <clinit> is built once"
+                        // TWO SENTENCES, BECAUSE THERE ARE TWO CASES. A constant pattern can be
+                        // hoisted; one whose string the body assembles cannot, and telling its
+                        // author to hoist it is how a rule teaches people to suppress without
+                        // reading. `B-06`.
+                        val remedy =
+                            if (method.patternsInterpolated > 0) {
+                                "${method.patternsInterpolated} of them from a string assembled " +
+                                    "here, so <clinit> is not available to those"
+                            } else {
+                                "a Regex in <clinit> is built once"
+                            }
+                        "${label(method)}: ${method.patternsCompiled} pattern(s) built per call — $remedy"
                     }
 
                 // A CHAIN THAT ALLOCATES A CONTAINER PER LINK, which is the same class-file walk
@@ -558,7 +568,12 @@ gradle.rootProject {
 
                             else -> {
                                 "${label(method)}: ${method.patternsCompiled - sites.suppressed} " +
-                                    "pattern(s) built per call and not answered for"
+                                    "pattern(s) built per call and not answered for" +
+                                    if (method.patternsInterpolated > 0) {
+                                        " (${method.patternsInterpolated} interpolated)"
+                                    } else {
+                                        ""
+                                    }
                             }
                         }
                     }
@@ -574,11 +589,19 @@ gradle.rootProject {
                                 "sborka docs/research/research-perf-lint.md §2.1).\n\n",
                         separator = "\n",
                         postfix =
-                            "\n\nMove the pattern into a `<clinit>` — a top-level or companion `val` — " +
-                                "where it is compiled once. Where it cannot be moved (a pattern " +
-                                "interpolated from an argument, a constructor whose instance lives " +
-                                "as long as the process), answer for it beside the line that builds " +
-                                "it:\n\n" +
+                            "\n\nA CONSTANT PATTERN moves into a `<clinit>` — a top-level or companion " +
+                                "`val` — where it is compiled once.\n\n" +
+                                "AN INTERPOLATED ONE (marked above) cannot: its string is " +
+                                "assembled at the call site. Parse without a pattern where " +
+                                "that is possible; where the pattern must vary, build it " +
+                                "where the VARYING PART is decided — once per key rather " +
+                                "than once per call. A cache keyed by the interpolated " +
+                                "string is the answer that looks obvious and is not: it " +
+                                "trades a compile for a lookup and keeps an entry per " +
+                                "distinct key for the life of the process.\n\n" +
+                                "Where neither applies — a constructor whose instance lives " +
+                                "as long as the process — answer for it beside the line that " +
+                                "builds it:\n\n" +
                                 "    @Suppress(\"${Suppressions.PATTERN_RULE}\", \"why this one is " +
                                 "rebuilt\")\n\n" +
                                 "The reason is not optional: kapkan's suppression-needs-a-reason " +

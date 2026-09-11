@@ -188,6 +188,16 @@ object MethodSizes {
          */
         val materialisations: Int = 0,
         /**
+         * Of [patternsCompiled], how many are built from a string the call site assembles.
+         *
+         * `Regex("[A-Z]+")` can be hoisted into `<clinit>`; `Regex("$key=…")` cannot, and telling a
+         * caller to hoist it is how a rule teaches people to suppress without reading. The two are
+         * different instruction sequences — a constant is pushed with `ldc`, a template is built by
+         * an `invokedynamic` on `StringConcatFactory` — so the report can say the right thing about
+         * each. `B-06`.
+         */
+        val patternsInterpolated: Int = 0,
+        /**
          * The compilation outputs this body was found in, relative to the scanned directory.
          *
          * More than one when a multiplatform build wrote the same class twice —
@@ -405,6 +415,8 @@ object MethodSizes {
                                     calls.orEmpty().count { pool.member(it.poolIndex).isPatternBuild() }
                                 },
                             materialisations = calls.orEmpty().count { pool.isMaterialisation(it) },
+                            patternsInterpolated =
+                                if (name == "<clinit>") 0 else pool.interpolatedPatterns(calls.orEmpty()),
                             walked = calls != null,
                         )
                 }
@@ -478,6 +490,53 @@ object MethodSizes {
                 false
             }
         }
+
+    /**
+     * How many pattern builds in this body take a string the body assembled.
+     *
+     * FOR `Regex`, THE ANCHOR IS ITS OWN `new`: everything between `new kotlin/text/Regex` and the
+     * constructor call is the argument being prepared, so a call in that window means the string was
+     * computed and a window with no calls in it means a constant was pushed. For
+     * `Pattern.compile` there is no `new` to anchor on, so the question is narrower — whether the
+     * immediately preceding instruction site is the `invokedynamic` that builds a string template.
+     *
+     * WHAT IT MISSES, and the report is worded so that a miss costs nothing: a pattern assembled by
+     * a helper function and passed in reads as constant here. The rule still fires on it; only the
+     * sentence about what to do changes, and "hoist it" is the right advice for a constant.
+     */
+    private fun ConstantPool.Pool.interpolatedPatterns(calls: List<Bytecode.Call>): Int {
+        var count = 0
+        var insideNewRegex = false
+        var computedSinceNew = false
+        var previousWasIndy = false
+        calls.forEach { call ->
+            val member = member(call.poolIndex)
+            when {
+                call.opcode == Bytecode.NEW && className(call.poolIndex) == REGEX -> {
+                    insideNewRegex = true
+                    computedSinceNew = false
+                }
+
+                member == "$REGEX.<init>" -> {
+                    if (insideNewRegex && computedSinceNew) count++
+                    insideNewRegex = false
+                    computedSinceNew = false
+                }
+
+                member.isPatternBuild() -> {
+                    if (previousWasIndy) count++
+                }
+
+                else -> {
+                    if (insideNewRegex) computedSinceNew = true
+                }
+            }
+            previousWasIndy = call.opcode == Bytecode.INVOKEDYNAMIC
+        }
+        return count
+    }
+
+    private const val REGEX = "kotlin.text.Regex"
 
     /** The null checks Kotlin emits; the two `-Xno-*-assertions` flags remove them. */
     private fun String?.isAssertion(): Boolean = this != null && startsWith("kotlin.jvm.internal.Intrinsics.check")

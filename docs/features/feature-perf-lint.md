@@ -45,6 +45,11 @@ declared hot it cannot fail, and a task that cannot fail has no business slowing
 
 ## 2. Business rules
 
+**R1a — what the finding tells its author depends on the pattern.** A constant one moves into
+`<clinit>`; one whose string the body assembles cannot, and the report says so separately. A cache
+keyed by the interpolated string is named as the wrong answer, because it trades a compile for a
+lookup and keeps an entry per key.
+
 **R1 — a pattern built per call is a finding.** `Regex(…)` or `Pattern.compile(…)` reached from a
 method body. `<clinit>` is excluded: that is where a pattern belongs. `<init>` is **not** excluded
 and the finding there is a question — a pattern in a constructor costs per instance, and bytecode
@@ -184,6 +189,13 @@ already does this and the reports print it; a rule inherits the same obligation.
 * **When:** `check` runs
 * **Then:** ktlint fails with `kapkan:pattern-built-per-call is switched off here and the annotation does not say why`
 * **Automated:** `SuppressionNeedsAReasonRuleTest`, plus a control run by hand on the stand
+
+### Scenario: an interpolated pattern is answered differently from a constant one
+* **Given:** `Regex("$key=\\d+")` in one method and `Regex("[a-z]+-\\d+")` in another
+* **When:** the report prints them
+* **Then:** the first says the string is assembled here and `<clinit>` is not available to it; the second says a `Regex` in `<clinit>` is built once
+* **And:** the gate's message names the two remedies separately, and names a cache keyed by the interpolated string as the answer that looks obvious and is not
+* **Automated:** `BytecodeTest`; the stand carries one of each, so a real run prints both
 
 ### Scenario: a body that repeats is marked
 * **Given:** a finding in a method whose signature carries a `Composer` or a `DrawScope`

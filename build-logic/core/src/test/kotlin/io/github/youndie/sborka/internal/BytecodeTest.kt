@@ -28,6 +28,9 @@ class BytecodeTest {
 
     private val mainClasses = File(compiledFixtures.parentFile, "main")
 
+    private val callsFixture =
+        File(compiledFixtures, "io/github/youndie/sborka/internal/sizes/MethodSizesCallsFixture.class")
+
     private val chainFixture =
         File(compiledFixtures, "io/github/youndie/sborka/internal/sizes/MethodSizesChainFixture.class")
 
@@ -72,6 +75,21 @@ class BytecodeTest {
             methods.filter { it.name == "<clinit>" }.all { it.patternsCompiled == 0 },
             "a <clinit> was counted: ${methods.filter { it.name == "<clinit>" }}",
         )
+    }
+
+    @Test
+    fun `a pattern built from an interpolated string is told apart from a constant one`() {
+        val methods = MethodSizes.parse(callsFixture)!!
+
+        val interpolated = methods.single { it.name == "interpolated" }
+        assertEquals(1, interpolated.patternsCompiled)
+        assertEquals(1, interpolated.patternsInterpolated, "the string is built at the call site")
+
+        // The control, and it is the one that matters: a constant pattern must NOT be reported as
+        // interpolated, or the report would tell every caller the thing it can do nothing about.
+        val constant = methods.single { it.name == "perCall" }
+        assertEquals(1, constant.patternsCompiled)
+        assertEquals(0, constant.patternsInterpolated)
     }
 
     @Test

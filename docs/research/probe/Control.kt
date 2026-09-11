@@ -40,3 +40,10 @@ fun stringChain(n: Long): String = n.toString().reversed().chunked(3).joinToStri
 
 // NEGATIVE CONTROL: one operator is not a chain.
 fun oneString(s: String): String = s.reversed().toString()
+
+// THE TWO PATTERN CASES, which the report tells apart and answers differently (B-06).
+// A constant can be hoisted into <clinit>; a string assembled at the call site cannot, and a rule
+// that tells its author to hoist it is a rule that teaches suppression without reading.
+fun constantPattern(code: String): Boolean = Regex("[A-Z]{2}-\\d{4}").matches(code)
+
+fun interpolatedPattern(key: String, line: String): Boolean = Regex("$key=\\d+").matches(line)
