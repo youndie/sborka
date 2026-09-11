@@ -152,6 +152,7 @@ as a surprise.
 | The reader is sborka's own, no ASM: constant pool, class header, method bodies, an instruction walk | `build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/MethodSizes.kt`, `ConstantPool.kt`, `Bytecode.kt` |
 | A pattern build is recognised as `kotlin.text.Regex.<init>` or `java.util.regex.Pattern.compile`, and `<clinit>` is excluded by name | `MethodSizes.isPatternBuild`, `MethodSizes.parse` |
 | The task is registered by the **settings** plugin, depends on every `*Classes` task, and is deliberately **not** in `check` | same settings script, `gradle.projectsEvaluated` block |
+| The scan runs per module, so every finding carries the module it is in, and `sborka.perflint.hot` marks the ones a gate would judge (`B-02`) | same settings script, `classDirByProject` and `hotModules` |
 | The instruction walk refuses to answer rather than answering zero: a body it could not walk is named in the report (`unwalked`) | `MethodSizes.Report.unwalked` |
 | kapkan's five ktlint rules are all source-level and none is about performance | `build-logic/kapkan/src/main/kotlin/io/github/youndie/sborka/kapkan/` |
 
@@ -337,10 +338,10 @@ Why: a rule that fires 1 058 times is a counter; nobody reads a counter and the 
 one gets an exemption within a week. This is the same ratio argument that keeps `MaxInlineSize`
 (35 bytes) out of the report entirely — at 35 bytes almost every method qualifies.
 
-### D4. "Hot" is declared by a person, not inferred *(open — see §4)*
+### D4. "Hot" is declared by a person, not inferred *(built in `B-02`, 2026-09-11)*
 
-Decision for now: the scope is a module list a repository declares, `sborka.perflint.hot=:server`;
-absent, everything is a report and nothing is a gate.
+Decision: the scope is a module list a repository declares, `sborka.perflint.hot=:server`; absent,
+everything is a report and nothing is a gate.
 
 Why: nothing static knows what is hot. Reachability from a Ktor route is computable with the reader
 that already exists (`Joins` resolves calls through the hierarchy), and it is still not hotness —
@@ -350,6 +351,13 @@ process runs under load.
 
 The price: a default of "nothing is hot" means a repository that never sets it gets reports only —
 so the rules cannot rot a build, and they also cannot help anybody who does not opt in.
+
+**What `B-02` added to the decision: an empty scope is a failure, twice over.** A module path with a
+typo in it and a module whose only targets are native both leave the property naming a set of
+findings that is empty, and an empty gate cannot be told from a passing one — so
+`kapkanMethodSizes` fails on either, naming the paths the build does have. The report also prints
+the scope on every run, including "nothing declared hot", so that silence reads as a decision
+rather than as a check that did not run.
 
 ### D5. The chain rule watches strings as well as collections *(correction, not a widening)*
 
