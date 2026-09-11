@@ -161,6 +161,7 @@ as a surprise.
 | A pattern build is recognised as `kotlin.text.Regex.<init>` or `java.util.regex.Pattern.compile`, and `<clinit>` is excluded by name | `MethodSizes.isPatternBuild`, `MethodSizes.parse` |
 | The task is registered by the **settings** plugin, depends on every `*Classes` task, and is deliberately **not** in `check` | same settings script, `gradle.projectsEvaluated` block |
 | The scan runs per module, so every finding carries the module it is in, and `sborka.perflint.hot` marks the ones a gate would judge (`B-02`) | same settings script, `classDirByProject` and `hotModules` |
+| A body whose signature carries a `Composer` or a `DrawScope` repeats by construction, and 7 of the portfolio's 70 client-repository chain findings are such bodies (`B-04`) | `MethodSizes.Method.repeats`; the reading is in `B-04` |
 | A method compiled into several outputs is one finding that names its copies, and a divergence between them is reported rather than silently resolved (`B-07`) | `MethodSizes.scan`, `Method.outputs` / `Method.divergent` |
 | An unanswered pattern finding inside a hot module fails the task, and the task joins `check` only where a scope is declared (`B-03`) | same settings script, the `unanswered` check; `build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/Suppressions.kt` |
 | The instruction walk refuses to answer rather than answering zero: a body it could not walk is named in the report (`unwalked`) | `MethodSizes.Report.unwalked` |
@@ -414,10 +415,26 @@ Mitigation: the acceptance form of `docs/kapkan.md` §2.3 — a rule with no "ze
 code" state is accepted only if every finding's reason reads as a table, and rejected if one reason
 reads "it has to be this way".
 
-**Open question 1 — does the chain rule survive contact with a Compose client?** Everything above is
-server-shaped. metrik and shashki are Compose repositories and hold 45 of the 325 findings; nobody
-has looked at whether a recomposing body allocating two containers is a defect or the framework.
-Settled in `B-02` by reading those 45.
+**Open question 1 — does the chain rule survive contact with a Compose client?** *(Answered
+2026-09-11 by `B-04`, and the question was mis-posed.)* The findings of metrik and shashki were read
+one by one — 70 of them, with the task as the reader rather than the probe. Only **7** are in a body
+that repeats by construction: metrik's `ServiceGridCard` and `SystemTab` and its chart's
+`drawSeries`, shashki's `MatchingContent`, `FinishedContent`, `TileRenderer.drawStreetLabels` and
+the map surface's draw lambda. The other 63 are 25 tests, 28 pieces of **server** code that happen
+to live in a repository which also has a client, and 10 client one-shots — a route parser, a tile
+decoder, a view model's `refresh`.
+
+So the axis is not the repository, which is what the question assumed; it is whether the body runs
+again. `ServiceGridCard` does `alerts.filter { … }.joinToString("; ") { … }` on every recomposition
+of every card — the rule's shape, in the place where it repeats — while the twenty-eight server
+findings in the same two repositories are no different from any other server's.
+
+**Decision: the rule applies unchanged and no source set is excluded.** An exclusion would have been
+a claim about client allocation costs, and nothing here has measured a Compose client. What was
+added instead is a marker: a body whose signature carries a `Composer` or a `DrawScope` is printed
+`[recomposes]`, because that is the one thing a class file can say about how often a method runs.
+Measuring a Compose client remains unmeasured and unclaimed — the only honest place for it is its
+own brief.
 
 **Open question 2 — the interpolated pattern.** `katcher`'s `Regex("$key=…")` is the one finding
 whose fix is neither a hoist nor a suppression. Hypothesis: a small `Regex` cache keyed by the
