@@ -217,6 +217,24 @@ object MethodSizes {
         /** Every threshold this body is over, largest first. */
         val crossed: List<Threshold> get() = ALL.filter { bytes > it.bytes }
 
+        /**
+         * Whether this body runs again and again by construction — a composition or a frame.
+         *
+         * READ OFF THE SIGNATURE, because that is where the Compose compiler puts it: a
+         * `@Composable` function gains a `Composer` parameter, and a body that draws takes a
+         * `DrawScope`. Nothing else in a class file says how often a method is called.
+         *
+         * IT IS A MARKER AND NOT A THRESHOLD. `B-04` read the 70 chain findings of the portfolio's
+         * two Compose repositories one by one: 7 of them are in a body with one of these in its
+         * signature, and the rest are tests, server code living in the same repository, view-model
+         * one-shots and decoders. A finding here is worth reading first; it is not worth a rule of
+         * its own, and nothing has measured a Compose client to justify one.
+         */
+        val repeats: Boolean
+            get() =
+                descriptor.contains("Landroidx/compose/runtime/Composer;") ||
+                    descriptor.contains("Landroidx/compose/ui/graphics/drawscope/DrawScope;")
+
         override fun toString(): String = "$className.$name$descriptor"
     }
 

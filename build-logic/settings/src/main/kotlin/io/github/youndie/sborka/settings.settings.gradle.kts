@@ -413,6 +413,10 @@ gradle.rootProject {
                     // THE COPIES, WHEN THERE ARE ANY. A multiplatform build compiles one class into
                     // several outputs; the finding is reported once, and this is what keeps
                     // "one finding" and "three class files" from drifting apart in a reader's head.
+                    // A BODY THAT RUNS PER COMPOSITION OR PER FRAME, read off its signature. Seven
+                    // of the seventy chain findings in this portfolio's two Compose repositories are
+                    // one of these; a reader wants them first.
+                    val repeats = if (method.repeats) " [recomposes]" else ""
                     val copies =
                         when {
                             method.divergent -> {
@@ -427,7 +431,7 @@ gradle.rootProject {
                                 ""
                             }
                         }
-                    return "$module$hot $method$copies"
+                    return "$module$hot$repeats $method$copies"
                 }
 
                 val sizeLines =

@@ -94,8 +94,9 @@ already does this and the reports print it; a rule inherits the same obligation.
    fields skipped by their attribute lengths → method bodies, with an instruction walk per body.
 3. Each body answers the three questions plus the `Intrinsics.check*` count.
 4. The findings are written to `build/reports/kapkan/method-sizes.txt` and echoed to the log, each
-   line carrying its module and `[hot]` where the module is in scope, followed by a line naming the
-   scope itself — "nothing declared hot" included.
+   line carrying its module, `[hot]` where the module is in scope and `[recomposes]` where the
+   signature says the body runs per composition or per frame, followed by a line naming the scope
+   itself — "nothing declared hot" included.
 5. Findings of R1 inside a module named by `sborka.perflint.hot`, minus the ones a `@Suppress`
    beside the pattern answers for, fail the task — and `check` depends on the task wherever a scope
    is declared. A finding whose source file cannot be found is **not** treated as suppressed.
@@ -184,6 +185,12 @@ already does this and the reports print it; a rule inherits the same obligation.
 * **Then:** ktlint fails with `kapkan:pattern-built-per-call is switched off here and the annotation does not say why`
 * **Automated:** `SuppressionNeedsAReasonRuleTest`, plus a control run by hand on the stand
 
+### Scenario: a body that repeats is marked
+* **Given:** a finding in a method whose signature carries a `Composer` or a `DrawScope`
+* **When:** the report prints it
+* **Then:** the line carries `[recomposes]`, because that is the only thing a class file says about how often a body runs
+* **Automated:** `MethodSizesTest`
+
 ## 6. Out of scope
 
 * Boxing (1.26 % of bytes on the stand), lazy logging (≤ 1.57 %) and `Intrinsics.check*` — measured
@@ -192,6 +199,8 @@ already does this and the reports print it; a rule inherits the same obligation.
   code reaches them. That was zavarnik's finding and closing it is not this set's job.
 * A rewriting pass. zavarnik measured the ceiling of one and did not build it; these rules point,
   a person fixes.
+* A measurement of a Compose client. Every number behind these rules came from a server profile, so
+  no rule claims anything about a recomposing body beyond marking it — see `B-04`.
 * Sequences as an answer to everything: below a few dozen elements the eager chain is usually
   faster, and nothing here has measured the crossover.
 

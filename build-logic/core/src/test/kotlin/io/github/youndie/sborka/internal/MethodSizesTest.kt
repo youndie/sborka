@@ -141,6 +141,29 @@ class MethodSizesTest {
         )
     }
 
+    @Test
+    fun `a body that runs per composition or per frame is marked by its signature`() {
+        // A pure question about a descriptor, so the test asks it directly rather than dragging
+        // Compose onto this module's classpath to compile a fixture against.
+        fun method(descriptor: String) =
+            MethodSizes.Method(
+                className = "ui.ScreenKt",
+                name = "Screen",
+                descriptor = descriptor,
+                bytes = 0,
+            )
+
+        assertTrue(
+            method("(Ljava/util/List;Landroidx/compose/runtime/Composer;I)V").repeats,
+            "a Composer parameter is what the Compose compiler adds to a @Composable",
+        )
+        assertTrue(
+            method("(Landroidx/compose/ui/graphics/drawscope/DrawScope;Ljava/util/List;)V").repeats,
+            "a DrawScope means the body draws, which happens per frame",
+        )
+        assertEquals(false, method("(Ljava/util/List;I)Ljava/lang/String;").repeats)
+    }
+
     private fun javap(classFile: File): String {
         val out = StringWriter()
         val javap =
