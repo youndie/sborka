@@ -10,7 +10,8 @@ carrying two more strands — the JVM/native parity gate
 ([research-parity](research/research-parity.md), probe in
 [`research/parity-probe/`](research/parity-probe/)) and the static-binary question
 ([research-static-binary](research/research-static-binary.md), probe in
-[`research/static-probe/`](research/static-probe/)). The older notes beside it are prose and stay
+[`research/static-probe/`](research/static-probe/)). A third probe,
+[`research/platform-probe/`](research/platform-probe/), is the beginning of the parity gate itself. The older notes beside it are prose and stay
 that way:
 
 | File | What it is |
@@ -74,13 +75,14 @@ documentation gate into it is a decision the next person to touch CI should take
 The list below is **checked** against the files on disk: a document missing here, or an entry with
 no file behind it, fails `coverage_map.py`.
 
-### Research (5)
+### Research (6)
 
 - [x] [research-perf-lint](research/research-perf-lint.md) — the three rules, their profiles, how often each fires, and what none of them claims
 - [x] [research-parity](research/research-parity.md) — 129 probes on two runtimes, the 17 that disagree, and why the gate belongs at the platform layer instead: none of the seventeen has ever cost anything, and the three that did are sockets, TLS and a plugin
 - [x] [source-brief-parity](research/source-brief-parity.md) — the parity brief as it arrived, kept so the deviations from it stay readable
 - [x] [research-static-binary](research/research-static-binary.md) — why a Kotlin/Native binary does not start in `scratch`, and the one linker option that removes a hand-written `COPY` line and the glibc pairing hazard with it
 - [x] [source-brief-static-binary](research/source-brief-static-binary.md) — the scratch-image brief as it arrived
+- [x] [source-brief-memory-limit](research/source-brief-memory-limit.md) — the brief after the K/N-under-load post: whether 2 000 rps in 256 MiB is the runtime or Ktor, kept as it arrived while the work is still ahead
 
 ### Services (3)
 

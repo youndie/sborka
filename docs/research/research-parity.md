@@ -201,7 +201,7 @@ None of them is in the standard library.
 
 | Case | Cost | Where recorded |
 |---|---|---|
-| `InetSocketAddress(host, port)` does not resolve a hostname on Kotlin/Native — `connect` fails with `EINVAL`; on the JVM the same code works | every native agent reporting through a Kubernetes service name was silent **from its first day**, and the monitoring rule for "no data" reported a healthy service as dead | metrik `docs/research/research-architecture.md` §1.6 |
+| ~~`InetSocketAddress(host, port)` does not resolve a hostname on Kotlin/Native~~ — **no longer reproduces**, see below | every native agent reporting through a Kubernetes service name was silent **from its first day**, and the monitoring rule for "no data" reported a healthy service as dead | metrik `docs/research/research-architecture.md` §1.6; re-measured here 2026-09-12 |
 | `ktor-client-cio` has no TLS on native — `IllegalStateException: TLS sessions are not supported` | Telegram notifications never left the server; fixed with `ktor-client-curl` on native and `ktor-client-cio` on the JVM, through `expect/actual` | metrik `docs/research/research-architecture.md` §1.7; the split is visible in `metrik/server/build.gradle.kts` |
 | `ktor-server-compression` is published for the JVM only | compression moved into the image build as pre-made `.gz` files | metrik `docs/research/research-architecture.md` §1.8 |
 | ~~`Dispatchers.IO` is `internal` on Kotlin/Native~~ — **it is not** | a thread booblik does not need | see the correction below |
@@ -223,6 +223,24 @@ The message is accurate and reads exactly like "IO is internal on native", which
 recorded. **The comment in booblik is wrong and the `newSingleThreadContext` it justifies is
 probably unnecessary** — probably, because whether the producer wants a dispatcher or a dedicated
 thread is a design question this document has not asked. That is B-16.
+
+**Re-measured 2026-09-12: the first row is history, and nobody knew.** A probe using ktor-network's
+own `InetSocketAddress` — not `getaddrinfo`, because the failure was in that API and an assertion
+through a different one proves nothing — connects to `example.com:80` on **`macosArm64` and
+`linuxX64` both**, at Ktor 3.5.2 and Kotlin 2.4.10. `127.0.0.1` and `localhost` come back
+"connection refused" on every target, which is the control: the probe reached a syscall. Full output:
+[`platform-probe/results/2026-09-12-hostname.txt`](platform-probe/results/2026-09-12-hostname.txt).
+
+Scope, stated because it is narrow: that is a **TCP** connect. metrik's agent sends **UDP**, which
+takes a different path to the same address type, and metrik's own path has to be re-run in metrik
+before its workaround is touched. What is established is that the general claim "Kotlin/Native does
+not resolve names" is not true at these versions.
+
+**Consequence — this is the argument for the gate, not against it.** The case was fixed upstream at
+some point and this portfolio found out by accident, weeks or months later, while writing a research
+document. metrik's own research still states it as current. A platform probe is what tells you the
+day something starts working, which is what lets a workaround be removed — and the same probe is
+what tells you the day it stops. A list of known divergences maintained by hand only ever grows.
 
 **Consequence — the gate has to reach the platform layer, and the stdlib probe cannot.** Every
 entry above is a library, a system call or an import behaving differently, not a language
