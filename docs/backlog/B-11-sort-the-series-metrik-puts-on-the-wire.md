@@ -1,7 +1,7 @@
 ---
 id: B-11
 title: "Sort the series metrik's agent puts on the wire, the way its histogram already does"
-status: open
+status: done
 priority: P2
 size: XS
 stage: stage-4-parity-evidence
@@ -36,3 +36,18 @@ on it.
   ordering for the same traffic; the existing `WindowAggregatorTest` still passes unchanged.
 - Anchors: `metrik/agent/src/commonMain/kotlin/io/github/youndie/metrik/agent/WindowAggregator.kt`,
   `metrik/shared/src/commonMain/kotlin/io/github/youndie/metrik/wire/Histogram.kt`
+
+## Done, 2026-09-11
+
+metrik branch `parity/metrik-findings` (`9b8af23`). `drain()` sorts by route, then method, then
+status before building the list; `WindowAggregatorTest` gained a case that records five series in an
+order matching neither the sorted nor the reversed one and asserts the drained order. It is in
+`commonTest`, so it runs on `jvmTest` and `linuxX64Test` both — which is the only arrangement that
+could catch what it is about. Existing cases unchanged and still green; `ktlintCheck` passes without
+`--format`.
+
+**One thing worth keeping from doing it:** the fix is only sound because *sorting* is
+target-independent where *iterating* is not. All nineteen string-and-Unicode probes in
+[research-parity §1.2](../research/research-parity.md) agreed, so the comparator cannot reintroduce
+the divergence it removes. A fix of this shape written against a comparator that did diverge would
+look identical and work in neither direction.

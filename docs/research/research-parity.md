@@ -186,6 +186,12 @@ so this is not a defect being reported; it is the one shape worth removing befor
 payload hash or an idempotency key starts depending on it. The sorted `Histogram` next door shows
 the fix costs one `.sorted()`.
 
+**Done, 2026-09-11 (B-11).** `drain()` now sorts by route, method and status, and the test that
+pins the order lives in `commonTest` so it runs on both targets. The fix is sound only because
+sorting is target-independent where iterating is not — all nineteen string probes above agreed —
+and a fix of this shape built on a comparator that *did* diverge would look identical and work in
+neither direction.
+
 **Consequence — the existing test demonstrates the brief's premise rather than refuting it.** It
 passes on both targets *because* it was written not to look.
 
