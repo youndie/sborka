@@ -57,6 +57,13 @@ non-inline eager operator over a collection **or a string** (`sortedWith`, `chun
 once at the end, and in bytecode they are different call targets, which is why the rule needs no
 type resolution.
 
+**R2a — what a chain finding promises, measured.** Rewriting the two methods konekt's profile
+charged most took them from 1.30 % of all allocated bytes to 0.00 %, while bytes per request moved
+−0.75 % against a 4.46 % spread between repetitions — the finding was removed and the service-level
+A/B could not see it ([research-perf-lint §1.7](../research/research-perf-lint.md)). So a message
+this lint prints says what the profile will stop charging, and says nothing about throughput or
+latency.
+
 **R3 — a body over `FreqInlineSize` is printed, never failed.** The threshold is read from the JVM
 that runs the build and printed beside the finding, because it is a `pd` (platform-dependent)
 product flag. A refusal to inline is not a measured cost, so this rule reports.

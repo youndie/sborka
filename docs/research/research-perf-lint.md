@@ -180,6 +180,54 @@ a constructor is paid per instance, which is free for a singleton and expensive 
 object. Bytecode does not carry the lifetime, so the rule cannot decide it; the acceptance form in
 §2 turns that into a question with a written answer rather than into a false positive.
 
+### 1.7 What fixing a finding actually bought *(`B-05`, 2026-09-11)*
+
+Everything above says what a shape **owns** in a profile. This says what removing it **saved**, which
+is a different claim and until this run nobody here had made it.
+
+The finding: `MoneyFormat.group` and `UsageUnits.grouped` in konekt, each
+`reversed().chunked(3).joinToString(sep).reversed()` — the two methods §1.4 named as the largest
+user-code allocation owners on that service. The fix: one pass over the digits, one implementation
+for both ([`io.konekt.text.DigitGroups`](https://github.com/youndie/konekt)). The harness:
+konekt's own `scripts/measure/ab-images.sh` — two server images differing by that patch alone,
+alternated, three repetitions each, k6 at a constant 200 rps against the chart's limits (1 CPU,
+1 GiB), a 120 s allocation window after 60 s of warm-up, the stand reset before every run. Full
+output in [`probe/results-ab-2026-09-11.txt`](probe/results-ab-2026-09-11.txt); the arithmetic is
+[`probe/ab-report.py`](probe/ab-report.py).
+
+| run | bytes/request | user code owns | the named methods own | dropped iterations | p95 |
+|---|---|---|---|---|---|
+| A rep1 | 85.23 KiB | 4.48 % | 1.302 % | 753 | 315 ms |
+| A rep2 | 83.90 KiB | 5.09 % | 1.017 % | 0 | 2.54 ms |
+| A rep3 | 87.70 KiB | 4.33 % | 1.484 % | 0 | 1.65 ms |
+| B rep1 | 85.12 KiB | 4.19 % | **0.000 %** | 343 | 166 ms |
+| B rep2 | 82.82 KiB | 3.55 % | **0.000 %** | 0 | 1.64 ms |
+| B rep3 | 84.59 KiB | 3.78 % | **0.000 %** | 0 | 2.13 ms |
+
+Medians: **85.23 → 84.59 KiB per request (−0.75 %)**, user-owned **4.48 % → 3.78 %**, the named
+methods **1.30 % → 0.00 %**. The spread within A's own three repetitions is **4.46 %**.
+
+**Consequence 1 — the rule was right and the A/B cannot see it.** What the rule named disappeared
+from the profile entirely; the aggregate moved by less than one sixth of the spread between one
+variant's own repetitions. A shape worth ~1 % of a service's allocated bytes is below the
+resolution of the stand that measures the service, and no number of repetitions at this spread
+fixes that. So the defensible claim for every rule in this set is "it removes what the profile
+charges", verified inside the profile — **not** "it makes the service faster". §2 is phrased that
+way for this reason.
+
+**Consequence 2 — the flattering number was available, and it was wrong.** The first round of the
+same A/B ran without resetting the stand between runs and reported **−8.55 %**. Every k6 setup signs
+its own subscribers in and the simulator ticks each of them every five seconds, so allocation per
+request rose monotonically across repetitions — 87.6, 95.6, 100.3 KiB in one variant — and the
+alternation that keeps the comparison fair does not make the numbers readable. The drift was eleven
+times the effect. konekt's `reset.sh` already existed for exactly this and its own comment said so;
+the harness now calls it before every run.
+
+**Consequence 3 — two of six runs are not measurements of the server.** The first repetition of each
+variant dropped 0.8–1.8 % of its iterations and shows a tail p95 (315 ms and 166 ms against 1.6–2.5
+ms for the rest). Both variants carry one, so the medians are not tilted, but the cause was not
+established — it is named here rather than averaged away.
+
 ---
 
 ## 2. The three rules
@@ -213,6 +261,9 @@ often it fires here, what it obliges, and what it does **not** claim.
   attributed (§1.1), and on konekt the methods it names own **30–32 % of everything user code
   allocates** (§1.4). Both above the 2 % line; the second is the stronger number, because it comes
   from a service nobody wrote for this measurement.
+* **What fixing one bought** (§1.7): the named methods went from 1.30 % of all allocated bytes to
+  0.00 %, and bytes per request moved −0.75 % against a 4.46 % spread — the rule removed what it
+  named, and the service-level A/B could not see it.
 * **How often it fires.** 325 methods in 53 423 — 43 in konekt, 90 in bochka. Readable per
   repository, not readable per portfolio.
 * **Obliges.** Nothing yet: it prints. Where a repository names its hot modules (§3 D4), a finding
@@ -308,12 +359,14 @@ readers answering the same question is the arrangement that caught the switch-ke
 
 ## 4. Risks and open questions
 
-**Risk 1 — no rule here has a measured *saving*, only a measured *share*.** The profile says these
-methods own the bytes; nobody has run the service with them fixed. Mitigation: `B-05` fixes one
-named finding on konekt — `MoneyFormat.group`, 1.08 % of all bytes — and measures alloc/req A/B
-under the same harness, alternating variants with medians, because one run per variant is not a
-measurement. Until that lands, every rule's claim is "the profile charges this shape", which is
-weaker than it will read to somebody skimming.
+**Risk 1 — no rule here had a measured *saving*, only a measured *share*.** *(Closed 2026-09-11 by
+`B-05`, and the answer is not the comfortable one — §1.7.)* The fix removed exactly what the rule
+named, 1.30 % of all allocated bytes down to nothing; the service-level A/B moved −0.75 % against a
+4.46 % spread and therefore says nothing. What this leaves standing: a rule in this set claims to
+remove what the profile charges, which is verifiable inside the profile, and claims nothing about
+throughput or latency, which this stand cannot resolve at this size. The risk that remains is one
+of reading rather than of measurement — a reader who takes "6.45 % of bytes" for "6 % faster" is
+making a claim this document does not.
 
 **Risk 2 — the 6.45 % came from a stand, and a stand can be written for its answer.** Mitigation is
 already partly done: konekt is a service written before any of this, and it puts user code at
@@ -345,6 +398,11 @@ items are the ones everything else rests on: teach the existing class-file walk 
 (`B-01`), and give a repository a way to say which modules are hot (`B-02`), because until then
 every rule is a report and "gate" is a word in a document.
 
+`B-05` is done and it changed how the rest should be argued: the acceptance of a rule is that the
+profile stops charging what it named (§1.7), because that is the largest effect this stack can
+measure. A rule proposed on the promise of a visible speed-up is proposing something nobody here
+has been able to demonstrate.
+
 ## Code anchors
 
 | Module | Code |
@@ -354,5 +412,7 @@ every rule is a report and "gate" is a word in a document.
 | settings | `build-logic/settings/src/main/kotlin/io/github/youndie/sborka/settings.settings.gradle.kts` — where `kapkanMethodSizes` is registered and what it prints |
 | kapkan | `build-logic/kapkan/src/main/kotlin/io/github/youndie/sborka/kapkan/` — the five source-level rules, for contrast |
 | probe | `docs/research/probe/perfprobe.py`, `docs/research/probe/profile.py`, `docs/research/probe/Control.kt` |
+| probe | `docs/research/probe/ab-report.py` — the A/B arithmetic of §1.7 |
+| konekt | `scripts/measure/ab-images.sh` — the harness that produced §1.7; `shared/server-common/src/main/kotlin/io/konekt/text/DigitGroups.kt` — the fix it measured |
 | zavarnik | `bench/profile/results/baseline/business.alloc.collapsed` — the profile behind 6.45 % |
 | zavarnik | `docs/research/research-optimizer.md` — the phase that measured the ceiling and closed |
