@@ -242,13 +242,34 @@ output in [`probe/results-ab-2026-09-11.txt`](probe/results-ab-2026-09-11.txt); 
 Medians: **85.23 → 84.59 KiB per request (−0.75 %)**, user-owned **4.48 % → 3.78 %**, the named
 methods **1.30 % → 0.00 %**. The spread within A's own three repetitions is **4.46 %**.
 
-**Consequence 1 — the rule was right and the A/B cannot see it.** What the rule named disappeared
-from the profile entirely; the aggregate moved by less than one sixth of the spread between one
-variant's own repetitions. A shape worth ~1 % of a service's allocated bytes is below the
-resolution of the stand that measures the service, and no number of repetitions at this spread
-fixes that. So the defensible claim for every rule in this set is "it removes what the profile
-charges", verified inside the profile — **not** "it makes the service faster". §2 is phrased that
-way for this reason.
+**Consequence 1 — the rule was right and the A/B cannot see it.** The aggregate moved by less than
+one sixth of the spread between one variant's own repetitions. A shape worth ~1 % of a service's
+allocated bytes is below the resolution of the stand that measures the service, and no number of
+repetitions at this spread fixes that. So the defensible claim for every rule in this set is "it
+removes what the profile charges", verified inside the profile — **not** "it makes the service
+faster". §2 is phrased that way for this reason.
+
+**Correction, 2026-09-11, and it is a correction to this section's strongest number.** The column
+above says the named methods went to **0.00 %**, and that sentence used to read "what the rule named
+disappeared from the profile entirely". It did not. The metric was keyed on the two method *names*
+the rule had listed, and the fix **renamed the method**: the work moved into
+`io.konekt.text.DigitGroups.grouped`, which the same profiles charge **0.258 / 0.378 / 0.401 %**
+(median 0.378 %). So the honest reading of the same runs is
+
+| on that path, share of all allocated bytes | A (median) | B (median) |
+|---|---|---|
+| the chain's owners, whatever they are called | 1.302 % | **0.378 %** |
+
+— a **71 %** reduction rather than the whole of it, which is what one expects from replacing four
+intermediates with one `StringBuilder` and the string it must build anyway. Nothing else in §1.7
+changes: bytes per request still moved −0.75 % against a 4.46 % spread, and the service-level A/B
+still says nothing.
+
+It was found by measuring something else — konekt's roaming screen (`B-126` there) — where
+`DigitGroups.grouped` turned up as the largest single user-code owner in the profile. **A metric
+keyed on the name of the subject goes to zero when the subject is renamed**, and a rewrite is
+exactly the moment a name changes. The acceptance rule of §5 is worded against the shape for this
+reason, not against the name.
 
 **Consequence 2 — the flattering number was available, and it was wrong.** The first round of the
 same A/B ran without resetting the stand between runs and reported **−8.55 %**. Every k6 setup signs
@@ -474,9 +495,10 @@ items are the ones everything else rests on: teach the existing class-file walk 
 every rule is a report and "gate" is a word in a document.
 
 `B-05` is done and it changed how the rest should be argued: the acceptance of a rule is that the
-profile stops charging what it named (§1.7), because that is the largest effect this stack can
-measure. A rule proposed on the promise of a visible speed-up is proposing something nobody here
-has been able to demonstrate.
+profile stops charging **the shape it named** — measured on whatever owns the bytes afterwards,
+which after a rewrite is usually a method with a new name (§1.7's correction). That is the largest
+effect this stack can measure. A rule proposed on the promise of a visible speed-up is proposing
+something nobody here has been able to demonstrate.
 
 ## Code anchors
 

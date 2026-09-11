@@ -49,3 +49,22 @@ k6 latency, same runs (p95):
 B/A bytes per request: 0.9145  (-8.55 %), spread within A alone: 13.28 %
 user-owned share: 4.80 % -> 4.27 %
 named by the rule: 0.915 % -> 0.000 %
+
+--- correction, 2026-09-11: the named-methods column measures names, not bytes ---
+
+`ab-report.py` counts the share owned by the three method names the rule had listed
+(MoneyFormat.group, UsageUnits.grouped, UsageCounterCards.captionFor), and variant B renamed the
+method: the work moved into io.konekt.text.DigitGroups.grouped. Re-attributing the same six
+profiles by owner, whatever it is called:
+
+  run   old names   DigitGroups   MoneyFormat.format
+  A.1     1.302 %       0.000 %         0.300 %
+  A.2     1.017 %       0.000 %         0.712 %
+  A.3     1.484 %       0.000 %         0.292 %
+  B.1     0.000 %       0.401 %         0.501 %
+  B.2     0.000 %       0.258 %         0.489 %
+  B.3     0.000 %       0.378 %         0.479 %
+
+Medians: 1.302 % before, 0.378 % after — a 71 % reduction on that path, not the 100 % the
+"named by the rule" column reads as. Everything else in this file stands.
+
