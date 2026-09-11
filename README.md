@@ -103,6 +103,10 @@ Step by step — [docs/migration.md](docs/migration.md). What each plugin reads 
 exist — [docs/conventions.md](docs/conventions.md). Why it is built this way —
 [docs/decisions.md](docs/decisions.md). (Those three are in Russian.)
 
+The layered half of the documentation — the research behind the perf-lint with the profile
+shares it rests on, the rules as behaviour, and one document per module — starts at
+[docs/README.md](docs/README.md), in English.
+
 ## What is published
 
 | artefact | what it is |
