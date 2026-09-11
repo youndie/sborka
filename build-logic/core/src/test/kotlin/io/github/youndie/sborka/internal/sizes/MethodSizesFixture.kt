@@ -57,6 +57,18 @@ internal class MethodSizesCallsFixture {
 
     fun viaShared(input: String): Boolean = SHARED.matches(input)
 
+    /**
+     * The pattern that CANNOT be hoisted, because its string is assembled here.
+     *
+     * `<clinit>` is not available to it, so the report's sentence for this one is different — see
+     * `B-06`. What makes the two distinguishable is the bytecode: a constant arrives with `ldc`, a
+     * template through an `invokedynamic` on `StringConcatFactory`.
+     */
+    fun interpolated(
+        key: String,
+        input: String,
+    ): Boolean = Regex("$key=\\d+").matches(input)
+
     /** Two parameters the compiler will null-check, which is what `Intrinsics.check*` counts. */
     fun checked(
         first: String,

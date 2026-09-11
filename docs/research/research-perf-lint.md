@@ -161,6 +161,7 @@ as a surprise.
 | A pattern build is recognised as `kotlin.text.Regex.<init>` or `java.util.regex.Pattern.compile`, and `<clinit>` is excluded by name | `MethodSizes.isPatternBuild`, `MethodSizes.parse` |
 | The task is registered by the **settings** plugin, depends on every `*Classes` task, and is deliberately **not** in `check` | same settings script, `gradle.projectsEvaluated` block |
 | The scan runs per module, so every finding carries the module it is in, and `sborka.perflint.hot` marks the ones a gate would judge (`B-02`) | same settings script, `classDirByProject` and `hotModules` |
+| A pattern built from a string the body assembles is told apart from a constant one, and 1 of the portfolio's 8 pattern findings is interpolated (`B-06`) | `MethodSizes.Method.patternsInterpolated`, `interpolatedPatterns` |
 | A body whose signature carries a `Composer` or a `DrawScope` repeats by construction, and 7 of the portfolio's 70 client-repository chain findings are such bodies (`B-04`) | `MethodSizes.Method.repeats`; the reading is in `B-04` |
 | A method compiled into several outputs is one finding that names its copies, and a divergence between them is reported rather than silently resolved (`B-07`) | `MethodSizes.scan`, `Method.outputs` / `Method.divergent` |
 | An unanswered pattern finding inside a hot module fails the task, and the task joins `check` only where a scope is declared (`B-03`) | same settings script, the `unanswered` check; `build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/Suppressions.kt` |
@@ -436,10 +437,22 @@ added instead is a marker: a body whose signature carries a `Composer` or a `Dra
 Measuring a Compose client remains unmeasured and unclaimed — the only honest place for it is its
 own brief.
 
-**Open question 2 — the interpolated pattern.** `katcher`'s `Regex("$key=…")` is the one finding
-whose fix is neither a hoist nor a suppression. Hypothesis: a small `Regex` cache keyed by the
-interpolated string is the wrong answer and parsing the header without a pattern is the right one.
-Settled when somebody fixes it, in `B-06`.
+**Open question 2 — the interpolated pattern.** *(Answered 2026-09-11 by `B-06`.)* The class file
+tells the two cases apart: a constant pattern arrives with `ldc`, one built from a template comes
+through an `invokedynamic` on `StringConcatFactory`. Run over the portfolio, **one** of the eight
+pattern findings is interpolated — katcher's `extractHeaderValue`, the finding that raised the
+question — and the other seven, the two constructors included, are constants that can be hoisted.
+
+So the rule now says two different things. To a constant: move it into a `<clinit>`. To an
+interpolated one: parse without a pattern where that is possible, and where the pattern must vary,
+build it **where the varying part is decided** — once per key rather than once per call. The
+hypothesis in the item was kept: a cache keyed by the interpolated string is the answer that looks
+obvious and is not, because it trades a compile for a lookup and keeps an entry per distinct key for
+the life of the process.
+
+What the reader still cannot see: a pattern assembled by a helper and passed in reads as constant.
+The rule fires on it either way; only the sentence is wrong, and "hoist it" is the right sentence
+for something that looks constant from here.
 
 ---
 

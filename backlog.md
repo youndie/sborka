@@ -40,13 +40,11 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (1)
+## Open (0)
 
-| Task | | Priority | Size | Blocked by |
-|---|---|---|---|---|
-| [B-06](docs/backlog/B-06-answer-the-interpolated-pattern.md) `[?]` | Decide what the pattern rule tells a caller who interpolates the pattern | P2 | S | B-03 |
+No open tasks.
 
-## Closed (6)
+## Closed (7)
 
 **The detectors match what was measured**
 
@@ -58,6 +56,7 @@ feature document, so re-prioritising must never move a file.
 
 - [B-02](docs/backlog/B-02-declare-which-modules-are-hot.md) `[x]` - Let a repository name the modules whose findings are gates
 - [B-03](docs/backlog/B-03-fail-on-a-pattern-built-per-call.md) `[x]` - Fail on a pattern built per call inside a hot module
+- [B-06](docs/backlog/B-06-answer-the-interpolated-pattern.md) `[x]` - Decide what the pattern rule tells a caller who interpolates the pattern
 
 **A measured saving, not only a measured share**
 
