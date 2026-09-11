@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -107,6 +108,37 @@ class MethodSizesTest {
 
         val mine = methodsOf("MethodSizesFixture").single { it.name == "big" }
         assertEquals(lastOffset + 1, mine.bytes, "javap and the reader disagree about big()")
+    }
+
+    @Test
+    fun `a class compiled into two outputs is one finding that names both`(
+        @TempDir tmp: File,
+    ) {
+        // THE SHAPE A MULTIPLATFORM BUILD PRODUCES: one class, two compilations, two directories.
+        // The copies are identical here, which is the ordinary case — shashki's `socketUrl` arrived
+        // twice from jvm and android and the bodies agreed. What this pins is that the reader
+        // reports the method once and says where the copies were.
+        val source = File(fixtureDir, "MethodSizesChainFixture.class")
+        listOf("kotlin/jvm/main", "kotlin/androidDebug").forEach { output ->
+            val target = File(tmp, "$output/$fixturePackage").apply { mkdirs() }
+            source.copyTo(File(target, source.name), overwrite = true)
+        }
+
+        val report = MethodSizes.scan(listOf(tmp))
+
+        val chain = report.chains.single { it.name == "eagerChain" }
+        assertEquals(listOf("kotlin/androidDebug", "kotlin/jvm/main"), chain.outputs.sorted())
+        assertEquals(false, chain.divergent, "identical copies are not a divergence")
+
+        // The counts are of DISTINCT classes and methods, and the copies are counted separately so
+        // that "one finding" and "two class files" are both visible.
+        assertEquals(1, report.classesRead)
+        assertTrue(report.duplicateCopies > 0, "the second copy was not counted as one")
+        assertEquals(
+            MethodSizes.parse(source)!!.size,
+            report.methodsRead,
+            "the same class read twice reported more methods than it has",
+        )
     }
 
     private fun javap(classFile: File): String {

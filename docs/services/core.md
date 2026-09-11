@@ -63,6 +63,11 @@ the JDK in use and printed beside each finding rather than assumed by a reader.
 
 ## 6. Quirks
 
+* **A method is counted once however many outputs hold it.** The scan is keyed on the method's
+  signature, not on the class file's path: a multiplatform build writes one class into
+  `kotlin/jvm/main` and `kotlin/androidDebug` both, and three findings for one method is how a
+  report and a build's own numbers drift apart. Where the copies disagree — two targets compiling
+  one source differently — the largest body is reported and the finding says the choice was made.
 * **The walk refuses rather than answering zero.** A body whose instruction walk does not land
   exactly on the end of the code array is listed in `Report.unwalked`; its call counts are not
   reported as zeroes. `when` compiles to `tableswitch`/`lookupswitch`, the only opcodes whose length

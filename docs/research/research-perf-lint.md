@@ -99,15 +99,23 @@ a person" half is 791 findings, and the largest bodies in the portfolio are Comp
 (`metrik`'s `ServiceGridCard`, 7 180 b), where the inline threshold decides nothing anybody cares
 about.
 
-**The implementation agrees with the probe where the two read the same files** *(added with
-`B-01`, 2026-09-11)*. The chain question now lives in `MethodSizes` and was run over the same
-eleven repositories through a small driver. On the three repositories with a single JVM output —
-bochka, proba, boulab — the two readers give **identical** chain counts (90, 35, 11) and identical
-pattern counts (3, 2, 0); bochka's size count differs by one, because the probe uses the last
-instruction's offset as the body size and so understates a body by the length of that instruction.
-Everywhere else the task reports more, and the reason is not the rule: a multiplatform build writes
-one class into several output directories and the task counts every copy while the probe counted
-distinct methods. That gap is `B-07`, not a disagreement about what a chain is.
+**The implementation agrees with the probe where the two read the same files** *(`B-01`, and
+amended by `B-07`, 2026-09-11)*. The questions now live in `MethodSizes`, which was run over the
+same eleven repositories through a small driver. On the three repositories with a single JVM
+output — bochka, proba, boulab — the two readers give **identical** chain counts (90, 35, 11) and
+identical pattern counts (3, 2, 0); bochka's size count differs by one, because the probe uses the
+last instruction's offset as the body size and so understates a body by the length of that
+instruction.
+
+Over the whole portfolio the task counts **410 chains, 13 patterns and 1274 bodies** against the
+probe's 325 / 8 / 1058. `B-07` closed the part of that gap that was about counting — the task now
+reports one finding per method however many outputs a multiplatform build wrote it into, which took
+konekt's chains from 80 to 66. What is left is not the rules but **the file set each harness
+walks**: the probe skipped a directory whose path contained `/test/` and nothing else, so it read
+`kotlin/jvmTest` and missed `java/main` beside `kotlin/jvm/main`; the task reads whatever the build
+put under `build/classes`. Two readers over two file sets, agreeing exactly wherever the sets
+agree — which is as far as this comparison can honestly be taken. **The task is the reference from
+here**; the probe's numbers stay as what was measurable before the implementation existed.
 
 **Every one of the eight pattern findings, since eight is a number one can print:**
 
@@ -153,6 +161,7 @@ as a surprise.
 | A pattern build is recognised as `kotlin.text.Regex.<init>` or `java.util.regex.Pattern.compile`, and `<clinit>` is excluded by name | `MethodSizes.isPatternBuild`, `MethodSizes.parse` |
 | The task is registered by the **settings** plugin, depends on every `*Classes` task, and is deliberately **not** in `check` | same settings script, `gradle.projectsEvaluated` block |
 | The scan runs per module, so every finding carries the module it is in, and `sborka.perflint.hot` marks the ones a gate would judge (`B-02`) | same settings script, `classDirByProject` and `hotModules` |
+| A method compiled into several outputs is one finding that names its copies, and a divergence between them is reported rather than silently resolved (`B-07`) | `MethodSizes.scan`, `Method.outputs` / `Method.divergent` |
 | An unanswered pattern finding inside a hot module fails the task, and the task joins `check` only where a scope is declared (`B-03`) | same settings script, the `unanswered` check; `build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/Suppressions.kt` |
 | The instruction walk refuses to answer rather than answering zero: a body it could not walk is named in the report (`unwalked`) | `MethodSizes.Report.unwalked` |
 | kapkan's five ktlint rules are all source-level and none is about performance | `build-logic/kapkan/src/main/kotlin/io/github/youndie/sborka/kapkan/` |
@@ -186,7 +195,8 @@ was recognised.
 
 **A multiplatform build compiles one class into more than one directory**, so a naive walk counts
 every finding two or three times: shashki's single `socketUrl` appeared twice. Counts here are of
-distinct methods, and the same care will be needed in the task.
+distinct methods, and the task does the same since `B-07` — keyed on the method's signature rather
+than on its file's path, so the copies are named on the finding instead of becoming three findings.
 
 **`<clinit>` is excluded, `<init>` is not — and three of eight findings are `<init>`.** A pattern in
 a constructor is paid per instance, which is free for a singleton and expensive for a per-request

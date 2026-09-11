@@ -132,6 +132,12 @@ already does this and the reports print it; a rule inherits the same obligation.
 * **Then:** the byte count equals what `javap -c -p` prints for the same method
 * **Automated:** `MethodSizesTest`
 
+### Scenario: a class compiled into two outputs is one finding
+* **Given:** the same class file under `kotlin/jvm/main` and under `kotlin/androidDebug`
+* **When:** the reader scans the tree above both
+* **Then:** the method is reported once, naming both outputs, and the summary counts it as one method
+* **Automated:** `MethodSizesTest`
+
 ### Scenario: a scope that matches nothing fails rather than gating nothing
 * **Given:** `sborka.perflint.hot` naming a path no project has, or a module that compiled no class files
 * **When:** `kapkanMethodSizes` runs
@@ -196,8 +202,10 @@ already does this and the reports print it; a rule inherits the same obligation.
 * **The report reads what was compiled, not what is in the tree.** A clone whose build directory predates
   the last edit reports yesterday's code, silently. The `classesRead > 0` guard catches "nothing
   compiled", not "stale".
-* **A multiplatform build compiles one class into several directories**, so a body can appear more
-  than once in a report; the counts in the research are of distinct methods for this reason.
+* **A multiplatform build compiles one class into several directories**, and the report says so:
+  one finding, `(2 copies)` beside it, and `and they disagreed — the largest is reported` when the
+  copies were not identical. The summary counts distinct classes and methods and names how many
+  further copies stood behind them.
 * **Three of the eight pattern findings in this portfolio are constructors.** The rule is right that
   the pattern is rebuilt; whether that costs anything depends on instance lifetime, which is not in
   the class file.

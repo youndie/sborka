@@ -410,7 +410,24 @@ gradle.rootProject {
                 fun label(method: MethodSizes.Method): String {
                     val module = moduleOf[method.toString()] ?: "?"
                     val hot = if (module in hotModules) " [hot]" else ""
-                    return "$module$hot $method"
+                    // THE COPIES, WHEN THERE ARE ANY. A multiplatform build compiles one class into
+                    // several outputs; the finding is reported once, and this is what keeps
+                    // "one finding" and "three class files" from drifting apart in a reader's head.
+                    val copies =
+                        when {
+                            method.divergent -> {
+                                " (${method.outputs.size} copies, and they disagreed — the largest is reported)"
+                            }
+
+                            method.outputs.size > 1 -> {
+                                " (${method.outputs.size} copies)"
+                            }
+
+                            else -> {
+                                ""
+                            }
+                        }
+                    return "$module$hot $method$copies"
                 }
 
                 val sizeLines =
@@ -486,8 +503,16 @@ gradle.rootProject {
                 val lines = sizeLines + patternLines + chainLines + assertionLines + unwalkedLines
 
                 val summary =
-                    "kapkanMethodSizes: ${report.classesRead} class file(s), " +
-                        "${report.methodsRead} method(s) with a body, " +
+                    "kapkanMethodSizes: ${report.classesRead} class(es), " +
+                        "${report.methodsRead} distinct method(s) with a body" +
+                        (
+                            if (report.duplicateCopies > 0) {
+                                " (${report.duplicateCopies} further cop(ies) of the same methods, " +
+                                    "which a multiplatform build writes into more than one output)"
+                            } else {
+                                ""
+                            }
+                        ) + ", " +
                         "${report.chains.size} with ${MethodSizes.CHAIN_FROM} or more eager " +
                         "materialisations, ${report.patternsCompiled.size} building a pattern per " +
                         "call, ${report.findings.size} over ${MethodSizes.REPORT_FROM.flag} " +
