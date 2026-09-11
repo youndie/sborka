@@ -1,7 +1,7 @@
 # Backlog: the two strands of research this repository owns
 
-> Role of this document: the backlog of sborka's research work — the perf-lint, and the JVM/native
-> parity gate. **One file per item in
+> Role of this document: the backlog of sborka's research work — the perf-lint, the JVM/native
+> parity gate, and the static-binary question. **One file per item in
 > [`docs/backlog/`](docs/backlog/)** — `B-NN-<slug>.md`. What lives here is the index (generated)
 > and everything that is not an item: the goal, the stages, and the decisions.
 >
@@ -39,6 +39,18 @@ all but a compiler message read as a fact. So the gate is a platform probe (B-13
 transcript moves to a version-bump trigger (B-17), and the item everything waits on is B-10: two of
 the five subjects run no JVM tests at all, and a gate needs a second half to run on.
 
+## Goal — the static binary
+
+An honest answer to "can a Kotlin/Native service run in an image with nothing else in it, and what
+does it cost". The research is [research-static-binary](docs/research/research-static-binary.md);
+the brief is [source-brief-static-binary](docs/research/source-brief-static-binary.md).
+
+The answer is no, not today: `-static` against glibc does not link, and the musl route links only
+after three archives are shimmed and then segfaults before printing a line. What came out of it
+instead ships on its own — of the ten shared libraries a Kotlin/Native binary declares, six supply
+no symbol it imports, and one of those six is why two Dockerfiles here copy a file out of the
+builder image by hand and carry a paragraph about matching glibc versions. B-18 deletes all of it.
+
 ## Stages
 
 A stage is a field on the item, not a directory. Items are cited by id from the research and the
@@ -51,6 +63,7 @@ feature document, so re-prioritising must never move a file.
 | `stage-3-saving` | A measured saving, not only a measured share | Every number so far says what a shape owns. None says what removing it bought. |
 | `stage-4-parity-evidence` | Find out which claimed divergences are real | One is already gone — `Dispatchers.IO` on native was a misread compiler message — and the biggest open question is why two subjects run no JVM tests. Cheap items, and everything below depends on their answers. |
 | `stage-5-parity-gate` | A gate at the layer that has actually broken | The native link is already inside the pull-request build, so a dozen platform assertions cost seconds. What needs deciding is what they assert and how the task reports the scope it did *not* cover. |
+| `stage-6-static-binary` | Take the win that does not depend on `scratch`, then decide about `scratch` | One item ships a smaller, safer image today and is independent of the rest; one decides whether the brief ends in a recipe or an upstream ticket; two are things the measurements turned up on the way. |
 
 ## Marks
 
@@ -58,17 +71,21 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (7)
+## Open (11)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
 | [B-10](docs/backlog/B-10-move-a-native-only-server-test-to-common.md) `[ ]` | Move one native-only server test to commonTest and find out what stops it | P0 | S | - |
 | [B-13](docs/backlog/B-13-a-platform-probe-that-runs-on-every-target.md) `[ ]` | parityCheck: a dozen tests that make the platform layer answer on every target | P0 | M | B-10 |
+| [B-18](docs/backlog/B-18-drop-the-library-nothing-calls.md) `[ ]` | Link with --as-needed, and delete the COPY line two Dockerfiles carry because of it | P0 | XS | - |
 | [B-15](docs/backlog/B-15-where-the-two-runtimes-actually-diverge.md) `[ ]` | The page: where the JVM and Kotlin/Native actually diverge, and it is not in the stdlib | P1 | S | - |
+| [B-19](docs/backlog/B-19-try-the-second-musl-route.md) `[ ]` | Try zig cc as the linker — the route that decides whether this brief ends in a recipe or a ticket | P1 | M | - |
 | [B-11](docs/backlog/B-11-sort-the-series-metrik-puts-on-the-wire.md) `[ ]` | Sort the series metrik's agent puts on the wire, the way its histogram already does | P2 | XS | - |
 | [B-14](docs/backlog/B-14-the-process-level-gate-where-it-is-buildable.md) `[ ]` | Run razves as two processes and diff the output — the gate the brief asked for, where it fits | P2 | S | - |
 | [B-16](docs/backlog/B-16-drop-the-workaround-a-wrong-comment-justifies.md) `[ ]` | Correct booblik's Dispatchers.IO comment, and decide whether the thread it justifies is still wanted | P2 | XS | - |
 | [B-17](docs/backlog/B-17-re-run-the-stdlib-probe-when-a-version-moves.md) `[ ]` | Make a Kotlin or kotlinx bump re-run the stdlib probe, so the transcript cannot silently rot | P2 | S | - |
+| [B-20](docs/backlog/B-20-strip-the-binary.md) `[ ]` | Strip the release binary: a third of the scratch prize, for one flag, today | P2 | XS | - |
+| [B-21](docs/backlog/B-21-print-what-the-binary-declares.md) `[ ]` | Print the binary's NEEDED list into the build log, so a new dependency shows up in a diff | P2 | XS | - |
 
 ## Closed (10)
 

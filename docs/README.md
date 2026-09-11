@@ -6,9 +6,11 @@ and a shared version catalog — one line each in `gradle.properties` instead of
 Kotlin per repository.
 
 This tree is the **layered** part of the documentation, added with the perf-lint work and now
-carrying a second strand — the JVM/native parity gate, whose research is
-[research-parity](research/research-parity.md) and whose probe lives beside it in
-[`research/parity-probe/`](research/parity-probe/). The older notes beside it are prose and stay
+carrying two more strands — the JVM/native parity gate
+([research-parity](research/research-parity.md), probe in
+[`research/parity-probe/`](research/parity-probe/)) and the static-binary question
+([research-static-binary](research/research-static-binary.md), probe in
+[`research/static-probe/`](research/static-probe/)). The older notes beside it are prose and stay
 that way:
 
 | File | What it is |
@@ -72,11 +74,13 @@ documentation gate into it is a decision the next person to touch CI should take
 The list below is **checked** against the files on disk: a document missing here, or an entry with
 no file behind it, fails `coverage_map.py`.
 
-### Research (3)
+### Research (5)
 
 - [x] [research-perf-lint](research/research-perf-lint.md) — the three rules, their profiles, how often each fires, and what none of them claims
 - [x] [research-parity](research/research-parity.md) — 129 probes on two runtimes, the 17 that disagree, and why the gate belongs at the platform layer instead: none of the seventeen has ever cost anything, and the three that did are sockets, TLS and a plugin
 - [x] [source-brief-parity](research/source-brief-parity.md) — the parity brief as it arrived, kept so the deviations from it stay readable
+- [x] [research-static-binary](research/research-static-binary.md) — why a Kotlin/Native binary does not start in `scratch`, and the one linker option that removes a hand-written `COPY` line and the glibc pairing hazard with it
+- [x] [source-brief-static-binary](research/source-brief-static-binary.md) — the scratch-image brief as it arrived
 
 ### Services (3)
 
