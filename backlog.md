@@ -75,7 +75,8 @@ No open tasks.
   item waiting to be done.
 - **The probe stays in the repository** (`docs/research/probe/`) and is not the implementation.
   Two readers answering the same question is what caught a defect in the first one.
-- **A rule is accepted when the profile stops charging what it named**, not when the service gets
-  measurably faster. `B-05` fixed the largest finding on a real service and the A/B moved −0.75 %
+- **A rule is accepted when the profile stops charging the shape it named**, not when the service
+  gets measurably faster — and "the shape", not "the method name": a rewrite renames things, and a
+  metric keyed on the old name reads as a total win (research §1.7's correction). `B-05` fixed the largest finding on a real service and the A/B moved −0.75 %
   against a 4.46 % spread: at this size the stand cannot see a correct fix, and asking a rule to
   prove itself that way is asking for a number nobody can produce honestly.

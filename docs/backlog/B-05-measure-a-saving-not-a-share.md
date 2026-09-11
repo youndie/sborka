@@ -41,8 +41,12 @@ stand reset before every run. Numbers in
 [research-perf-lint §1.7](../research/research-perf-lint.md); raw output in
 `docs/research/probe/results-ab-2026-09-11.txt`.
 
-- **The rule's target disappeared**: the named methods went from 1.30 % of all allocated bytes to
-  0.00 %, and the share user code owns fell 4.48 % → 3.78 %.
+- **The rule's target shrank by about seven tenths**: 1.30 % → 0.378 % of all allocated bytes on
+  that path, and the share user code owns fell 4.48 % → 3.78 %. *(Corrected 2026-09-11. This line
+  first read "1.30 % → 0.00 %" because the metric was keyed on the two method names the rule had
+  listed and the fix renamed the method — the work moved into `io.konekt.text.DigitGroups.grouped`,
+  which the same profiles charge 0.258–0.401 %. A metric keyed on the subject's name goes to zero
+  when the subject is renamed.)*
 - **The service-level A/B saw nothing**: bytes per request −0.75 %, against a 4.46 % spread between
   one variant's own three repetitions.
 - **The first round, without a reset between runs, said −8.55 %** — the stand's own drift, eleven
