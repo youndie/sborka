@@ -1,6 +1,8 @@
 package io.github.youndie.sborka
 
 import io.github.youndie.sborka.internal.NativeImageReference
+import io.github.youndie.sborka.internal.SborkaSettings
+import io.github.youndie.sborka.internal.SizeGate
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
@@ -42,6 +44,34 @@ plugins.withId("org.jetbrains.kotlin.multiplatform") {
                 entryPoint = nativeService.entryPoint.get()
                 baseName = nativeService.baseName.get()
             }
+        }
+    }
+}
+
+// THE SIZE BUDGET, and only where a repository asked for one.
+//
+// `sborka.binaryBudget=50MiB` in `gradle.properties` sets the ceiling razves fails the build over;
+// the gate itself is razves' `sizeBudgetCheck`, already wired into `check` by the plugin. No
+// property, no configuration and nothing registered - a gate that arrives with a dependency bump is
+// a gate people switch off before they read it.
+//
+// **The repository applies razves, this only configures it.** Exactly what `sborka.kmp` does with
+// the Kotlin plugin, and for the same two reasons: the version belongs to the repository whose build
+// it is, and a convention that CARRIED razves would put its jar on the build classpath of every
+// repository taking any sborka convention, including the ones that ship no binary.
+val binaryBudget = SborkaSettings.binaryBudget(project)
+if (binaryBudget != null) {
+    plugins.withId("io.github.youndie.razves") { SizeGate.wire(project, binaryBudget) }
+
+    // A PROPERTY NOBODY READS IS WORSE THAN NO PROPERTY. Set the budget, forget the plugin line, and
+    // the build stays green forever while measuring nothing - which is the failure this repository's
+    // own conventions are full of guards against. So it is named, with the line to add.
+    afterEvaluate {
+        check(plugins.hasPlugin("io.github.youndie.razves")) {
+            "${SborkaSettings.BINARY_BUDGET} is set on ${project.path} and nothing enforces it: " +
+                "the gate is razves, and this project does not apply it. Add " +
+                "id(\"io.github.youndie.razves\") version \"<version>\" to its plugins block, or " +
+                "remove the property - a budget nothing checks is a build that passes forever."
         }
     }
 }

@@ -1,6 +1,20 @@
 // The stand's root exists to hold two things: one command that runs everything, and the check that
 // reads what the publish actually produced.
 
+// ONE KOTLIN PLUGIN FOR THE WHOLE BUILD, applied nowhere and resolved once.
+//
+// Without this, each module that names Kotlin gets its own classloader scope, and the second one to
+// declare a native target fails with "cannot set the value of property kotlinNativeBundleBuildService
+// ... loaded with InstrumentingVisitableURLClassLoader" - two copies of one build service class,
+// named by neither module. `apply false` at the root is the arrangement that gives them one.
+plugins {
+    alias(libs.plugins.kotlinMultiplatform) apply false
+    // The jvm half of the same jar, for the same scope: requested by a module with a version while
+    // the root already carries one, Gradle refuses with "already on the classpath with an unknown
+    // version" rather than picking either.
+    alias(libs.plugins.kotlinJvm) apply false
+}
+
 val publishTasks =
     listOf(
         ":jvm-lib:publishAllPublicationsToStandRepository",

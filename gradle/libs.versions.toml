@@ -7,6 +7,12 @@
 kotlin = "2.4.10"
 ktlintPlugin = "14.2.0"
 
+# razves, whose Gradle plugin carries the size gate. `compileOnly` in the conventions, so this
+# version is what sborka COMPILES against and never what a consumer resolves - the repository
+# applying the gate names its own, the way it does for Kotlin. A snapshot line, because razves
+# publishes one per push; pinning it as a runtime dependency would age by design.
+razves = "0.1.0.7"
+
 # The plugin that puts a release on Maven Central. Applied by `sborka.publish` only where a
 # repository asks for it (`sborka.central`), and pinned here rather than in each of them: Central
 # refuses a bundle for reasons that are the plugin's business -- a missing javadoc jar, an unsigned
@@ -31,6 +37,7 @@ slf4j = "2.0.18"
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 ktlint-gradle-plugin = { module = "org.jlleitschuh.gradle:ktlint-gradle", version.ref = "ktlintPlugin" }
 maven-publish-gradle-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "mavenPublish" }
+razves-gradle-plugin = { module = "io.github.youndie.razves:gradle-plugin", version.ref = "razves" }
 
 # THE RULE API kapkan IS WRITTEN AGAINST, at the same version as the tool that loads it. `compileOnly`
 # in `:kapkan`: ktlint puts these on the worker classpath itself, and a ruleset jar carrying a second
@@ -50,3 +57,4 @@ junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintPlugin" }
 kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+razves = { id = "io.github.youndie.razves", version.ref = "razves" }

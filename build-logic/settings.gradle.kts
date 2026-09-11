@@ -4,6 +4,13 @@
 dependencyResolutionManagement {
     repositories {
         gradlePluginPortal()
+        // razves, which `sborka.native-service` compiles against for the size gate. Filtered to the
+        // one group it can answer for: an unfiltered repository in front of Central is asked for
+        // every dependency in the build and answers slowly for the ones it does not have.
+        maven("https://reposilite.kotlin.website/snapshots") {
+            name = "wip-snapshots"
+            mavenContent { includeGroupByRegex("io\\.github\\.youndie.*") }
+        }
         mavenCentral()
     }
 

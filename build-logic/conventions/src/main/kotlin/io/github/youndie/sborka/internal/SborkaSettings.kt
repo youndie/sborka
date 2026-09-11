@@ -111,6 +111,21 @@ object SborkaSettings {
         return configured
     }
 
+    /**
+     * The size budget for this module's binary, in bytes, or null when the repository has not set one.
+     *
+     * Written as `sborka.binaryBudget=50MiB`; [ByteSize] is what refuses anything else. Absent means
+     * absent - no gate, no task, no cost - because a budget that arrives with a dependency bump is a
+     * gate people switch off before they read it.
+     */
+    fun binaryBudget(project: Project): Long? =
+        project.providers
+            .gradleProperty(BINARY_BUDGET)
+            .orNull
+            ?.let { ByteSize.parse(it, BINARY_BUDGET) }
+
+    const val BINARY_BUDGET: String = "sborka.binaryBudget"
+
     fun flag(
         project: Project,
         name: String,

@@ -28,6 +28,15 @@ dependencies {
     // about.
     implementation(libs.maven.publish.gradle.plugin)
 
+    // NOT applied by sborka either, and for the reason stated for Kotlin below: `sborka.native-service`
+    // configures the size gate, it does not choose razves' version. A module applies
+    // `io.github.youndie.razves` itself at the version its own catalog names, and the convention reacts
+    // with `plugins.withId`. Declared `compileOnly` so the extension type is on the compile classpath
+    // and this jar carries no razves of its own - as `implementation` it would put razves' plugin
+    // (47,731 bytes), its `core` (211,901) and kotlinx-serialization onto the build classpath of every
+    // repository that takes any sborka convention, including the ones that ship no binary at all.
+    compileOnly(libs.razves.gradle.plugin)
+
     // NOT applied by sborka, and that is the design. `sborka.kmp` configures Kotlin, it does not
     // choose its version: a module applies `kotlin("multiplatform")` itself, at whatever version its
     // own catalog names, and sborka reacts with `plugins.withId`. Declared `compileOnly` so the types

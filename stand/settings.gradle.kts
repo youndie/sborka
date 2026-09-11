@@ -7,6 +7,13 @@ pluginManagement {
     includeBuild("../build-logic")
     repositories {
         gradlePluginPortal()
+        // razves, applied by `:native-service` the way a repository applies it. Written out by hand
+        // here for the same reason every repository writes it out: `pluginManagement` is evaluated
+        // before any settings plugin is applied, so the one sborka brings arrives too late to resolve
+        // a plugin.
+        maven("https://reposilite.kotlin.website/snapshots") {
+            content { includeGroupByRegex("io\\.github\\.youndie.*") }
+        }
         mavenCentral()
     }
 }
@@ -44,3 +51,4 @@ include(":jvm-lib")
 include(":kmp-lib")
 include(":platform")
 include(":gradle-plugin")
+include(":native-service")
