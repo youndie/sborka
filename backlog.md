@@ -40,16 +40,15 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (4)
+## Open (3)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-03](docs/backlog/B-03-fail-on-a-pattern-built-per-call.md) `[ ]` | Fail on a pattern built per call inside a hot module | P1 | S | B-02 |
 | [B-04](docs/backlog/B-04-read-the-compose-chain-findings.md) `[?]` | Read the chain findings inside Compose code and decide whether the rule applies there | P2 | S | B-01 |
 | [B-06](docs/backlog/B-06-answer-the-interpolated-pattern.md) `[?]` | Decide what the pattern rule tells a caller who interpolates the pattern | P2 | S | B-03 |
 | [B-07](docs/backlog/B-07-count-a-method-once-in-a-multiplatform-build.md) `[ ]` | Count a method once when a multiplatform build compiles it into several directories | P2 | XS | - |
 
-## Closed (3)
+## Closed (4)
 
 **The detectors match what was measured**
 
@@ -58,6 +57,7 @@ feature document, so re-prioritising must never move a file.
 **One rule becomes a gate, inside a declared scope**
 
 - [B-02](docs/backlog/B-02-declare-which-modules-are-hot.md) `[x]` - Let a repository name the modules whose findings are gates
+- [B-03](docs/backlog/B-03-fail-on-a-pattern-built-per-call.md) `[x]` - Fail on a pattern built per call inside a hot module
 
 **A measured saving, not only a measured share**
 

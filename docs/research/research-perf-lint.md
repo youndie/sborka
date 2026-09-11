@@ -153,13 +153,15 @@ as a surprise.
 | A pattern build is recognised as `kotlin.text.Regex.<init>` or `java.util.regex.Pattern.compile`, and `<clinit>` is excluded by name | `MethodSizes.isPatternBuild`, `MethodSizes.parse` |
 | The task is registered by the **settings** plugin, depends on every `*Classes` task, and is deliberately **not** in `check` | same settings script, `gradle.projectsEvaluated` block |
 | The scan runs per module, so every finding carries the module it is in, and `sborka.perflint.hot` marks the ones a gate would judge (`B-02`) | same settings script, `classDirByProject` and `hotModules` |
+| An unanswered pattern finding inside a hot module fails the task, and the task joins `check` only where a scope is declared (`B-03`) | same settings script, the `unanswered` check; `build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/Suppressions.kt` |
 | The instruction walk refuses to answer rather than answering zero: a body it could not walk is named in the report (`unwalked`) | `MethodSizes.Report.unwalked` |
 | kapkan's five ktlint rules are all source-level and none is about performance | `build-logic/kapkan/src/main/kotlin/io/github/youndie/sborka/kapkan/` |
 
-**Consequence.** All three questions now exist as *report lines* and none exists as a *rule*:
-nothing fails, nothing is suppressed, nothing is scoped. The work in the backlog is therefore
-mostly not "write a detector" — it is "decide what each finding obliges a person to do", which is
-the part the usual checklist skips.
+**Consequence.** All three questions exist as report lines; one of them — the cheapest, at eight
+findings across eleven repositories — also fails a build, and only inside modules a repository
+named (`B-01`, `B-02`, `B-03`). The other two print. What the backlog has left is therefore not
+"write a detector": it is the two questions this set has not answered, whether the chain rule holds
+for client code (`B-04`) and what it should say when a pattern cannot be hoisted at all (`B-06`).
 
 ### 1.6 Five mechanics that changed a rule, found while measuring
 
@@ -256,9 +258,14 @@ often it fires here, what it obliges, and what it does **not** claim.
   user code allocated there.
 * **How often it fires.** 8 methods in 53 423 (§1.3). It is the cheapest rule in the set by two
   orders of magnitude.
-* **Obliges.** Hoist to `<clinit>`, or suppress with a reason. Three of the eight are constructors
-  and one is an interpolated pattern that cannot be hoisted — so the reason is the normal outcome,
-  not the exception.
+* **Obliges.** Hoist to `<clinit>`, or suppress with a reason — and inside a module named by
+  `sborka.perflint.hot` it **fails the build** (`B-03`, 2026-09-11). Three of the eight are
+  constructors and one is an interpolated pattern that cannot be hoisted, so the reason is the
+  normal outcome, not the exception.
+* **The suppression is read from the source**, because `@Suppress` has SOURCE retention and a class
+  file never carries one. It is anchored on the line that builds the pattern rather than on the
+  declaration around it: finding the enclosing declaration of an expression without a parser is
+  guesswork, and the line that builds it is also where a reader wants the reason.
 * **Does not claim.** That any of the eight is hot. Nothing profiled them; the only profiled
   instance is `Pricing.quote`. The rule claims a shape with a measured price *somewhere*, and a
   cost of eight readings *here*.
