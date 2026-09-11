@@ -5,8 +5,11 @@ toolchain, publishing, the formatter and its rule set, the test gate, the multip
 and a shared version catalog — one line each in `gradle.properties` instead of dozens of lines of
 Kotlin per repository.
 
-This tree is the **layered** part of the documentation, added with the perf-lint work. The older
-notes beside it are prose and stay that way:
+This tree is the **layered** part of the documentation, added with the perf-lint work and now
+carrying a second strand — the JVM/native parity gate, whose research is
+[research-parity](research/research-parity.md) and whose probe lives beside it in
+[`research/parity-probe/`](research/parity-probe/). The older notes beside it are prose and stay
+that way:
 
 | File | What it is |
 |---|---|
@@ -69,9 +72,11 @@ documentation gate into it is a decision the next person to touch CI should take
 The list below is **checked** against the files on disk: a document missing here, or an entry with
 no file behind it, fails `coverage_map.py`.
 
-### Research (1)
+### Research (3)
 
 - [x] [research-perf-lint](research/research-perf-lint.md) — the three rules, their profiles, how often each fires, and what none of them claims
+- [x] [research-parity](research/research-parity.md) — 129 probes on two runtimes, the 17 that disagree, and why none of the four divergences this portfolio was actually bitten by is among them
+- [x] [source-brief-parity](research/source-brief-parity.md) — the parity brief as it arrived, kept so the deviations from it stay readable
 
 ### Services (3)
 
