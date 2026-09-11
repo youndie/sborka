@@ -52,7 +52,10 @@ a module that compiled no class files, fails the task rather than scoping nothin
 
 ## 5. Quirks
 
-* **Neither report is in `check`.** `kapkanJoins` and `kapkanMethodSizes` print. CI runs them once
+* **The reports are in `check` only where a scope is declared.** With `sborka.perflint.hot` set,
+  `check` depends on `kapkanMethodSizes`, which fails on an unanswered pattern finding inside one of
+  the named modules. Without it the task cannot fail, so it stays out.
+* **Neither report is in `check` otherwise.** `kapkanJoins` and `kapkanMethodSizes` print. CI runs them once
   on the stand (`-p stand kapkanJoins kapkanMethodSizes`), which is also the only thing that proves
   the registration works — before that, `kapkanJoins` was registered and called from nowhere.
 * **A report over no class files fails.** `check(report.classesRead > 0)`: an empty report and a

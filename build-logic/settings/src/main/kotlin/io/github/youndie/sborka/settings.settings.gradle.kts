@@ -4,6 +4,7 @@ import io.github.youndie.sborka.internal.EditorconfigReference
 import io.github.youndie.sborka.internal.Joins
 import io.github.youndie.sborka.internal.MethodSizes
 import io.github.youndie.sborka.internal.SborkaVersion
+import io.github.youndie.sborka.internal.Suppressions
 
 // The settings-level half of sborka: where dependencies are looked for, which shared versions are in
 // scope, and the one check that is about the repository rather than about a module.
@@ -495,6 +496,67 @@ gradle.rootProject {
                         "over ${MethodSizes.HUGE_METHOD_LIMIT.flag} — a method that long is not " +
                         "compiled at all"
 
+                // THE GATE, and it judges ONE of the three questions.
+                //
+                // The pattern rule is the only one cheap enough: eight findings in 53 423 methods
+                // across eleven repositories, against 325 for the chain question and 1058 for the
+                // size one. A rule that fires a thousand times is a counter, and a build that fails
+                // on a counter gets an exemption within a week. The share behind it is the largest
+                // of the three: 6.45 % of every byte the zavarnik stand allocated on /business,
+                // two thirds of everything user code allocated there.
+                //
+                // A finding is answered either by moving the pattern into `<clinit>` or by a
+                // `@Suppress` beside the line that builds it — three of the eight findings in the
+                // portfolio are constructors and one is interpolated, so the suppression is the
+                // ordinary outcome rather than the exception.
+                val gateable = report.patternsCompiled.filter { moduleOf[it.toString()] in hotModules }
+                val unanswered =
+                    gateable.mapNotNull { method ->
+                        val sites = Suppressions.sitesOf(sourceDirs.files, method.className)
+                        when {
+                            // A FINDING WHOSE SOURCE CANNOT BE FOUND IS NOT A SUPPRESSED ONE. Reading
+                            // "no file" as "answered" is how a gate goes quiet without anybody
+                            // deciding that it should.
+                            sites == null -> {
+                                "${label(method)}: ${method.patternsCompiled} pattern(s) built per " +
+                                    "call, and no source file could be attributed to " +
+                                    "${method.className} to look for a suppression"
+                            }
+
+                            sites.suppressed >= method.patternsCompiled -> {
+                                null
+                            }
+
+                            else -> {
+                                "${label(method)}: ${method.patternsCompiled - sites.suppressed} " +
+                                    "pattern(s) built per call and not answered for"
+                            }
+                        }
+                    }
+
+                check(unanswered.isEmpty()) {
+                    unanswered.joinToString(
+                        prefix =
+                            "kapkanMethodSizes: a pattern is compiled on every call inside a module " +
+                                "sborka.perflint.hot names.\n\nOn the zavarnik stand one Regex built " +
+                                "inside a handler was 6.45 % of every byte the service allocated — " +
+                                "two thirds of everything user code allocated there " +
+                                "(bench/profile/results/baseline/business.alloc.collapsed; " +
+                                "sborka docs/research/research-perf-lint.md §2.1).\n\n",
+                        separator = "\n",
+                        postfix =
+                            "\n\nMove the pattern into a `<clinit>` — a top-level or companion `val` — " +
+                                "where it is compiled once. Where it cannot be moved (a pattern " +
+                                "interpolated from an argument, a constructor whose instance lives " +
+                                "as long as the process), answer for it beside the line that builds " +
+                                "it:\n\n" +
+                                "    @Suppress(\"${Suppressions.PATTERN_RULE}\", \"why this one is " +
+                                "rebuilt\")\n\n" +
+                                "The reason is not optional: kapkan's suppression-needs-a-reason " +
+                                "fails a suppression without one.",
+                    )
+                }
+
                 // WHAT THE SCOPE COVERS, printed whether or not anything is scoped. A line saying
                 // "nothing declared hot" is what tells a reader that the silence is a decision and
                 // not a rule that failed to run.
@@ -544,5 +606,18 @@ gradle.rootProject {
             }
         kapkanJoins.configure { dependsOn(classesTasks) }
         kapkanMethodSizes.configure { dependsOn(classesTasks) }
+
+        // IN `check` ONLY WHERE A REPOSITORY DECLARED A SCOPE, which is the whole opt-in.
+        //
+        // The task prints three reports and fails on one of them — a pattern compiled per call
+        // inside a hot module. Where nothing is declared hot it cannot fail, so putting it in
+        // `check` would buy a slower build and no gate; where something is, the gate has to run
+        // somewhere a person looks, and `check` is that place. This is also why the size report
+        // staying out of `check` is unchanged: it is the failure that is scoped, not the printing.
+        if (hotModules.isNotEmpty()) {
+            allprojects {
+                tasks.matching { it.name == "check" }.configureEach { dependsOn(kapkanMethodSizes) }
+            }
+        }
     }
 }

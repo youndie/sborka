@@ -34,13 +34,14 @@ builds it.
 
 | | Today | Target |
 |---|---|---|
-| pattern built per call | detected, printed by `kapkanMethodSizes` | fails inside a declared hot module — `B-03` |
+| pattern built per call | detected, printed, and **failing** inside a declared hot module (`B-03`) | — |
 | two or more materialisations | detected, printed (`B-01`) | a gate inside a declared hot module, if `B-04` says the rule holds for client code |
 | body over `FreqInlineSize` | detected, printed | stays printed, permanently — a decision, not an item |
-| a declared scope (`sborka.perflint.hot`) | declared, validated, and marked `[hot]` in the report (`B-02`) | a finding in a hot module fails the build — `B-03` |
+| a declared scope (`sborka.perflint.hot`) | declared, validated, marked `[hot]`, and what puts the task into `check` (`B-02`, `B-03`) | — |
 
-So today the whole set is a report, and `kapkanMethodSizes` is not in `check`. The order in which
-that changes is [backlog.md](../../backlog.md).
+So the set is a report, except for one gate: a pattern compiled per call inside a hot module.
+`kapkanMethodSizes` joins `check` only where `sborka.perflint.hot` is set — where nothing is
+declared hot it cannot fail, and a task that cannot fail has no business slowing a build down.
 
 ## 2. Business rules
 
@@ -69,13 +70,14 @@ product flag. A refusal to inline is not a measured cost, so this rule reports.
 
 **R4 — a gate needs a scope, and the scope is declared.** `sborka.perflint.hot` in
 `gradle.properties` names modules; a finding of R1 inside one fails the build, everything else
-prints *(the failing half is `B-03`; today the finding is marked `[hot]`)*. With the property
+prints. With the property
 absent, the whole set is a report — a repository cannot be broken by adopting a version of sborka.
 A path no project has, or a module that compiled no class files, fails the task: an empty scope
 cannot be told from a passing one.
 
-**R5 — suppression carries a reason.** Enforced today for the ktlint rule ids; *(target)* for
-the bytecode ids, which arrive with the first gate (`B-03`). `@Suppress("kapkan:pattern-built-per-call", "…because…")`,
+**R5 — suppression carries a reason.** For a bytecode finding the annotation goes **on the line
+that builds the pattern** — that is where the reader wants the reason, and it is the one anchor a
+source reader can be sure of without a parser. `@Suppress("kapkan:pattern-built-per-call", "…because…")`,
 the form kapkan's `suppression-needs-a-reason` already enforces, with the `kapkan:` prefix and no
 ktlint prefix — ktlint refuses an id naming a rule it did not load, and it does not load the
 bytecode rules.
@@ -94,8 +96,9 @@ already does this and the reports print it; a rule inherits the same obligation.
 4. The findings are written to `build/reports/kapkan/method-sizes.txt` and echoed to the log, each
    line carrying its module and `[hot]` where the module is in scope, followed by a line naming the
    scope itself — "nothing declared hot" included.
-5. *(target)* Findings of R1 inside a module named by `sborka.perflint.hot`, minus suppressions,
-   fail the task.
+5. Findings of R1 inside a module named by `sborka.perflint.hot`, minus the ones a `@Suppress`
+   beside the pattern answers for, fail the task — and `check` depends on the task wherever a scope
+   is declared. A finding whose source file cannot be found is **not** treated as suppressed.
 
 ## 4. Code anchors
 
@@ -162,16 +165,18 @@ already does this and the reports print it; a rule inherits the same obligation.
 * **Then:** it is a finding, because a reader watching only `kotlin.collections` named none of the methods a real service's profile charges
 * **Automated:** `BytecodeTest`
 
-### Scenario: a hot module turns a pattern finding into a failure *(target)*
-* **Given:** `sborka.perflint.hot=:server` and a `Regex` built per call in `:server`
+### Scenario: a hot module turns a pattern finding into a failure
+* **Given:** `sborka.perflint.hot=:jvm-lib` and a `Regex` built per call in `:jvm-lib` with no suppression
 * **When:** `check` runs
-* **Then:** the build fails naming the method, the profile share behind the rule, and the suppression form
-* **And:** the same finding in `:client` prints and the build passes
+* **Then:** the build fails naming the method, the 6.45 % share with the profile it came from, and the suppression form
+* **And:** the same finding in `:kmp-lib`, which is not in scope, prints and the build passes
+* **Automated:** the stand carries both; the failing half is a control run by hand (`B-03`)
 
-### Scenario: a suppression without a reason is itself a finding *(target)*
+### Scenario: a suppression without a reason is itself a finding
 * **Given:** `@Suppress("kapkan:pattern-built-per-call")` with no reason beside it
 * **When:** `check` runs
-* **Then:** kapkan's `suppression-needs-a-reason` fails on it
+* **Then:** ktlint fails with `kapkan:pattern-built-per-call is switched off here and the annotation does not say why`
+* **Automated:** `SuppressionNeedsAReasonRuleTest`, plus a control run by hand on the stand
 
 ## 6. Out of scope
 
