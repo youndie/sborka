@@ -35,6 +35,7 @@ a jar that has none is a bigger decision than a hundred lines of reader.
 | the instruction walk | `build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/Bytecode.kt` |
 | the pool both readers share | `build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/ConstantPool.kt` |
 | the unused-API reader | `build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/Joins.kt` |
+| test output vs shipping output, one rule for both readers | `build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/Outputs.kt` |
 | suppressions, read from source | `build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/Suppressions.kt` |
 | the generated version | `build-logic/core/build.gradle.kts` — `generateVersionConstant` |
 | tests against emitted bytecode | `build-logic/core/src/test/kotlin/io/github/youndie/sborka/internal/` |

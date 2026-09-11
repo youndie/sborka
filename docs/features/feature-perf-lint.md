@@ -78,7 +78,9 @@ product flag. A refusal to inline is not a measured cost, so this rule reports.
 prints. With the property
 absent, the whole set is a report — a repository cannot be broken by adopting a version of sborka.
 A path no project has, or a module that compiled no class files, fails the task: an empty scope
-cannot be told from a passing one.
+cannot be told from a passing one. **Test output is never judged** — a pattern rebuilt per call in a
+test costs a slow suite and nothing else — and the report marks such a finding `[test]` rather than
+hiding it.
 
 **R5 — suppression carries a reason.** For a bytecode finding the annotation goes **on the line
 that builds the pattern** — that is where the reader wants the reason, and it is the one anchor a
@@ -102,8 +104,8 @@ already does this and the reports print it; a rule inherits the same obligation.
    line carrying its module, `[hot]` where the module is in scope and `[recomposes]` where the
    signature says the body runs per composition or per frame, followed by a line naming the scope
    itself — "nothing declared hot" included.
-5. Findings of R1 inside a module named by `sborka.perflint.hot`, minus the ones a `@Suppress`
-   beside the pattern answers for, fail the task — and `check` depends on the task wherever a scope
+5. Findings of R1 inside a module named by `sborka.perflint.hot`, outside test output, minus the
+   ones a `@Suppress` beside the pattern answers for, fail the task — and `check` depends on the task wherever a scope
    is declared. A finding whose source file cannot be found is **not** treated as suppressed.
 
 ## 4. Code anchors
@@ -143,6 +145,12 @@ already does this and the reports print it; a rule inherits the same obligation.
 * **When:** the reader scans the tree above both
 * **Then:** the method is reported once, naming both outputs, and the summary counts it as one method
 * **Automated:** `MethodSizesTest`
+
+### Scenario: a finding in test code is printed and never judged
+* **Given:** `sborka.perflint.hot=:jvm-lib` and a `Regex` built per call in that module's **test** sources, with no suppression
+* **When:** `check` runs
+* **Then:** the build passes and the line reads `:jvm-lib [hot] [test] …`
+* **Automated:** `MethodSizesTest`, and the stand carries the test-source pattern so CI fails if the rule is removed
 
 ### Scenario: a scope that matches nothing fails rather than gating nothing
 * **Given:** `sborka.perflint.hot` naming a path no project has, or a module that compiled no class files

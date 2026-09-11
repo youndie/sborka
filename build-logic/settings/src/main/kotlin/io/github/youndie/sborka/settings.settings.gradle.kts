@@ -417,6 +417,10 @@ gradle.rootProject {
                     // of the seventy chain findings in this portfolio's two Compose repositories are
                     // one of these; a reader wants them first.
                     val repeats = if (method.repeats) " [recomposes]" else ""
+                    // WHAT THE GATE WILL NOT JUDGE, said on the line rather than left out of it. A
+                    // pattern rebuilt per call in a test costs a slow suite and nothing else; a
+                    // build failed on one teaches people that the rule is noise.
+                    val test = if (method.fromTestOutput) " [test]" else ""
                     val copies =
                         when {
                             method.divergent -> {
@@ -431,7 +435,7 @@ gradle.rootProject {
                                 ""
                             }
                         }
-                    return "$module$hot$repeats $method$copies"
+                    return "$module$hot$repeats$test $method$copies"
                 }
 
                 val sizeLines =
@@ -548,7 +552,15 @@ gradle.rootProject {
                 // `@Suppress` beside the line that builds it — three of the eight findings in the
                 // portfolio are constructors and one is interpolated, so the suppression is the
                 // ordinary outcome rather than the exception.
-                val gateable = report.patternsCompiled.filter { moduleOf[it.toString()] in hotModules }
+                // TEST OUTPUT IS OUT OF THE GATE'S REACH, and this is the half that was missing
+                // when the gate shipped. konekt's first run on it listed six patterns built per call
+                // in `ScreensLookNothingUpTest` alone: a scope naming `:server` would have failed on
+                // test code, which is the fastest way to teach a team that a rule is noise. `Joins`
+                // already knew how to tell the outputs apart; the rule is shared now (`Outputs`).
+                val gateable =
+                    report.patternsCompiled.filter {
+                        moduleOf[it.toString()] in hotModules && !it.fromTestOutput
+                    }
                 val unanswered =
                     gateable.mapNotNull { method ->
                         val sites = Suppressions.sitesOf(sourceDirs.files, method.className)
@@ -620,10 +632,11 @@ gradle.rootProject {
                     } else {
                         val hotFindings =
                             (report.patternsCompiled + report.chains).count {
-                                moduleOf[it.toString()] in hotModules
+                                moduleOf[it.toString()] in hotModules && !it.fromTestOutput
                             }
                         "kapkanMethodSizes: hot modules ${hotModules.sorted().joinToString()} — " +
-                            "$hotFindings finding(s) in them, marked [hot] above"
+                            "$hotFindings finding(s) in them outside test output, marked [hot] above; " +
+                            "a finding marked [test] is printed and never judged"
                     }
 
                 val target = methodSizesReport.get().asFile

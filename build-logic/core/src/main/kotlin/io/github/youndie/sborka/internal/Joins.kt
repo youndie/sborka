@@ -419,20 +419,15 @@ object Joins {
     /**
      * Whether these classes came out of a test compilation.
      *
-     * Read off the OUTPUT directory rather than the source: `build/classes/kotlin/desktop/desktopTest`
-     * and `build/classes/java/test` are what the build actually produced, and a source path can be
-     * shared by several compilations.
+     * The rule is [Outputs.isTest], shared with the size reader: `MethodSizes` needs the same answer
+     * to keep a gate off test code, and two copies of it would be two answers.
      */
     private fun isTestOutput(
         file: File,
         root: File,
     ): Boolean =
-        file
-            .relativeTo(root)
-            .invariantSeparatorsPath
-            .split('/')
-            .plus(root.invariantSeparatorsPath.split('/'))
-            .any { segment -> segment.equals("test", ignoreCase = true) || segment.endsWith("Test") }
+        Outputs.isTest(file.relativeTo(root).invariantSeparatorsPath) ||
+            Outputs.isTest(root.invariantSeparatorsPath)
 
     private const val TEST_PREFIX = "test:"
 }

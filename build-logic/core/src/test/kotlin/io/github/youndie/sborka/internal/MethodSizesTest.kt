@@ -164,6 +164,33 @@ class MethodSizesTest {
         assertEquals(false, method("(Ljava/util/List;I)Ljava/lang/String;").repeats)
     }
 
+    @Test
+    fun `a finding from a test compilation is marked, and one compiled into both is not`(
+        @TempDir tmp: File,
+    ) {
+        // WHAT THE GATE MAY JUDGE. A pattern rebuilt per call in a test costs a slow suite and
+        // nothing else; the report prints it and the gate has to leave it alone. The rule is the
+        // output directory, shared with `Joins`, because a source directory can feed several
+        // compilations.
+        val source = File(fixtureDir, "MethodSizesChainFixture.class")
+
+        fun scanOf(vararg outputs: String): MethodSizes.Method {
+            val root = File(tmp, outputs.joinToString("-") { it.replace('/', '_') }).apply { mkdirs() }
+            outputs.forEach { output ->
+                val target = File(root, "$output/$fixturePackage").apply { mkdirs() }
+                source.copyTo(File(target, source.name), overwrite = true)
+            }
+            return MethodSizes.scan(listOf(root)).chains.single { it.name == "eagerChain" }
+        }
+
+        assertTrue(scanOf("kotlin/test").fromTestOutput, "kotlin/test is a test compilation")
+        assertTrue(scanOf("kotlin/jvmTest").fromTestOutput, "so is jvmTest")
+        assertEquals(false, scanOf("kotlin/jvm/main").fromTestOutput)
+
+        // A class compiled into both ships, so one shipping copy takes it out of the test half.
+        assertEquals(false, scanOf("kotlin/jvm/main", "kotlin/test").fromTestOutput)
+    }
+
     private fun javap(classFile: File): String {
         val out = StringWriter()
         val javap =

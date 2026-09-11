@@ -207,6 +207,17 @@ object MethodSizes {
          */
         val outputs: List<String> = emptyList(),
         /**
+         * Whether every output holding this body came out of a test compilation.
+         *
+         * A GATE MUST NOT JUDGE TEST CODE, which is what this exists for: a `Regex` rebuilt per call
+         * in a test costs a slow suite and nothing else, and a build failed on one teaches people
+         * that the rule is noise. The report still prints it, marked, because a chain in a test is
+         * worth seeing and worth nobody's afternoon.
+         *
+         * False when ANY copy is a shipping one: a class compiled into both outputs ships.
+         */
+        val fromTestOutput: Boolean = false,
+        /**
          * Whether the copies disagreed about this body.
          *
          * Two targets can compile the same source differently — an `expect`/`actual`, an `inline`
@@ -299,13 +310,16 @@ object MethodSizes {
                 .forEach { file ->
                     val methods = parse(file) ?: return@forEach
                     val output = outputOf(root, file, methods.firstOrNull()?.className)
+                    val fromTest =
+                        Outputs.isTest(file.relativeTo(root).invariantSeparatorsPath) ||
+                            Outputs.isTest(root.invariantSeparatorsPath)
                     methods.forEach { method ->
                         classes += method.className
                         val key = method.toString()
                         val seen = byMethod[key]
                         byMethod[key] =
                             if (seen == null) {
-                                method.copy(outputs = listOf(output))
+                                method.copy(outputs = listOf(output), fromTestOutput = fromTest)
                             } else {
                                 copies++
                                 // THE LARGEST BODY WINS, and the fact that a choice was made is
@@ -315,6 +329,9 @@ object MethodSizes {
                                 val winner = if (method.bytes > seen.bytes) method else seen
                                 winner.copy(
                                     outputs = seen.outputs + output,
+                                    // A class compiled into both outputs ships, so one shipping copy
+                                    // is enough to take it out of the "tests only" half.
+                                    fromTestOutput = seen.fromTestOutput && fromTest,
                                     divergent =
                                         seen.divergent ||
                                             method.bytes != seen.bytes ||

@@ -164,6 +164,7 @@ as a surprise.
 | A pattern built from a string the body assembles is told apart from a constant one, and 1 of the portfolio's 8 pattern findings is interpolated (`B-06`) | `MethodSizes.Method.patternsInterpolated`, `interpolatedPatterns` |
 | A body whose signature carries a `Composer` or a `DrawScope` repeats by construction, and 7 of the portfolio's 70 client-repository chain findings are such bodies (`B-04`) | `MethodSizes.Method.repeats`; the reading is in `B-04` |
 | A method compiled into several outputs is one finding that names its copies, and a divergence between them is reported rather than silently resolved (`B-07`) | `MethodSizes.scan`, `Method.outputs` / `Method.divergent` |
+| The gate never judges test output, and the report marks it `[test]`; the rule for telling the outputs apart is shared with `Joins` (`B-08`) | `build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/Outputs.kt` |
 | An unanswered pattern finding inside a hot module fails the task, and the task joins `check` only where a scope is declared (`B-03`) | same settings script, the `unanswered` check; `build-logic/core/src/main/kotlin/io/github/youndie/sborka/internal/Suppressions.kt` |
 | The instruction walk refuses to answer rather than answering zero: a body it could not walk is named in the report (`unwalked`) | `MethodSizes.Report.unwalked` |
 | kapkan's five ktlint rules are all source-level and none is about performance | `build-logic/kapkan/src/main/kotlin/io/github/youndie/sborka/kapkan/` |
@@ -199,6 +200,15 @@ was recognised.
 every finding two or three times: shashki's single `socketUrl` appeared twice. Counts here are of
 distinct methods, and the task does the same since `B-07` — keyed on the method's signature rather
 than on its file's path, so the copies are named on the finding instead of becoming three findings.
+
+**The first run on a real consumer found the half that was missing.** konekt took the published
+version and its report listed six patterns built per call in `ScreensLookNothingUpTest` alone: the
+reader walks everything under `build/classes`, test output included, so a scope naming `:server`
+would have failed a build on test code. `Joins` had told test output apart since it was written —
+one guard of the two was copied and the other was not. The rule now lives in `Outputs`, shared by
+both readers, and the gate skips what it marks (`B-08`). A rule cannot be proved harmless by the
+repository that ships it: the stand had no test-code finding to fail on, and the portfolio's own
+consumer did.
 
 **`<clinit>` is excluded, `<init>` is not — and three of eight findings are `<init>`.** A pattern in
 a constructor is paid per instance, which is free for a singleton and expensive for a per-request
