@@ -44,7 +44,7 @@ feature document, so re-prioritising must never move a file.
 
 No open tasks.
 
-## Closed (7)
+## Closed (8)
 
 **The detectors match what was measured**
 
@@ -57,6 +57,7 @@ No open tasks.
 - [B-02](docs/backlog/B-02-declare-which-modules-are-hot.md) `[x]` - Let a repository name the modules whose findings are gates
 - [B-03](docs/backlog/B-03-fail-on-a-pattern-built-per-call.md) `[x]` - Fail on a pattern built per call inside a hot module
 - [B-06](docs/backlog/B-06-answer-the-interpolated-pattern.md) `[x]` - Decide what the pattern rule tells a caller who interpolates the pattern
+- [B-08](docs/backlog/B-08-keep-the-gate-off-test-output.md) `[x]` - Keep the gate off test output, and mark what it will not judge
 
 **A measured saving, not only a measured share**
 
