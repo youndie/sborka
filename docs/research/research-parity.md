@@ -419,9 +419,12 @@ a real file system — B-13.
 §1.4 searched by hand over five repositories, which is a hypothesis, not a fact. Settled by a
 `kapkan`-style scan for a `Map` reaching a serializer without an ordering step.
 
-**H5 — booblik's `newSingleThreadContext` can be replaced by `Dispatchers.IO`.** The reason recorded
-for it is false (§1.5); whether the replacement is right is a design question about a blocking
-socket, not a platform one. Settled by B-16.
+**H5 — narrowed, 2026-09-11 (B-16).** The platform half is settled and the comment corrected in
+both places it appeared — booblik's build file and `Producer`'s KDoc, where it was the stated reason
+for the thread. The design half is not sborka's to settle: an actor with one consumer has a real
+argument for a dedicated thread, and `Dispatchers.IO` has a real argument in deleting the `close()`
+contract that a caller can get wrong. Nothing was measured, so nothing moved, and the question now
+lives beside the code.
 
 ---
 

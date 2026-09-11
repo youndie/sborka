@@ -1,7 +1,7 @@
 ---
 id: B-16
 title: "Correct booblik's Dispatchers.IO comment, and decide whether the thread it justifies is still wanted"
-status: open
+status: done
 priority: P2
 size: XS
 stage: stage-4-parity-evidence
@@ -44,3 +44,26 @@ words that read like a platform limitation.
   `booblik/booblik-native/src/commonMain`, `docs/research/research-parity.md`
 
 Settles hypothesis H5 of the research.
+
+## Done, 2026-09-11 — comment corrected in two places, code untouched, question written down
+
+booblik branch `docs/dispatchers-io-is-not-internal` (`08c9bae`). The claim was in **two** places,
+not one: `booblik-native/build.gradle.kts` and `Producer`'s own KDoc, where it was the stated reason
+the producer owns a thread. Both now carry the correction rather than a silent edit — the mistake is
+the part worth keeping.
+
+Re-verified inside the module rather than trusting the scratch project it was first caught in: a
+file in `booblik-native/src/nativeMain` using `Dispatchers.IO` with `import kotlinx.coroutines.IO`
+compiles for `linuxX64` against this module's own coroutines 1.11.0. `ktlintCheck` passes.
+
+**`newSingleThreadContext` was left in place, as this item said it would be.** The question is now
+stated where the code is, with what it turns on:
+
+- *for the thread* — this is an actor with one consumer and one socket, and a dedicated thread makes
+  that structural rather than incidental;
+- *against it* — `Dispatchers.IO` is a growing pool meant for exactly this, and switching would
+  delete the `close()` contract, which is the one thing a caller of this class can get wrong and the
+  one that leaks when they do.
+
+Nobody has measured either, so nothing moved. H5 is therefore *narrowed*, not closed: the platform
+half is settled, the design half is a booblik decision and belongs in booblik's backlog.
