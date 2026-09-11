@@ -1,0 +1,117 @@
+perf-lint probe — run 2026-09-11 on the mac, javap 25.0.2
+Class files as they lay in each clone's build directory: a clone not rebuilt since its last
+edit reports yesterday's code. Counts are of DISTINCT methods — a multiplatform build
+compiles one class into several output directories.
+
+| repository | classes | methods | pattern per call | chain >=2 | body > 325 b |
+|---|---|---|---|---|---|
+| konekt | 1646 | 12108 | 0 | 43 | 184 |
+| metrik | 535 | 5001 | 0 | 27 | 176 |
+| katcher | 781 | 7198 | 2 | 60 | 203 |
+| shashki | 1488 | 13341 | 1 | 18 | 230 |
+| bochka | 354 | 4688 | 3 | 90 | 118 |
+| s3kn | 410 | 2119 | 0 | 17 | 12 |
+| petich | 192 | 1791 | 0 | 3 | 19 |
+| chronik | 84 | 777 | 0 | 7 | 14 |
+| proba | 175 | 1768 | 2 | 35 | 51 |
+| boulab | 89 | 1089 | 0 | 11 | 36 |
+| kmp-smtp-client | 749 | 3543 | 0 | 14 | 15 |
+| **total** | **6503** | **53423** | **8** | **325** | **1058** |
+
+Every pattern-per-call finding, by name — eight is a number one can print:
+  katcher          io.github.youndie.katcher.feature.symbolication.SymbolMapRoutingKt.extractHeaderValue(java.lang.String, java.lang.String);
+  katcher          io.github.youndie.katcher.retrace.Retracer.io.github.youndie.katcher.retrace.Retracer(io.github.youndie.katcher.retrace.MappingStore);
+  shashki          io.github.youndie.shashki.driver.feature.shift.data.WebSocketShiftRepository.socketUrl(java.lang.String);
+  bochka           io.github.youndie.bochka.benchmark.Measurements.allocatedBytes(java.nio.file.Path);
+  bochka           io.github.youndie.bochka.s3.PostPolicy.quoted(java.lang.String);
+  bochka           io.github.youndie.bochka.s3.PostPolicy.tripleOf(java.lang.String);
+  proba            dev.youndie.proba.reader.ReposiliteIndex.dev.youndie.proba.reader.ReposiliteIndex(dev.youndie.proba.reader.MavenRepository, dev.youndie.proba.reader.Fetcher);
+  proba            dev.youndie.proba.reader.RepositoryIndex$Companion.of(dev.youndie.proba.reader.MavenRepository, dev.youndie.proba.reader.Fetcher);
+
+Bodies over 325 b, by what wrote them: {'written by hand': 791, 'suspend state machine': 162, 'generated serializer': 72, 'lambda / inner': 33}
+Chains, by what wrote them: {'written by hand': 273, 'suspend state machine': 27, 'lambda / inner': 25}
+
+--- the shares this research quotes, recomputed from the collapsed profiles ---
+
+/Users/youndie/Documents/GitHub/zavarnik/bench/profile/results/baseline/business.alloc.collapsed: 124440568024 bytes sampled
+  user anywhere                           65.53 %
+  a pattern is on the stack                6.45 %
+  a collection operator is on the stack    2.72 %
+
+/Users/youndie/Documents/GitHub/zavarnik/bench/profile/results/baseline/business.alloc.collapsed: user code owns 9.95 % of 124440568024 bytes sampled
+   6.037 %  bench.Pricing.quote
+   0.891 %  bench.QuoteLine
+   0.705 %  bench.OrderLine
+   0.527 %  bench.Cents
+   0.363 %  bench.Pricing$quote$2
+   0.308 %  bench.Pricing.couponDiscount
+   0.259 %  bench.Pricing$quote$2$coupon$1
+   0.233 %  bench.Pricing$quote$2$sub$1
+   0.186 %  bench.MainKt$main$1$2$9
+   0.173 %  bench.Pricing$quote$1
+   0.135 %  bench.Quote
+   0.086 %  bench.Order
+   0.046 %  bench.Pricing$quote$$inlined$sortedByDescending$1
+
+--- konekt: what the profile charges, and which rules name it ---
+
+/Users/youndie/Documents/GitHub/zavarnik/bench/profile/results/konekt-screens-200/screens.alloc.collapsed: user code owns 5.41 % of 2092429417 bytes sampled
+   1.077 %  io.konekt.money.MoneyFormat.group
+   0.576 %  io.konekt.screens.PlanDetailScreen.row
+   0.551 %  io.konekt.feature.usage.server.data.UsageUnits.grouped
+   0.501 %  io.konekt.money.MoneyFormat.format
+   0.200 %  io.konekt.money.DayFormat.dayAndMonth
+   0.175 %  io.konekt.feature.usage.server.data.UsageUnits.data
+   0.175 %  io.konekt.screens.PlansScreen.card$io_konekt_server
+   0.150 %  io.konekt.components.SurfaceComponent
+   0.125 %  io.konekt.screens.HomeScreen.allowanceCard
+   0.125 %  io.konekt.components.PlanCardComponent
+   0.100 %  io.konekt.screens.PlanDetailScreen.chip
+   0.100 %  io.konekt.feature.usage.server.data.UsageCounterCards.of
+   0.100 %  io.konekt.screens.PlansScreen.quotas
+   0.100 %  io.konekt.components.BannerComponent
+   0.100 %  io.konekt.feature.auth.server.data.ExposedSessionRepository$dbQuery$2$1
+  the pattern rule names methods owning  0.00 % of all bytes,   0.0 % of what user code owns
+  the chain   rule names methods owning  1.75 % of all bytes,  32.4 % of what user code owns
+  the size    rule names methods owning  0.13 % of all bytes,   2.3 % of what user code owns
+  the largest owners no rule names:
+       0.576 %  io.konekt.screens.PlanDetailScreen.row
+       0.501 %  io.konekt.money.MoneyFormat.format
+       0.200 %  io.konekt.money.DayFormat.dayAndMonth
+       0.175 %  io.konekt.screens.PlansScreen.card$io_konekt_server
+       0.175 %  io.konekt.feature.usage.server.data.UsageUnits.data
+
+/Users/youndie/Documents/GitHub/zavarnik/bench/profile/results/konekt-screens-50/screens.alloc.collapsed: user code owns 3.41 % of 568851395 bytes sampled
+   0.553 %  io.konekt.money.MoneyFormat.group
+   0.461 %  io.konekt.feature.usage.server.data.UsageUnits.grouped
+   0.184 %  io.konekt.feature.usage.server.data.UsageUnits.remaining
+   0.184 %  io.konekt.screens.PlansScreen.quotas
+   0.184 %  io.konekt.money.MoneyFormat.perUnit
+   0.184 %  io.konekt.screens.PlanDetailScreen.row
+   0.184 %  io.konekt.components.SurfaceComponent
+   0.092 %  io.konekt.screens.PlanDetailScreen.chip
+   0.092 %  io.konekt.feature.auth.server.data.ExposedSubscriberRepository$findById$2
+   0.092 %  io.konekt.money.DayFormat.dayAndMonth
+   0.092 %  io.konekt.domain.Money
+   0.092 %  io.konekt.screens.HomeScreen.allowanceCard
+   0.092 %  io.konekt.components.BannerComponent
+   0.092 %  io.konekt.components.PlanCardComponent
+   0.092 %  io.konekt.feature.usage.server.data.UsageCounterCards.of
+  the pattern rule names methods owning  0.00 % of all bytes,   0.0 % of what user code owns
+  the chain   rule names methods owning  1.01 % of all bytes,  29.7 % of what user code owns
+  the size    rule names methods owning  0.09 % of all bytes,   2.7 % of what user code owns
+  the largest owners no rule names:
+       0.184 %  io.konekt.screens.PlansScreen.quotas
+       0.184 %  io.konekt.screens.PlanDetailScreen.row
+       0.184 %  io.konekt.money.MoneyFormat.perUnit
+       0.184 %  io.konekt.feature.usage.server.data.UsageUnits.remaining
+       0.184 %  io.konekt.components.SurfaceComponent
+
+
+--- the narrower definition, for the cost of widening it ---
+
+Counting materialisations from kotlin.collections ONLY, with kotlin.text left out:
+201 distinct methods across the same eleven repositories, against 325 with strings counted.
+The 124 findings that widening added are what bought MoneyFormat.group and UsageUnits.grouped,
+the two largest user-code allocation owners in konekt's profile.
+Reproduce by narrowing EAGER_CALL in perfprobe.py to `kotlin/collections/...` and re-running.
