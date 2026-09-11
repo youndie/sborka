@@ -1,0 +1,51 @@
+A/B of one perf-lint finding on konekt — 2026-09-11, the Linux box (Ubuntu 24.04, OpenJDK 25 in the image)
+
+Stand: konekt compose with the chart limits (1 CPU, 1 GiB), k6 screens at a constant 200 rps,
+60 s warm-up, a 120 s async-profiler alloc window, three repetitions per variant, alternated.
+A = main; B = one-pass DigitGroups (MoneyFormat.group, UsageUnits.grouped).
+
+== ROUND 2 — the stand reset before every run ==
+| run | sampled bytes | bytes/req | user-owned | named by the rule | dropped |
+|---|---|---|---|---|---|
+| A rep1 | 2,094,526,565 | 85.23 KiB | 4.48 % | 1.302 % | 753 |
+| A rep2 | 2,062,020,771 | 83.90 KiB | 5.09 % | 1.017 % | 0 |
+| A rep3 | 2,155,343,857 | 87.70 KiB | 4.33 % | 1.484 % | 0 |
+| B rep1 | 2,091,905,130 | 85.12 KiB | 4.19 % | 0.000 % | 343 |
+| B rep2 | 2,035,282,134 | 82.82 KiB | 3.55 % | 0.000 % | 0 |
+| B rep3 | 2,078,797,955 | 84.59 KiB | 3.78 % | 0.000 % | 0 |
+
+| variant | bytes/req median | user-owned median | named median |
+|---|---|---|---|
+| A | 85.23 KiB (83.90 85.23 87.70) | 4.48 % | 1.302 % |
+| B | 84.59 KiB (82.82 84.59 85.12) | 3.78 % | 0.000 % |
+
+B/A bytes per request: 0.9925  (-0.75 %), spread within A alone: 4.46 %
+user-owned share: 4.48 % -> 3.78 %
+named by the rule: 1.302 % -> 0.000 %
+
+k6 latency, same runs (p95):
+  A.1 p95=315.32ms
+  A.2 p95=2.54ms 
+  A.3 p95=1.65ms 
+  B.1 p95=165.72ms
+  B.2 p95=1.64ms 
+  B.3 p95=2.13ms 
+
+== ROUND 1 — no reset between runs, kept as the cautionary half ==
+| run | sampled bytes | bytes/req | user-owned | named by the rule | dropped |
+|---|---|---|---|---|---|
+| A rep1 | 2,151,673,848 | 87.55 KiB | 4.51 % | 0.804 % | 0 |
+| A rep2 | 2,348,805,760 | 95.57 KiB | 4.80 % | 0.915 % | 0 |
+| A rep3 | 2,463,624,613 | 100.25 KiB | 5.11 % | 1.256 % | 153 |
+| B rep1 | 2,130,702,368 | 86.70 KiB | 3.91 % | 0.000 % | 0 |
+| B rep2 | 2,148,003,839 | 87.40 KiB | 4.27 % | 0.000 % | 651 |
+| B rep3 | 2,427,602,443 | 98.78 KiB | 4.28 % | 0.000 % | 806 |
+
+| variant | bytes/req median | user-owned median | named median |
+|---|---|---|---|
+| A | 95.57 KiB (87.55 95.57 100.25) | 4.80 % | 0.915 % |
+| B | 87.40 KiB (86.70 87.40 98.78) | 4.27 % | 0.000 % |
+
+B/A bytes per request: 0.9145  (-8.55 %), spread within A alone: 13.28 %
+user-owned share: 4.80 % -> 4.27 %
+named by the rule: 0.915 % -> 0.000 %

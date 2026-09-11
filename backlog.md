@@ -40,19 +40,22 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (7)
+## Open (6)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
 | [B-01](docs/backlog/B-01-chain-question-in-the-class-file-walk.md) `[ ]` | Ask the class-file walk how many containers a body materialises | P1 | M | - |
 | [B-02](docs/backlog/B-02-declare-which-modules-are-hot.md) `[ ]` | Let a repository name the modules whose findings are gates | P1 | S | - |
 | [B-03](docs/backlog/B-03-fail-on-a-pattern-built-per-call.md) `[ ]` | Fail on a pattern built per call inside a hot module | P1 | S | B-02 |
-| [B-05](docs/backlog/B-05-measure-a-saving-not-a-share.md) `[ ]` | Measure a saving, not only a share: fix one named finding and A/B it | P1 | M | - |
 | [B-04](docs/backlog/B-04-read-the-compose-chain-findings.md) `[?]` | Read the chain findings inside Compose code and decide whether the rule applies there | P2 | S | B-01 |
 | [B-06](docs/backlog/B-06-answer-the-interpolated-pattern.md) `[?]` | Decide what the pattern rule tells a caller who interpolates the pattern | P2 | S | B-03 |
 | [B-07](docs/backlog/B-07-count-a-method-once-in-a-multiplatform-build.md) `[ ]` | Count a method once when a multiplatform build compiles it into several directories | P2 | XS | - |
 
-## Closed (0)
+## Closed (1)
+
+**A measured saving, not only a measured share**
+
+- [B-05](docs/backlog/B-05-measure-a-saving-not-a-share.md) `[x]` - Measure a saving, not only a share: fix one named finding and A/B it
 
 <!-- END INDEX -->
 
@@ -66,3 +69,7 @@ feature document, so re-prioritising must never move a file.
   item waiting to be done.
 - **The probe stays in the repository** (`docs/research/probe/`) and is not the implementation.
   Two readers answering the same question is what caught a defect in the first one.
+- **A rule is accepted when the profile stops charging what it named**, not when the service gets
+  measurably faster. `B-05` fixed the largest finding on a real service and the A/B moved −0.75 %
+  against a 4.46 % spread: at this size the stand cannot see a correct fix, and asking a rule to
+  prove itself that way is asking for a number nobody can produce honestly.

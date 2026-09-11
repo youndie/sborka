@@ -1,7 +1,7 @@
 ---
 id: B-05
 title: "Measure a saving, not only a share: fix one named finding and A/B it"
-status: open
+status: done
 priority: P1
 size: M
 stage: stage-3-saving
@@ -31,3 +31,28 @@ whole document and the one a reader is most likely to skip over.
   sentence saying whether the difference is outside the noise of the stand.
 - Anchors: `konekt/shared/server-common/src/main/kotlin/io/konekt/money/MoneyFormat.kt`,
   `zavarnik/bench/profile/ab.sh`, `zavarnik/bench/profile/konekt.sh`
+
+## Done, 2026-09-11 — and the answer is a negative result
+
+Both named methods were rewritten as one pass (konekt `io.konekt.text.DigitGroups`) and measured on
+konekt's own stand with `scripts/measure/ab-images.sh`: two images differing by that patch,
+alternated, three repetitions each, 200 rps at the chart's limits, a 120 s allocation window, the
+stand reset before every run. Numbers in
+[research-perf-lint §1.7](../research/research-perf-lint.md); raw output in
+`docs/research/probe/results-ab-2026-09-11.txt`.
+
+- **The rule's target disappeared**: the named methods went from 1.30 % of all allocated bytes to
+  0.00 %, and the share user code owns fell 4.48 % → 3.78 %.
+- **The service-level A/B saw nothing**: bytes per request −0.75 %, against a 4.46 % spread between
+  one variant's own three repetitions.
+- **The first round, without a reset between runs, said −8.55 %** — the stand's own drift, eleven
+  times the effect, in the flattering direction. That is why the harness now resets per run and why
+  this item's result is stated as two numbers rather than one.
+
+What it changed beyond itself: the acceptance of a rule in this set is "the profile stops charging
+what it named", not "the service got faster". `B-03`'s message and the feature document were
+written accordingly.
+
+Not covered, and still not: the same question for the pattern rule. konekt has no pattern findings
+and the stand's `Pricing.quote` is stand code, so a saving for that rule needs a service that has
+one.
