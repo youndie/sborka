@@ -1,7 +1,7 @@
 ---
 id: B-10
 title: "Move one native-only server test to commonTest and find out what stops it"
-status: open
+status: done
 priority: P0
 size: S
 stage: stage-4-parity-evidence
@@ -39,3 +39,31 @@ is in `commonMain` in both repositories, and neither records why the tests sit w
   `katcher/server/src/nativeTest`
 
 Settles hypothesis H2 of the research.
+
+## Done, 2026-09-11 — it compiles and passes, and the interesting part is what it runs against
+
+`QueryRoutesTest.kt` moved from `server/src/nativeTest` to `server/src/commonTest` in metrik,
+unchanged, on branch `test/server-tests-on-both-targets` (`c5f068e`):
+
+| Task | Result |
+|---|---|
+| `:server:jvmTest` | passes — "every @Test in 1 class(es) was executed" |
+| `:server:linuxX64Test` | still passes |
+
+So H2 is confirmed: the suite was in `nativeTest` by habit. Nothing required it — `openDatabase` is
+in `commonMain` and sqlx4k publishes a JVM variant. The remaining seven in metrik and eleven in
+katcher are a `git mv`, which is B-23.
+
+**And the JVM run logs the finding this item did not go looking for.** It warns about
+`org.sqlite.SQLiteJDBCLoader` loading `sqlite-jdbc-3.53.2.0.jar`: sqlx4k on the JVM is **Xerial's
+sqlite-jdbc**, and on Kotlin/Native it is the Rust driver. The same test on the two targets
+therefore runs against two different SQLite implementations. That cuts both ways and both are worth
+having written down:
+
+- a green `jvmTest` says **less** about the native binary than it looks — the storage layer under it
+  is not the one that ships;
+- and these tests, once they run on both, are the only thing in the portfolio that would notice the
+  two drivers disagreeing. Nothing did before.
+
+This is a platform-layer divergence of exactly the kind [research-parity §1.5](../research/research-parity.md)
+is about, found by moving one file.

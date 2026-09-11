@@ -75,11 +75,11 @@ feature document, so re-prioritising must never move a file.
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-10](docs/backlog/B-10-move-a-native-only-server-test-to-common.md) `[ ]` | Move one native-only server test to commonTest and find out what stops it | P0 | S | - |
 | [B-13](docs/backlog/B-13-a-platform-probe-that-runs-on-every-target.md) `[ ]` | parityCheck: a dozen tests that make the platform layer answer on every target | P0 | M | B-10 |
 | [B-15](docs/backlog/B-15-where-the-two-runtimes-actually-diverge.md) `[ ]` | The page: where the JVM and Kotlin/Native actually diverge, and it is not in the stdlib | P1 | S | - |
 | [B-19](docs/backlog/B-19-set-the-properties-instead-of-working-around-them.md) `[ ]` | Set the four properties instead of working around them, and give musl a C++ runtime built for it | P1 | M | - |
 | [B-22](docs/backlog/B-22-take-the-flag-into-the-two-images.md) `[ ]` | Release the flag and take the COPY line out of the two images that carry it | P1 | S | B-18 |
+| [B-23](docs/backlog/B-23-move-the-rest-of-the-native-only-suites.md) `[ ]` | Move the other eighteen native-only server tests to commonTest | P1 | S | B-10 |
 | [B-11](docs/backlog/B-11-sort-the-series-metrik-puts-on-the-wire.md) `[ ]` | Sort the series metrik's agent puts on the wire, the way its histogram already does | P2 | XS | - |
 | [B-14](docs/backlog/B-14-the-process-level-gate-where-it-is-buildable.md) `[ ]` | Run razves as two processes and diff the output — the gate the brief asked for, where it fits | P2 | S | - |
 | [B-16](docs/backlog/B-16-drop-the-workaround-a-wrong-comment-justifies.md) `[ ]` | Correct booblik's Dispatchers.IO comment, and decide whether the thread it justifies is still wanted | P2 | XS | - |
@@ -87,7 +87,7 @@ feature document, so re-prioritising must never move a file.
 | [B-20](docs/backlog/B-20-strip-the-binary.md) `[ ]` | Strip the release binary: a third of the scratch prize, for one flag, today | P2 | XS | - |
 | [B-21](docs/backlog/B-21-print-what-the-binary-declares.md) `[ ]` | Print the binary's NEEDED list into the build log, so a new dependency shows up in a diff | P2 | XS | - |
 
-## Closed (11)
+## Closed (12)
 
 **The detectors match what was measured**
 
@@ -109,6 +109,7 @@ feature document, so re-prioritising must never move a file.
 **Find out which claimed divergences are real**
 
 - [B-09](docs/backlog/B-09-run-the-probe-on-linux.md) `[x]` - Run the parity probe on linuxX64 and say which of its numbers were about macOS
+- [B-10](docs/backlog/B-10-move-a-native-only-server-test-to-common.md) `[x]` - Move one native-only server test to commonTest and find out what stops it
 
 **A gate at the layer that has actually broken**
 

@@ -261,11 +261,17 @@ distribution; shildik's only `application` module, `:distribution`, declares **`
 The JVM targets exist so common tests run in seconds. Nothing ships on a JVM. Once that is written
 down, most of the brief's design follows from it (D1).
 
-**What is *not* established:** why those tests are where they are. `openDatabase` — the one call
-that looked platform-specific — is in `commonMain` in both repositories
-(`metrik/server/src/commonMain/kotlin/io/github/youndie/metrik/server/Application.kt`,
-`tracy/server/src/commonMain/kotlin/io/github/youndie/tracy/server/Application.kt`), so nothing in
-the type system forced the choice. It is H2, not a finding.
+**Settled 2026-09-11 (B-10): habit, not necessity.** metrik's `QueryRoutesTest.kt` moved from
+`nativeTest` to `commonTest` unchanged and passes on `jvmTest` and `linuxX64Test` both. Nothing
+required the placement: `openDatabase` is in `commonMain` and sqlx4k publishes a JVM variant. The
+other eighteen are a `git mv` — B-23.
+
+**And the move logged something nobody was looking for: the two targets do not run against the same
+database.** sqlx4k on the JVM loads Xerial's `sqlite-jdbc`; on Kotlin/Native it is the Rust driver.
+So a green `jvmTest` covers the routes and not the storage engine that ships — and, the other way
+round, these tests once they run on both are the only thing in the portfolio that would notice the
+two drivers disagreeing. It is a platform-layer divergence of exactly the kind §1.4 is about, found
+by moving one file.
 
 **Consequence — tracy is the reference subject.** 37 of its 39 tests are in `commonTest` and its CI
 runs them on `jvm`, `linuxX64` and `macosArm64` on every pull request.
