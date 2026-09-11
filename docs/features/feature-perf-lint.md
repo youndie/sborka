@@ -37,7 +37,7 @@ builds it.
 | pattern built per call | detected, printed by `kapkanMethodSizes` | fails inside a declared hot module — `B-03` |
 | two or more materialisations | detected, printed (`B-01`) | a gate inside a declared hot module, if `B-04` says the rule holds for client code |
 | body over `FreqInlineSize` | detected, printed | stays printed, permanently — a decision, not an item |
-| a declared scope (`sborka.perflint.hot`) | does not exist | `B-02`, and every gate is blocked on it |
+| a declared scope (`sborka.perflint.hot`) | declared, validated, and marked `[hot]` in the report (`B-02`) | a finding in a hot module fails the build — `B-03` |
 
 So today the whole set is a report, and `kapkanMethodSizes` is not in `check`. The order in which
 that changes is [backlog.md](../../backlog.md).
@@ -67,10 +67,12 @@ latency.
 that runs the build and printed beside the finding, because it is a `pd` (platform-dependent)
 product flag. A refusal to inline is not a measured cost, so this rule reports.
 
-**R4 — a gate needs a scope, and the scope is declared** *(target — `B-02`)*. `sborka.perflint.hot` in
+**R4 — a gate needs a scope, and the scope is declared.** `sborka.perflint.hot` in
 `gradle.properties` names modules; a finding of R1 inside one fails the build, everything else
-prints. With the property absent, the whole set is a report — a repository cannot be broken by
-adopting a version of sborka.
+prints *(the failing half is `B-03`; today the finding is marked `[hot]`)*. With the property
+absent, the whole set is a report — a repository cannot be broken by adopting a version of sborka.
+A path no project has, or a module that compiled no class files, fails the task: an empty scope
+cannot be told from a passing one.
 
 **R5 — suppression carries a reason.** Enforced today for the ktlint rule ids; *(target)* for
 the bytecode ids, which arrive with the first gate (`B-03`). `@Suppress("kapkan:pattern-built-per-call", "…because…")`,
@@ -89,7 +91,9 @@ already does this and the reports print it; a rule inherits the same obligation.
 2. The task walks the class directories with sborka's own reader: constant pool → class header →
    fields skipped by their attribute lengths → method bodies, with an instruction walk per body.
 3. Each body answers the three questions plus the `Intrinsics.check*` count.
-4. The findings are written to `build/reports/kapkan/method-sizes.txt` and echoed to the log.
+4. The findings are written to `build/reports/kapkan/method-sizes.txt` and echoed to the log, each
+   line carrying its module and `[hot]` where the module is in scope, followed by a line naming the
+   scope itself — "nothing declared hot" included.
 5. *(target)* Findings of R1 inside a module named by `sborka.perflint.hot`, minus suppressions,
    fail the task.
 
@@ -124,6 +128,20 @@ already does this and the reports print it; a rule inherits the same obligation.
 * **When:** the reader measures it
 * **Then:** the byte count equals what `javap -c -p` prints for the same method
 * **Automated:** `MethodSizesTest`
+
+### Scenario: a scope that matches nothing fails rather than gating nothing
+* **Given:** `sborka.perflint.hot` naming a path no project has, or a module that compiled no class files
+* **When:** `kapkanMethodSizes` runs
+* **Then:** the task fails naming the unknown path and listing the paths the build does have
+* **And:** with the property empty the report prints `nothing declared hot` and passes
+* **Automated:** manual — three controls run by hand on the stand, recorded in `B-02`
+
+### Scenario: a finding in a hot module is marked
+* **Given:** `sborka.perflint.hot=:jvm-lib` and an eager chain in `:jvm-lib`
+* **When:** the report runs
+* **Then:** the line reads `:jvm-lib [hot] stand.DigitsKt.heaviest…: 4 eager materialisation(s)`
+* **And:** the summary says how many findings are in hot modules
+* **Automated:** the stand carries the chain and CI runs `-p stand kapkanMethodSizes`
 
 ### Scenario: a report over no class files fails rather than reporting nothing
 * **Given:** a repository where nothing has been compiled

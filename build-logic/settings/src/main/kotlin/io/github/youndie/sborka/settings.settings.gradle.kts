@@ -237,6 +237,31 @@ gradle.rootProject {
     // portfolio keeps a JVM or desktop target anyway, because that is the only target a screenshot
     // can be taken on. Written down as a condition of use rather than left as a surprise.
     val classDirs = files(allprojects.map { it.layout.buildDirectory.dir("classes") })
+
+    // THE SAME OUTPUT, PER MODULE, because a finding has to be able to say which module it is in
+    // before anything can be scoped to a module. `allprojects` is complete here: settings created
+    // every project object, and this block only needs their paths and their build directories.
+    val classDirByProject = allprojects.associate { it.path to it.layout.buildDirectory.dir("classes") }
+
+    // WHICH MODULES ARE HOT — declared by the repository, because nothing static knows.
+    //
+    // Reachability from a route is computable with the reader that already reads calls, and it is
+    // still not hotness: konekt's own OpenAPI document builder is reachable from a route and runs
+    // once per process. A person naming two modules is one line of configuration and is right for
+    // the reason that matters — they know which process runs under load.
+    //
+    // ABSENT MEANS NOTHING IS HOT, and that is the property that lets a gate ship at all: taking a
+    // new version of sborka cannot fail a build that has not asked for it.
+    val hotModules =
+        providers
+            .gradleProperty("sborka.perflint.hot")
+            .orNull
+            .orEmpty()
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .map { if (it.startsWith(":")) it else ":$it" }
+            .toSet()
     val sourceDirs = files(allprojects.map { it.layout.projectDirectory.dir("src") })
     val reportFile = layout.buildDirectory.file("reports/kapkan/joins.txt")
     val methodSizesReport = layout.buildDirectory.file("reports/kapkan/method-sizes.txt")
@@ -322,7 +347,26 @@ gradle.rootProject {
             outputs.upToDateWhen { false }
 
             doLast {
-                val report = MethodSizes.scan(classDirs.files)
+                // ONE SCAN PER MODULE rather than one over everything: the scan is the same files
+                // either way, and this is what puts a module's name on a finding. Without that a
+                // scope can be declared and cannot be applied.
+                val byModule =
+                    classDirByProject
+                        .mapValues { (_, dir) -> MethodSizes.scan(listOf(dir.get().asFile)) }
+                        .filterValues { it.classesRead > 0 }
+                val report =
+                    MethodSizes.Report(
+                        classesRead = byModule.values.sumOf { it.classesRead },
+                        methodsRead = byModule.values.sumOf { it.methodsRead },
+                        findings = byModule.values.flatMap { it.findings }.sortedByDescending { it.bytes },
+                        assertions =
+                            byModule.values
+                                .flatMap { it.assertions }
+                                .sortedByDescending { it.assertions },
+                        patternsCompiled = byModule.values.flatMap { it.patternsCompiled },
+                        chains = byModule.values.flatMap { it.chains }.sortedByDescending { it.materialisations },
+                        unwalked = byModule.values.flatMap { it.unwalked },
+                    )
 
                 // THE SAME GUARD AS THE JOINS REPORT, and it earns its place for the same reason: a
                 // report over no class files is not an empty report, it is a report that read nothing.
@@ -332,12 +376,47 @@ gradle.rootProject {
                         "run it after `./gradlew classes` or `./gradlew build`."
                 }
 
+                // A SCOPE THAT MATCHES NOTHING SCOPES NOTHING, AND SAYS SO. Both halves are failures
+                // rather than warnings: a module path with a typo in it and a module with no JVM
+                // output both leave `sborka.perflint.hot` naming a set of findings that is empty,
+                // and an empty gate is indistinguishable from a passing one.
+                val unknown = hotModules - classDirByProject.keys
+                check(unknown.isEmpty()) {
+                    "sborka.perflint.hot names ${unknown.sorted().joinToString()}, which this build " +
+                        "has no project for. The paths it does have: " +
+                        classDirByProject.keys.sorted().joinToString()
+                }
+                val silent = hotModules - byModule.keys
+                check(silent.isEmpty()) {
+                    "sborka.perflint.hot names ${silent.sorted().joinToString()}, which compiled no " +
+                        "class files this reader can see. Kotlin/Native and wasm produce klibs, not " +
+                        "class files, so a module with only those targets cannot be scoped this way."
+                }
+
+                val moduleOf =
+                    byModule
+                        .flatMap { (module, moduleReport) ->
+                            (
+                                moduleReport.findings + moduleReport.patternsCompiled +
+                                    moduleReport.chains + moduleReport.assertions
+                            ).map { it.toString() to module }
+                        }.toMap()
+
+                // The module in front of every line, and `[hot]` on the ones a gate would judge.
+                // Nothing fails yet — the failure arrives with the rule that has a message and a
+                // suppression to offer (`B-03`), because a gate with neither is a gate people
+                // switch off.
+                fun label(method: MethodSizes.Method): String {
+                    val module = moduleOf[method.toString()] ?: "?"
+                    val hot = if (module in hotModules) " [hot]" else ""
+                    return "$module$hot $method"
+                }
+
                 val sizeLines =
                     report.findings.map { method ->
                         val crossed =
                             method.crossed.joinToString(", ") { "${it.flag} (${it.bytes})" }
-                        "${method.className}.${method.name}${method.descriptor}: " +
-                            "${method.bytes} bytes — over $crossed"
+                        "${label(method)}: ${method.bytes} bytes — over $crossed"
                     }
 
                 // A PATTERN BUILT ON EVERY CALL, which is the same class-file walk answering a
@@ -347,8 +426,7 @@ gradle.rootProject {
                 // bytes. `<clinit>` is not counted, so what is listed is the rebuilt ones.
                 val patternLines =
                     report.patternsCompiled.map { method ->
-                        "${method.className}.${method.name}${method.descriptor}: " +
-                            "${method.patternsCompiled} pattern(s) built per call — " +
+                        "${label(method)}: ${method.patternsCompiled} pattern(s) built per call — " +
                             "a Regex in <clinit> is built once"
                     }
 
@@ -364,8 +442,7 @@ gradle.rootProject {
                 // them to zero — see docs/research/research-perf-lint.md §1.4 and §1.7.
                 val chainLines =
                     report.chains.map { method ->
-                        "${method.className}.${method.name}${method.descriptor}: " +
-                            "${method.materialisations} eager materialisation(s) — " +
+                        "${label(method)}: ${method.materialisations} eager materialisation(s) — " +
                             "a sequence materialises once, at the end"
                     }
 
@@ -418,12 +495,30 @@ gradle.rootProject {
                         "over ${MethodSizes.HUGE_METHOD_LIMIT.flag} — a method that long is not " +
                         "compiled at all"
 
+                // WHAT THE SCOPE COVERS, printed whether or not anything is scoped. A line saying
+                // "nothing declared hot" is what tells a reader that the silence is a decision and
+                // not a rule that failed to run.
+                val scope =
+                    if (hotModules.isEmpty()) {
+                        "kapkanMethodSizes: nothing declared hot — set sborka.perflint.hot to the " +
+                            "modules whose findings should be judged (`:server`, `:shared:domain`); " +
+                            "every finding above is a report until something is"
+                    } else {
+                        val hotFindings =
+                            (report.patternsCompiled + report.chains).count {
+                                moduleOf[it.toString()] in hotModules
+                            }
+                        "kapkanMethodSizes: hot modules ${hotModules.sorted().joinToString()} — " +
+                            "$hotFindings finding(s) in them, marked [hot] above"
+                    }
+
                 val target = methodSizesReport.get().asFile
                 target.parentFile.mkdirs()
-                target.writeText((lines + summary).joinToString("\n", postfix = "\n"))
+                target.writeText((lines + summary + scope).joinToString("\n", postfix = "\n"))
 
                 lines.forEach { logger.lifecycle(it) }
                 logger.lifecycle(summary)
+                logger.lifecycle(scope)
                 logger.lifecycle(
                     "kapkanMethodSizes: written to ${target.relativeTo(root).invariantSeparatorsPath}",
                 )

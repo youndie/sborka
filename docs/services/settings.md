@@ -45,8 +45,9 @@ dropped because it assembles klibs, which the readers cannot read.
 
 `gradle.properties` keys, read through `providers.gradleProperty`. `sborka.catalog=off` turns the
 `wip` catalog off (the stand needs it off: a settings plugin resolves the catalog before any task
-in the same invocation has run). `sborka.perflint.hot` — **target**, not implemented — is where a
-repository will name the modules whose findings are gates; see
+in the same invocation has run). `sborka.perflint.hot` names the modules whose findings a gate will judge, comma-separated project
+paths (`:server,:shared:domain`); absent, every perf finding is a report. A path no project has, or
+a module that compiled no class files, fails the task rather than scoping nothing quietly. See
 [feature-perf-lint](../features/feature-perf-lint.md) R4.
 
 ## 5. Quirks
