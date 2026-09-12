@@ -305,11 +305,13 @@ nobody tests it is how a wrong suspicion gets written into a document; this one 
 | `gcr.io/distroless/static-debian13` | 825 807 |
 | tracy's server image as it ships, on `cc-debian13` | 15 192 364 — of which the binary is 13 863 696 |
 
-**Consequence — the prize is 10.6 MB, and a bigger one is lying next to it.** Moving tracy from
-`distroless/cc` to `scratch` would remove 10.6 MB of a 15.2 MB image. **Stripping the binary removes
-3.6 MB, works today, and needs one linker flag** (§1.2). Two thirds of the size argument for
-`scratch` is available without any of the linker work in §1.5 and §1.6 — which does not make
-`scratch` uninteresting, but does reorder what to do first.
+**Consequence — the prize is 10.6 MB, and what looked like a cheaper one is not cheap.** Moving
+tracy from `distroless/cc` to `scratch` would remove 10.6 MB of a 15.2 MB image. Stripping the
+binary removes 3.6 MB and needs one flag — and **costs every native crash report**, which is why
+B-20 was rejected: a Kotlin/Native stack trace prints `kfun:` names that live **only** in the symbol
+table (123 of them in sborka's stand binary; 0 after `strip`, as symbols *and* as strings), and
+katcher has no native mapping type to recover them from. The size is real and the price is a
+production crash that arrives as addresses. Recorded here as available, not as recommended.
 
 **Not measured: cold pull-plus-start on a k0s node with an empty cache.** That is the number the
 brief said the whole exercise was for, and there is no variant that both runs and is smaller, so

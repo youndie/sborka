@@ -71,7 +71,7 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (7)
+## Open (6)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
@@ -80,10 +80,9 @@ feature document, so re-prioritising must never move a file.
 | [B-22](docs/backlog/B-22-take-the-flag-into-the-two-images.md) `[ ]` | Release the flag and take the COPY line out of the two images that carry it | P1 | S | B-18 |
 | [B-23](docs/backlog/B-23-move-the-rest-of-the-native-only-suites.md) `[ ]` | Move the other eighteen native-only server tests to commonTest | P1 | S | B-10 |
 | [B-14](docs/backlog/B-14-the-process-level-gate-where-it-is-buildable.md) `[ ]` | Run razves as two processes and diff the output — the gate the brief asked for, where it fits | P2 | S | - |
-| [B-20](docs/backlog/B-20-strip-the-binary.md) `[ ]` | Strip the release binary: a third of the scratch prize, for one flag, today | P2 | XS | - |
 | [B-24](docs/backlog/B-24-file-what-the-musl-route-found.md) `[ ]` | File the two hardcoded sources upstream, with a reproduction that reaches main | P2 | XS | B-19 |
 
-## Closed (17)
+## Closed (18)
 
 **The detectors match what was measured**
 
@@ -118,6 +117,7 @@ feature document, so re-prioritising must never move a file.
 
 - [B-18](docs/backlog/B-18-drop-the-library-nothing-calls.md) `[x]` - Link with --as-needed, and delete the COPY line two Dockerfiles carry because of it
 - [B-19](docs/backlog/B-19-set-the-properties-instead-of-working-around-them.md) `[x]` - Set the four properties instead of working around them, and give musl a C++ runtime built for it
+- [B-20](docs/backlog/B-20-strip-the-binary.md) `[-]` - Strip the release binary: a third of the scratch prize, for one flag, today
 - [B-21](docs/backlog/B-21-print-what-the-binary-declares.md) `[x]` - Print the binary's NEEDED list into the build log, so a new dependency shows up in a diff
 
 <!-- END INDEX -->
