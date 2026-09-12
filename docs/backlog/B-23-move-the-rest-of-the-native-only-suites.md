@@ -1,7 +1,7 @@
 ---
 id: B-23
 title: "Move the other eighteen native-only server tests to commonTest"
-status: open
+status: wip
 priority: P1
 size: S
 stage: stage-4-parity-evidence
@@ -34,3 +34,30 @@ metrik's `server/src/nativeTest` and eleven in katcher's; while they are there, 
   new counts.
 - Anchors: `metrik/server/src/nativeTest`, `katcher/server/src/nativeTest`,
   `docs/research/research-parity.md`
+
+## katcher done, metrik blocked — 2026-09-12
+
+[katcher#53](https://github.com/youndie/katcher/pull/53), `452aae6`. All eleven moved to
+`commonTest` and **compiled unchanged**; `jvmTest` runs 21 classes where it ran 11.
+
+**The yield this item predicted, and it is a real divergence.** sqlx4k is two drivers — the Rust one
+on Kotlin/Native, Xerial's `sqlite-jdbc` on the JVM — and on an in-memory database they disagree
+twice:
+
+- the JVM driver **refuses a pool larger than one**: *"SQLite in-memory databases cannot be used
+  with connection pools larger than 1. Each connection creates a separate in-memory database
+  instance."* It is right to. A second connection to `:memory:` is a second, empty database, so the
+  default pool made every test here depend on which connection it happened to get. The native driver
+  said nothing, and the tests never noticed, because none of them writes and reads through different
+  connections;
+- pinning the pool to one then **deadlocks**: every test hung and failed after a minute with
+  `UncompletedCoroutinesError`, because the transaction holds the only connection while the code
+  inside it asks for another.
+
+So in-memory is not available on the JVM half with this driver at all. The harness takes a temporary
+file, which also takes the pool the production code takes and is what metrik's route tests already
+do. Neither half of this was visible while the tests ran on one target.
+
+**metrik's seven are blocked**, and not technically: its branch `parity/metrik-findings` carries a
+commit that is not mine — `7d898c7`, `Refs: #29` — and moving or pushing it inside someone else's
+pull request is not a decision to take unattended.
