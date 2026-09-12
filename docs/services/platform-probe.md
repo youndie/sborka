@@ -53,7 +53,15 @@ commonTest.dependencies {
 ```kotlin
 @Test
 fun thePlatformDoesWhatThisServiceAssumes() = runBlocking {
-    probePlatform(host = "postgres", port = 5432).orFail()
+    probePlatform(
+        host = "postgres",
+        port = 5432,
+        // Optional, and the engine is never this module's: `ktor-client-cio` has no TLS on
+        // Kotlin/Native, so a probe carrying its own would answer for one nobody ships. Pass the
+        // client this service actually uses, or leave both out and the report says TLS is uncovered.
+        tlsUrl = "https://id.example.com/.well-known/openid-configuration",
+        tlsRequest = { url -> httpClient.get(url) },
+    ).orFail()
 }
 ```
 
@@ -68,10 +76,12 @@ on an outage somebody else had, and then gets switched off.
   version 0.1.0.3's defect one level down, and why all five are in the completeness check.
 - **A target added here and not to `nativeProbeVariants` in the root build publishes unchecked.**
   The check was confirmed to fail on a variant that is not there before it was trusted.
-- **The report names what it did not cover**, and that is load-bearing rather than polite: TLS
-  through the engine a repository pins, the Ktor plugins it pins, and standard-library behaviour are
-  all outside it. A green report that does not say where it stopped looking accumulates trust it has
-  not earned.
+- **The report names what it did not cover**, and that is load-bearing rather than polite: the Ktor
+  plugins a repository pins and standard-library behaviour are outside it. A green report that does
+  not say where it stopped looking accumulates trust it has not earned.
+- **The uncovered list is computed, not fixed.** Hand a TLS request in and the TLS line disappears
+  from it; leave it out and the line stays. A fixed list would keep claiming TLS was uncovered on a
+  run that covered it — wrong in the reassuring direction, which is the half nobody re-reads.
 - **`runBlocking`, never `runTest`.** The test dispatcher's clock is virtual, so a timeout around a
   socket fires before the socket has done anything, and the result reads as a platform verdict when
   it is a harness one. That mistake was made once while this module was written.

@@ -53,6 +53,35 @@ class PlatformProbeTest {
     }
 
     @Test
+    fun aTlsRequestIsReportedThroughTheCallersOwnLambda() {
+        runBlocking {
+            // No engine and no network: what is under test is that the caller's path is the one that
+            // runs and that its failure becomes a finding rather than an exception. The engine is
+            // the repository's on purpose — `ktor-client-cio` has no TLS on Kotlin/Native, and a
+            // probe carrying its own engine would answer for one nobody ships.
+            val reached = reachesOverTls("https://example.invalid") { }
+            assertTrue(reached.ok, "$reached")
+
+            val refused = reachesOverTls("https://example.invalid") { error("no TLS on this target") }
+            assertFalse(refused.ok)
+            assertTrue("no TLS on this target" in refused.verdict, refused.verdict)
+        }
+    }
+
+    @Test
+    fun theReportStopsClaimingTlsIsUncoveredOnceItIsCovered() {
+        runBlocking {
+            val without = PlatformReport(platformTarget, listOf(readsEnvironment("PATH")))
+            assertTrue(without.notCovered.any { "TLS" in it }, "${without.notCovered}")
+
+            val with = PlatformReport(platformTarget, listOf(reachesOverTls("https://example.invalid") { }))
+            // THE DIRECTION THAT MATTERS. A fixed list would keep saying TLS was not covered on a run
+            // that covered it — wrong in the reassuring direction, which is the half nobody checks.
+            assertTrue(with.notCovered.none { "TLS" in it }, "${with.notCovered}")
+        }
+    }
+
+    @Test
     fun theReportNamesWhatItDidNotCover() {
         val report = PlatformReport(platformTarget, listOf(readsEnvironment("PATH")))
         assertTrue(report.notCovered.isNotEmpty())

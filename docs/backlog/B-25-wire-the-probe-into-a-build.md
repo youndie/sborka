@@ -87,5 +87,21 @@ the Linux box reports `jvm, linuxX64`, each naming only what it could actually r
 version; the scaffolding (`mavenLocal()`, the local version) was removed before committing, and the
 branch carries only the real change.
 
-**Still open:** the TLS assertion, which needs an API taking the repository's own `HttpClient`, and
-the other four subjects.
+**The TLS assertion, 2026-09-12.** Built, and the API question answered the other way round from
+this item's own suggestion: not an `HttpClient` the consumer passes, but a **lambda**. `reachesOverTls(url) { client.get(it) }`.
+Taking a client would have put `ktor-client-core` on `platform-probe` and coupled its version to
+every consumer's; a lambda leaves the engine entirely where it belongs — which is the point, since
+`ktor-client-cio` has no TLS on Kotlin/Native and a probe carrying its own engine would answer for
+one nobody ships.
+
+`probePlatform` takes `tlsUrl` and `tlsRequest` as an optional pair, and **the uncovered list is now
+computed from the findings rather than fixed**: hand a TLS request in and the TLS line disappears
+from it. The test that pins that is the one worth having — a fixed list would have kept claiming TLS
+was uncovered on a run that covered it, which is wrong in the reassuring direction and is the half
+nobody re-reads.
+
+**Still open: the other four subjects.** The natural next one is metrik, whose `:server` is the
+reason the assertion exists — `ktor-client-curl` on native and `ktor-client-cio` on the JVM through
+`expect`/`actual`, because CIO's native half has no TLS. It cannot take this until sborka publishes
+again: the API landing in this commit is newer than 0.4.0.57, which is what every consumer resolves
+today.
