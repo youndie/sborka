@@ -36,9 +36,17 @@ public class PlatformReport internal constructor(
 ) {
     public val failures: List<PlatformFinding> get() = findings.filterNot { it.ok }
 
+    /**
+     * What was NOT asked, computed from what was.
+     *
+     * A fixed list would have kept claiming TLS was uncovered on a run that covered it, which is the
+     * same defect as claiming coverage that did not happen — a report that is wrong in the reassuring
+     * direction rather than the alarming one.
+     */
     public val notCovered: List<String> =
-        listOf(
-            "TLS through the client engine this repository pins — it is not a dependency here",
+        listOfNotNull(
+            "TLS through the client engine this repository pins"
+                .takeIf { findings.none { finding -> finding.name.startsWith("reach-over-tls") } },
             "the Ktor plugins this repository pins, which fail at compile time on a target that lacks them",
             "standard-library behaviour, which moves at a version bump rather than at a commit",
         )
@@ -128,6 +136,30 @@ public suspend fun hasIoDispatcher(): PlatformFinding =
     }
 
 /**
+ * Makes one request through a caller-supplied [request] and reports what happened.
+ *
+ * **The engine is never this module's.** It is the repository's — `curl` on native and `cio` on the
+ * JVM in at least one service here, because `ktor-client-cio` has no TLS on Kotlin/Native and that
+ * cost this portfolio months of notifications that silently never left the process. A probe that
+ * brought its own engine would answer for an engine nobody ships.
+ *
+ * So [request] is a lambda and not an `HttpClient`: this module gains no client dependency, the
+ * consumer keeps its own, and what is asserted is the path that actually runs in production.
+ *
+ * ```kotlin
+ * reachesOverTls("https://example.com") { url -> client.get(url) }
+ * ```
+ */
+public suspend fun reachesOverTls(
+    url: String,
+    request: suspend (String) -> Unit,
+): PlatformFinding =
+    finding("reach-over-tls($url)") {
+        request(url)
+        "ok"
+    }
+
+/**
  * Asks the platform everything this module knows how to ask.
  *
  * [host] and [port] should be the repository's own stand rather than a public address: a probe that
@@ -137,15 +169,18 @@ public suspend fun probePlatform(
     host: String,
     port: Int,
     environmentVariable: String = "PATH",
+    tlsUrl: String? = null,
+    tlsRequest: (suspend (String) -> Unit)? = null,
 ): PlatformReport =
     PlatformReport(
         target = platformTarget,
         findings =
-            listOf(
+            listOfNotNull(
                 resolvesHostname(host, port),
                 readsEnvironment(environmentVariable),
                 roundTripsAFile(),
                 hasIoDispatcher(),
+                if (tlsUrl != null && tlsRequest != null) reachesOverTls(tlsUrl, tlsRequest) else null,
             ),
     )
 
