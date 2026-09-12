@@ -87,7 +87,7 @@ val verifyBuildLogicPublications =
         // printed its verdict, and then failed the build on the way out.
         val nativeVariants = nativeProbeVariants
         val pluginIds =
-            listOf("base", "lint", "test", "publish", "jvm", "kmp", "mutation", "native-service", "settings")
+            listOf("base", "lint", "test", "publish", "jvm", "kmp", "mutation", "native-service", "parity", "settings")
         outputs.upToDateWhen { false }
 
         doLast {

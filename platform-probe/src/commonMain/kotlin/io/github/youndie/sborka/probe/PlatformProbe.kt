@@ -149,6 +149,30 @@ public suspend fun probePlatform(
             ),
     )
 
+/** Where a build told the probe to look, or `null` if it did not. */
+public class ProbeTarget internal constructor(
+    public val host: String,
+    public val port: Int,
+)
+
+/**
+ * The target `sborka.parity` puts in the environment of every test task, or `null` when no build did.
+ *
+ * `null` is not a licence to skip. A repository with no stand of its own should probe a listener the
+ * test binds itself — weaker, because the name is answered from the hosts file rather than by DNS,
+ * and honest, because the report says which of the two it was. A probe that quietly does nothing
+ * when unconfigured is the shape that makes a lookup test vacuous.
+ */
+public fun configuredProbeTarget(): ProbeTarget? {
+    val host = environmentVariable(HOST_VARIABLE) ?: return null
+    val port = environmentVariable(PORT_VARIABLE)?.toIntOrNull() ?: return null
+    return ProbeTarget(host, port)
+}
+
+internal const val HOST_VARIABLE: String = "SBORKA_PARITY_HOST"
+
+internal const val PORT_VARIABLE: String = "SBORKA_PARITY_PORT"
+
 private const val PROBE_CONTENT = "sborka platform probe"
 
 internal expect fun environmentVariable(name: String): String?
