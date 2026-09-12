@@ -28,6 +28,17 @@ mavenPublish = "0.37.0"
 ktlintTool = "1.8.0"
 junit = "6.1.3"
 
+# WHAT `:platform-probe` IS BUILT AGAINST, and the reason that module exists at all. Its assertions
+# have to go through the libraries a service uses rather than through the syscalls underneath them:
+# the hostname failure this portfolio paid for was in ktor's own `InetSocketAddress`, so a probe
+# calling `getaddrinfo` would have been green while a fleet of agents was silent.
+#
+# These are sborka's BUILD versions, not the portfolio's. A consumer resolves whatever its own catalog
+# names; what is pinned here is only what the published klibs were compiled against.
+ktor = "3.5.2"
+coroutines = "1.11.0"
+kotlinxIo = "0.9.0"
+
 # A binding for the tests only. ktlint's engine logs through slf4j, and without a binding on the
 # test runtime every call into it dies in a static initialiser — 36 tests failing on
 # `NoClassDefFoundError: org/slf4j/LoggerFactory`, which names the class and not the missing artefact.
@@ -52,6 +63,10 @@ slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+
+ktor-network = { module = "io.ktor:ktor-network", version.ref = "ktor" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinxIo" }
 
 [plugins]
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintPlugin" }

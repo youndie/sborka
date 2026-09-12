@@ -1,7 +1,7 @@
 ---
 id: B-13
 title: "parityCheck: a dozen tests that make the platform layer answer on every target"
-status: question
+status: wip
 priority: P0
 size: M
 stage: stage-5-parity-gate
@@ -64,3 +64,43 @@ and runs would have caught all four.**
   `metrik/docs/research/research-architecture.md`
 
 Settles hypothesis H3 of the research the first time it finds something §1.5 does not list.
+
+## Answered and half-built, 2026-09-12 — the coordinate exists
+
+The question went to the owner and the answer was **a published coordinate**. Built:
+`io.github.youndie.sborka:platform-probe`, a multiplatform module in the root build, documented as
+[platform-probe](../services/platform-probe.md).
+
+| | |
+|---|---|
+| Assertions | resolve a hostname and connect (through ktor's own `InetSocketAddress`), read the environment, round-trip a file, dispatch on `Dispatchers.IO` |
+| Targets | `jvm`, `linuxX64`, `linuxArm64`, `macosArm64` |
+| Self-test | 4/4 on `jvm (25.0.2+10-69)` and on `native MACOSX ARM64`; a refused connection comes back as a finding rather than an exception |
+| Publication | five coordinates — the root plus one per target — wired into `publishToWip` |
+| Completeness | all five added to `verifyBuildLogicPublications`, **and the check was confirmed to fail** on a variant that is not there before it was trusted |
+
+**Where "publish" actually lands, which was worth reading rather than assuming.** sborka does not
+publish itself to Central: `gradle.properties` has no `sborka.central=true`, and `central.yaml` is a
+reusable workflow sborka provides *for other repositories*, checking the target tree's properties.
+sborka's own artefacts go to the `wip` Reposilite on **push to `main`**, through
+`publish-snapshot.yaml` running `./gradlew publishToWip`. So merging this branch publishes the
+coordinate; nothing else has to be done, and nothing irreversible happened here.
+
+**Three things the build fought back about, all documented where they bit:**
+
+- applying Kotlin and ktlint in the same module fails with
+  `NoClassDefFoundError: KotlinMultiplatformExtension` — ktlint looks Kotlin up at apply time in the
+  loader it was itself loaded by, which is the root's. Fixed by declaring the Kotlin plugin at the
+  root with `apply false`, which is the mirror image of the note already in that file about
+  `:catalog`;
+- a top-level `val` used inside a task action is a script object reference and the configuration
+  cache refuses it — the task ran, printed its verdict, and failed the build on the way out;
+- `= runBlocking { … }` in a test returns the block's value, and Kotlin/Native refuses a `@Test` that
+  returns anything. The same class of defect `sborka.test`'s `DeclaredTests` exists for, caught here
+  by the stricter compiler.
+
+**What is left, and it is the half this item is named after.** The coordinate is the delivery
+mechanism; `parityCheck` itself is not wired. Still to do: `sborka.kmp` (or a convention of its own)
+putting the dependency on `commonTest` and registering the task, one consumer proving it end to end,
+and the TLS assertion, which needs an API that takes the repository's own engine rather than a
+dependency here. Those are B-25.

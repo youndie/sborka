@@ -84,11 +84,12 @@ no file behind it, fails `coverage_map.py`.
 - [x] [source-brief-static-binary](research/source-brief-static-binary.md) — the scratch-image brief as it arrived
 - [x] [source-brief-memory-limit](research/source-brief-memory-limit.md) — the brief after the K/N-under-load post: whether 2 000 rps in 256 MiB is the runtime or Ktor, kept as it arrived while the work is still ahead
 
-### Services (3)
+### Services (4)
 
 - [x] [core](services/core.md) — the shared data and the class-file readers
 - [x] [settings](services/settings.md) — the settings plugin and where the reports are registered
 - [x] [kapkan](services/kapkan.md) — the ktlint rule set, and why the perf rules are not in it
+- [x] [platform-probe](services/platform-probe.md) — the assertions a repository puts on `commonTest` so its build finds out, on every target, whether the platform does what the code assumes
 
 ### Features (1)
 
