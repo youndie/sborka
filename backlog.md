@@ -71,18 +71,17 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (6)
+## Open (5)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-13](docs/backlog/B-13-a-platform-probe-that-runs-on-every-target.md) `[~]` | parityCheck: a dozen tests that make the platform layer answer on every target | P0 | M | B-10 |
-| [B-25](docs/backlog/B-25-wire-the-probe-into-a-build.md) `[~]` | Wire platform-probe into a build: the task, one consumer, and the TLS assertion | P0 | M | B-13 |
 | [B-15](docs/backlog/B-15-where-the-two-runtimes-actually-diverge.md) `[~]` | The page: where the JVM and Kotlin/Native actually diverge, and it is not in the stdlib | P1 | S | - |
 | [B-22](docs/backlog/B-22-take-the-flag-into-the-two-images.md) `[ ]` | Release the flag and take the COPY line out of the two images that carry it | P1 | S | B-18 |
 | [B-23](docs/backlog/B-23-move-the-rest-of-the-native-only-suites.md) `[ ]` | Move the other eighteen native-only server tests to commonTest | P1 | S | B-10 |
+| [B-26](docs/backlog/B-26-take-the-gate-into-the-other-four.md) `[ ]` | Take the platform gate into the other four subjects, metrik first | P1 | M | B-25 |
 | [B-24](docs/backlog/B-24-file-what-the-musl-route-found.md) `[ ]` | File the two hardcoded sources upstream, with a reproduction that reaches main | P2 | XS | B-19 |
 
-## Closed (19)
+## Closed (21)
 
 **The detectors match what was measured**
 
@@ -111,8 +110,10 @@ feature document, so re-prioritising must never move a file.
 **A gate at the layer that has actually broken**
 
 - [B-12](docs/backlog/B-12-a-transcript-a-test-run-can-be-compared-by.md) `[-]` - Give a test run something to compare: a normalised transcript, written by the suite itself
+- [B-13](docs/backlog/B-13-a-platform-probe-that-runs-on-every-target.md) `[x]` - parityCheck: a dozen tests that make the platform layer answer on every target
 - [B-14](docs/backlog/B-14-the-process-level-gate-where-it-is-buildable.md) `[-]` - Run razves as two processes and diff the output — the gate the brief asked for, where it fits
 - [B-17](docs/backlog/B-17-re-run-the-stdlib-probe-when-a-version-moves.md) `[x]` - Make a Kotlin or kotlinx bump re-run the stdlib probe, so the transcript cannot silently rot
+- [B-25](docs/backlog/B-25-wire-the-probe-into-a-build.md) `[x]` - Wire platform-probe into a build: the task, one consumer, and the TLS assertion
 
 **Take the win that does not depend on `scratch`, then decide about `scratch`**
 

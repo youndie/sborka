@@ -1,7 +1,7 @@
 ---
 id: B-13
 title: "parityCheck: a dozen tests that make the platform layer answer on every target"
-status: wip
+status: done
 priority: P0
 size: M
 stage: stage-5-parity-gate
@@ -99,8 +99,12 @@ coordinate; nothing else has to be done, and nothing irreversible happened here.
   returns anything. The same class of defect `sborka.test`'s `DeclaredTests` exists for, caught here
   by the stricter compiler.
 
-**What is left, and it is the half this item is named after.** The coordinate is the delivery
-mechanism; `parityCheck` itself is not wired. Still to do: `sborka.kmp` (or a convention of its own)
-putting the dependency on `commonTest` and registering the task, one consumer proving it end to end,
-and the TLS assertion, which needs an API that takes the repository's own engine rather than a
-dependency here. Those are B-25.
+**Closed 2026-09-12, when the half it is named after landed.** `sborka.parity` puts the dependency on
+`commonTest` and registers `parityCheck`; tracy runs it on every target it declares
+([tracy#33](https://github.com/youndie/tracy/pull/33)); the TLS assertion takes a lambda rather than
+an engine. All of it is in 0.4.0.58. The work is written up in
+[B-25](B-25-wire-the-probe-into-a-build.md), and applying it to the remaining four subjects is
+[B-26](B-26-take-the-gate-into-the-other-four.md).
+
+Leaving this open for B-26 would file a finished thing under an unfinished one, which is the same
+mistake it took an argument to avoid one item down.
