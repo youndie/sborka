@@ -1,7 +1,7 @@
 ---
 id: B-25
 title: "Wire platform-probe into a build: the task, one consumer, and the TLS assertion"
-status: wip
+status: done
 priority: P0
 size: M
 stage: stage-5-parity-gate
@@ -100,8 +100,15 @@ from it. The test that pins that is the one worth having — a fixed list would 
 was uncovered on a run that covered it, which is wrong in the reassuring direction and is the half
 nobody re-reads.
 
-**Still open: the other four subjects.** The natural next one is metrik, whose `:server` is the
-reason the assertion exists — `ktor-client-curl` on native and `ktor-client-cio` on the JVM through
-`expect`/`actual`, because CIO's native half has no TLS. It cannot take this until sborka publishes
-again: the API landing in this commit is newer than 0.4.0.57, which is what every consumer resolves
-today.
+## Closed, 2026-09-12 — the gate exists, is proved, and is published
+
+Everything this item is named after is done: the task, one consumer end to end, and the TLS
+assertion. Released as **0.4.0.58**.
+
+**The other four subjects are B-26, and separating them is the point rather than tidiness.**
+"Design a gate and prove it" and "apply it in four more repositories" are different questions with
+different risks — the first is answered, and holding the item open for the second would keep a
+finished thing filed under an unfinished one. Each of the four also has a shape of its own: metrik
+has the engine that makes the TLS assertion mean something, katcher resolves a single native target
+from the build host, shildik ships a `linuxX64`-only distribution, and razves is a CLI whose `jvm`
+target publishes nothing.
