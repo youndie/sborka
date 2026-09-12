@@ -11,7 +11,10 @@
 set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 cd "$here"
-GRADLE="${GRADLE:-./gradlew}"
+# THE REPOSITORY'S WRAPPER, not one in this directory — there is none here, deliberately: a second
+# copy of the wrapper in one repository is a second version to keep in step. Defaulting to `./gradlew`
+# made every build in a clean clone "fail" with nothing to say, which is how this line came to exist.
+GRADLE="${GRADLE:-$here/../../../gradlew}"
 KON="$(ls -d "$HOME"/.konan/dependencies/x86_64-unknown-linux-gnu-gcc-*-glibc-*-kernel-* 2>/dev/null | head -1)"
 GCCDIR="$(find "$KON" -type d -path '*lib/gcc/x86_64-unknown-linux-gnu/*' 2>/dev/null | head -1)"
 
@@ -41,13 +44,23 @@ link_failure() { # link_failure <mode>
     echo "distinct undefined symbols: $n"
     grep -o 'undefined symbol: .*' "$mode.log" | sed 's/undefined symbol: //' | sort -u | sed 's/^/  /'
     grep -oE 'cannot open [^ ]*' "$mode.log" | sort -u | sed 's/^/  /' | head -5
+    # NOT EVERY FAILURE IS A LINK FAILURE, and a report that greps for one shape and prints nothing
+    # when it does not match is a report that hides the other shapes. A clean clone failed every
+    # build for a missing wrapper and this function said "LINK FAILED, 0 undefined symbols".
+    if ! grep -q 'undefined symbol:\|unable to find library' "$mode.log"; then
+        echo "  not a link failure — the last of $mode.log:"
+        tail -12 "$mode.log" | sed 's/^/    /'
+    fi
 }
 
 # WHERE THE LINK FLAGS COME FROM, read out of the distribution rather than inferred from failures.
 # This is finding 1 of the upstream report: `platform.posix`'s klib manifest names libc's libraries
 # for every Linux program, and no property overrides a klib manifest.
 section "where the flags come from"
-KONAN_DIST="$(ls -d "$HOME"/.konan/kotlin-native-prebuilt-* 2>/dev/null | head -1)"
+# The NEWEST, not the first: a machine that has built more than one Kotlin version has more than one
+# distribution, and printing the older one's manifest as evidence for the newer one's behaviour is a
+# quotation from the wrong file.
+KONAN_DIST="$(ls -d "$HOME"/.konan/kotlin-native-prebuilt-* 2>/dev/null | sort -V | tail -1)"
 if [ -n "$KONAN_DIST" ]; then
     echo "distribution: $(basename "$KONAN_DIST")"
     echo "platform.posix manifest:"
