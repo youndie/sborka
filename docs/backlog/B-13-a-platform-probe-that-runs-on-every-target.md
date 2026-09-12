@@ -50,7 +50,9 @@ and runs would have caught all four.**
 - **Rejected: asserting against a mock or a loopback address.** metrik's §1.6 bug survived for
   months precisely because the test substituted a fake sender and `127.0.0.1` needs no resolver.
   The probe uses a hostname and a real connection or it is not this item.
-- **Does not cover** razves, which is a CLI and gets the process-level gate — B-14.
+- **Does not cover** exit codes and argument parsing. Nothing in the portfolio checks them on any
+  target, and razves found its own refusals leaving the process with status 0 by hand — a CLI
+  conformance question rather than a parity one, and razves' to make (B-14, dropped).
 
 - AC: on tracy, `./gradlew parityCheck` is green on `jvm`, `linuxX64` and `macosArm64`; pointing the
   DNS assertion at a name that does not exist fails on the native targets with a message naming the
