@@ -1,0 +1,97 @@
+Output of ./experiments.sh run from a CLEAN CLONE, 2026-09-12.
+Ubuntu 24.04 (WSL2), glibc 2.39, JDK 25.0.4, Kotlin/Native 2.4.10, docker 29.1.3.
+Every trace of the earlier hand-assembled state was removed from the host first; the
+sysroot below is built by the script itself out of alpine:3.21.
+
+The ssh session dropped during the base-image matrix at the end — the three findings are
+above it and complete; the matrix is context and is reproduced in 2026-09-11-linuxX64.txt.
+
+=== clean clone: cd07eb8 fix(static-probe): make the reproduction work in a clean clone
+
+===== where the flags come from
+distribution: kotlin-native-prebuilt-linux-x86_64-2.4.10
+platform.posix manifest:
+  linkerOpts=-lresolv -lm -lpthread -lutil -lcrypt -lrt
+konan.properties:
+  linkerGccFlags = -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed
+  targetSysRoot.linux_x64 = $gccToolchain.linux_x64/x86_64-unknown-linux-gnu/sysroot
+  libGcc.linux_x64 = ../../lib/gcc/x86_64-unknown-linux-gnu/8.3.0
+  linkerKonanFlags.linux_x64 = -Bstatic -lstdc++ -Bdynamic -ldl -lm -lpthread \
+  linker.linux_x64 = $llvmHome.linux_x64/bin/ld.lld
+
+===== default
+size=506968
+type=ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 2.6.16, BuildID[sha1]=86e6246a4ca24bc93eeb20676bc628976928341b, not stripped
+NEEDED: libresolv.so.2 libm.so.6 libpthread.so.0 libutil.so.1 libcrypt.so.1 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+interp: 1
+glibc symbols above the 2.2.5 floor:
+  U memcpy@GLIBC_2.14
+  U pthread_setname_np@GLIBC_2.12
+run on the host: probe=started hosts-file-lookup=ok dns-lookup=ok read-file=ok probe=finished 
+
+===== asneeded
+size=506888
+type=ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 2.6.16, BuildID[sha1]=0a734df05dc233a92cf29e154729bbcfc00ba906, not stripped
+NEEDED: libm.so.6 libpthread.so.0 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+interp: 1
+glibc symbols above the 2.2.5 floor:
+  U memcpy@GLIBC_2.14
+  U pthread_setname_np@GLIBC_2.12
+run on the host: probe=started hosts-file-lookup=ok dns-lookup=ok read-file=ok probe=finished 
+
+===== static (glibc, toolchain sysroot)
+LINK FAILED
+missing archives: 
+distinct undefined symbols: 7
+  __libc_setup_tls
+  __syscall_error
+  _dl_cpuclock_offset
+  _dl_init_static_tls
+  _dl_pagesize
+  _dl_stack_flags
+  _dl_wait_lookup_done
+
+===== musl (properties, with an Alpine-built C++ runtime)
+the flags ld.lld was actually given, in order:
+  1:--sysroot=/home/youndie/alpine-out/sysroot
+  7:-dynamic-linker
+  11:/home/youndie/alpine-out/sysroot/usr/lib/crt1.o
+  12:/home/youndie/alpine-out/sysroot/usr/lib/crti.o
+  13:/home/youndie/alpine-out/sysroot/../gcc/crtbegin.o
+  14:-L/home/youndie/alpine-out/sysroot/../gcc
+  16:-L/home/youndie/alpine-out/sysroot/lib
+  17:-L/home/youndie/alpine-out/sysroot/usr/lib
+  18:-L/home/youndie/alpine-out/sysroot/../lib64
+  19:-L/home/youndie/alpine-out/sysroot/lib64
+  20:-L/home/youndie/alpine-out/sysroot/usr/lib64
+  23:-static
+  24:--no-dynamic-linker
+  25:-lresolv
+  26:-lm
+  27:-lpthread
+  28:-lutil
+  29:-lcrypt
+  30:-lrt
+  31:-Bstatic
+  32:-lstdc++
+  33:-lsupc++
+  37:-lgcc
+  38:-lgcc_eh
+  39:-lc
+  40:/home/youndie/alpine-out/sysroot/../gcc/crtend.o
+  41:/home/youndie/alpine-out/sysroot/usr/lib/crtn.o
+size=430904
+type=ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux), statically linked, BuildID[sha1]=8472523eab70048603ef1103c27a05c38d484da0, not stripped
+NEEDED: 
+interp: 0
+glibc symbols above the 2.2.5 floor:
+run on the host: rc=124 (124 = hung) out= 
+
+===== musl (route 1 as first attempted: targetSysRoot only, against the distribution's musl)
+SKIPPED: superseded by the section above; kept for the record, not re-run
+
+===== base images
+base                             variant        image  result
+cc-debian13                      default     10824231  /probe: error while loading shared libraries: libcrypt.so.1: cannot open shared object f
+cc-debian13                      asneeded    10824229  probe=started hosts-file-lookup=ok dns-lookup=ok read-file=ok probe=finished 
+Connection to 127.0.0.1 closed by remote host.

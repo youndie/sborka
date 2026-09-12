@@ -11,7 +11,10 @@
 set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 cd "$here"
-GRADLE="${GRADLE:-./gradlew}"
+# THE REPOSITORY'S WRAPPER, not one in this directory — there is none here, deliberately: a second
+# copy of the wrapper in one repository is a second version to keep in step. Defaulting to `./gradlew`
+# made every build in a clean clone "fail" with nothing to say, which is how this line came to exist.
+GRADLE="${GRADLE:-$here/../../../gradlew}"
 KON="$(ls -d "$HOME"/.konan/dependencies/x86_64-unknown-linux-gnu-gcc-*-glibc-*-kernel-* 2>/dev/null | head -1)"
 GCCDIR="$(find "$KON" -type d -path '*lib/gcc/x86_64-unknown-linux-gnu/*' 2>/dev/null | head -1)"
 
@@ -41,7 +44,33 @@ link_failure() { # link_failure <mode>
     echo "distinct undefined symbols: $n"
     grep -o 'undefined symbol: .*' "$mode.log" | sed 's/undefined symbol: //' | sort -u | sed 's/^/  /'
     grep -oE 'cannot open [^ ]*' "$mode.log" | sort -u | sed 's/^/  /' | head -5
+    # NOT EVERY FAILURE IS A LINK FAILURE, and a report that greps for one shape and prints nothing
+    # when it does not match is a report that hides the other shapes. A clean clone failed every
+    # build for a missing wrapper and this function said "LINK FAILED, 0 undefined symbols".
+    if ! grep -q 'undefined symbol:\|unable to find library' "$mode.log"; then
+        echo "  not a link failure — the last of $mode.log:"
+        tail -12 "$mode.log" | sed 's/^/    /'
+    fi
 }
+
+# WHERE THE LINK FLAGS COME FROM, read out of the distribution rather than inferred from failures.
+# This is finding 1 of the upstream report: `platform.posix`'s klib manifest names libc's libraries
+# for every Linux program, and no property overrides a klib manifest.
+section "where the flags come from"
+# The NEWEST, not the first: a machine that has built more than one Kotlin version has more than one
+# distribution, and printing the older one's manifest as evidence for the newer one's behaviour is a
+# quotation from the wrong file.
+KONAN_DIST="$(ls -d "$HOME"/.konan/kotlin-native-prebuilt-* 2>/dev/null | sort -V | tail -1)"
+if [ -n "$KONAN_DIST" ]; then
+    echo "distribution: $(basename "$KONAN_DIST")"
+    echo "platform.posix manifest:"
+    grep -h '^linkerOpts' "$KONAN_DIST"/klib/platform/linux_x64/*posix*/default/manifest 2>/dev/null | sed 's/^/  /'
+    echo "konan.properties:"
+    grep -hE '^(linkerKonanFlags\.linux_x64|linkerGccFlags|libGcc\.linux_x64|targetSysRoot\.linux_x64|linker\.linux_x64) ' \
+        "$KONAN_DIST"/konan/konan.properties | sed 's/^/  /'
+else
+    echo "SKIPPED: no Kotlin/Native distribution under ~/.konan yet — run any build first"
+fi
 
 # RQ0/RQ1 — what the toolchain produces unasked, and what --as-needed takes off it.
 for mode in default asneeded; do
@@ -81,14 +110,37 @@ if command -v docker > /dev/null; then
     # sysroot without them cannot be rescued from a build file.
     rm -rf "$ROOT"
     mkdir -p "$ROOT/sysroot/usr/lib" "$ROOT/gcc"
-    docker run --rm -v "$ROOT":/out alpine:3.21 sh -c '
+    # CHOWNED BACK ON THE WAY OUT, and that is not tidiness. `apk` needs root inside the container,
+    # so the files land owned by root — and then this script's own `rm -rf` above fails with
+    # "Permission denied" on the SECOND run. A reproduction that works once is not a reproduction;
+    # this was found by running it from a clean clone, which is the only way it could have been.
+    docker run --rm -v "$ROOT":/out -e OWNER="$(id -u):$(id -g)" alpine:3.21 sh -c '
         apk add --no-cache g++ musl-dev > /dev/null 2>&1
         G=$(dirname "$(find / -name libgcc.a 2>/dev/null | head -1)")
         cp /usr/lib/*.a /usr/lib/*.o /out/sysroot/usr/lib/ 2>/dev/null
         cp /usr/lib/libstdc++.a /usr/lib/libsupc++.a /out/sysroot/usr/lib/ 2>/dev/null
         cp "$G"/libgcc.a "$G"/libgcc_eh.a /out/sysroot/usr/lib/ 2>/dev/null
         cp "$G"/crtbegin.o "$G"/crtend.o "$G"/libgcc.a "$G"/libgcc_eh.a /out/gcc/ 2>/dev/null
+        chown -R "$OWNER" /out
     ' > /dev/null 2>&1
+    # THE LINKER'S REAL ARGV, finding 2 of the report. A shim in place of `linker.linux_x64` records
+    # what ld.lld was actually given and execs the real one — the property mechanism used to look
+    # rather than to change. `-dynamic-linker <glibc loader>` appears BEFORE `-static` and is in none
+    # of the properties, which is why `-linker-option -static` cannot by itself produce a static
+    # binary.
+    LLD="$(ls "$HOME"/.konan/dependencies/llvm-*-x86_64-linux-essentials-*/bin/ld.lld 2>/dev/null | head -1)"
+    if [ -n "$LLD" ]; then
+        printf '#!/bin/sh\nprintf "%%s\\n" "$@" > %s/lld-argv.txt\nexec %s "$@"\n' "$ROOT" "$LLD" > "$ROOT/lld-spy"
+        chmod +x "$ROOT/lld-spy"
+        build musl -PmuslSysRoot="$ROOT/sysroot" -PmuslLinker="$ROOT/lld-spy" > /dev/null 2>&1 || true
+        if [ -f "$ROOT/lld-argv.txt" ]; then
+            echo "the flags ld.lld was actually given, in order:"
+            grep -nE 'dynamic-linker|^-static$|crt.*\.o$|^-l|^-B|sysroot' "$ROOT/lld-argv.txt" | sed 's/^/  /'
+        else
+            echo "the linker shim did not run"
+        fi
+    fi
+
     if build musl -PmuslSysRoot="$ROOT/sysroot"; then
         b="build/bin/linuxX64/releaseExecutable/probe-musl.kexe"
         inspect "$b"
@@ -147,7 +199,13 @@ for base in gcr.io/distroless/cc-debian13 gcr.io/distroless/base-debian13 \
         tag="sp-$(echo "$base-$mode" | tr '/:.' '---')"
         printf 'FROM %s\nCOPY probe-%s /probe\nENTRYPOINT ["/probe"]\n' "$base" "$mode" > "$ctx/Dockerfile.$tag"
         docker build -q -f "$ctx/Dockerfile.$tag" -t "$tag" "$ctx" < /dev/null > /dev/null 2>&1 || continue
-        out=$(docker run --rm "$tag" 2>&1 < /dev/null | tr '\n' ' ' | cut -c1-88)
+        # TIMED, and this is the whole reason the script used to never finish. One of the variants
+        # in this matrix is the musl binary of finding 3, which HANGS — so an untimed `docker run`
+        # here waits forever, and every earlier "successful" run of this script only reached the end
+        # because ssh dropped first or the musl build had failed. A reproduction that does not
+        # terminate is worse than one that fails: it looks like patience.
+        out=$(timeout 20 docker run --rm "$tag" 2>&1 < /dev/null | tr '\n' ' ' | cut -c1-88)
+        [ -z "$out" ] && out="<no output; timed out or silent>"
         size=$(docker image inspect "$tag" --format '{{.Size}}' < /dev/null)
         printf '%-32s %-9s %10s  %s\n' "$(basename "$base")" "$mode" "$size" "$out"
     done
