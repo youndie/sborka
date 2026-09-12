@@ -11,6 +11,14 @@ git clone https://github.com/youndie/sborka && cd sborka/docs/research/static-pr
 ./experiments.sh
 ```
 
+Verified from a clean clone on 2026-09-12 with every trace of the earlier hand-made state removed
+from the host first — output in
+[`results/2026-09-12-clean-clone.txt`](results/2026-09-12-clean-clone.txt). That run is also what
+found three defects in this reproduction: it used a Gradle wrapper that does not exist in this
+directory, it reported "LINK FAILED, 0 undefined symbols" for failures that were not link failures,
+and it quoted the manifest of whichever Kotlin/Native distribution the shell listed first, which on a
+host with two was the older one.
+
 Needs a Linux host with a JDK and docker. The Kotlin/Native toolchain (~1 GB) is fetched by Gradle on
 the first run; docker is used once, to take a musl sysroot out of `alpine:3.21` — the alternative is
 a sysroot assembled by hand, which is exactly what should not be in a report.
