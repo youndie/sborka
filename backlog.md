@@ -76,8 +76,8 @@ feature document, so re-prioritising must never move a file.
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
 | [B-15](docs/backlog/B-15-where-the-two-runtimes-actually-diverge.md) `[~]` | The page: where the JVM and Kotlin/Native actually diverge, and it is not in the stdlib | P1 | S | - |
-| [B-23](docs/backlog/B-23-move-the-rest-of-the-native-only-suites.md) `[ ]` | Move the other eighteen native-only server tests to commonTest | P1 | S | B-10 |
-| [B-26](docs/backlog/B-26-take-the-gate-into-the-other-four.md) `[ ]` | Take the platform gate into the other four subjects, metrik first | P1 | M | B-25 |
+| [B-23](docs/backlog/B-23-move-the-rest-of-the-native-only-suites.md) `[~]` | Move the other eighteen native-only server tests to commonTest | P1 | S | B-10 |
+| [B-26](docs/backlog/B-26-take-the-gate-into-the-other-four.md) `[~]` | Take the platform gate into the other four subjects, metrik first | P1 | M | B-25 |
 | [B-24](docs/backlog/B-24-file-what-the-musl-route-found.md) `[ ]` | File the two hardcoded sources upstream, with a reproduction that reaches main | P2 | XS | B-19 |
 
 ## Closed (22)

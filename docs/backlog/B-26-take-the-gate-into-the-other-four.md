@@ -1,7 +1,7 @@
 ---
 id: B-26
 title: "Take the platform gate into the other four subjects, metrik first"
-status: open
+status: wip
 priority: P1
 size: M
 stage: stage-5-parity-gate
@@ -43,3 +43,42 @@ the last.
 - Anchors: `metrik/server/build.gradle.kts`, `katcher/server/build.gradle.kts`,
   `shildik/server/build.gradle.kts`, `razves/cli/build.gradle.kts`,
   `platform-probe/src/commonMain/kotlin/io/github/youndie/sborka/probe/PlatformProbe.kt`
+
+## Two of four done, one refused, one blocked — 2026-09-12
+
+| | |
+|---|---|
+| katcher | [#54](https://github.com/youndie/katcher/pull/54), `38703c4` |
+| shildik | [#47](https://github.com/youndie/shildik/pull/47), `c365076` |
+| razves | **not taking it** — see below |
+| metrik | blocked, see below |
+
+**katcher: the gate could not name what it probed, and the report could.** Its summary line says
+`jvm, native`, because it lists Gradle targets and this module's native one is literally called
+`native` — the target is resolved from `os.name`. The probe's own report says
+`platform probe on native LINUX X64`, read out of `Platform` at run time. So the printing of the
+report is not decoration: without it a green run on a Mac and a green run on Linux look identical,
+and only one of them says anything about the binary that ships.
+
+**shildik: three targets probed, one deployed.** `:server` declares `jvm`, `macosArm64` and
+`linuxX64`; both distributions declare `linuxX64` alone. A green line for the other two is worth
+having — the JVM target is where the code is developed — and is not coverage of production, and the
+test says so where a reader of a green run will see it.
+
+**razves refuses the gate, and the refusal is the item's own prediction coming true.** Checked what
+it actually touches: files and `getenv`, yes; sockets and coroutines, no — it has **neither a ktor
+nor a coroutines dependency at all**. Of the probe's five assertions, two apply. The other three
+would be tests asserting things the program never does, which this item said in advance nobody would
+keep; and taking the dependency pulls ktor and coroutines onto the test classpath of a tool whose
+stated reason for existing is serving people who ship a single binary.
+
+What would change that is a split in `platform-probe`: the file and environment assertions need no
+dependency and could be usable without the networking ones. Worth doing only if a second
+dependency-free consumer appears — one is not a pattern.
+
+**metrik is blocked and not by anything technical.** Its branch `parity/metrik-findings` carries two
+commits of mine (B-10, B-11) and one that is not mine — `7d898c7`, "flush the open window when the
+agent stops", `Refs: #29`, written 2026-09-12 09:55. Pushing it inside my pull request or rebasing
+over it is not mine to do. metrik is also the subject that matters most here: it is the only one that
+can pass a real `tlsRequest`, since `ktor-client-curl` on native and `ktor-client-cio` on the JVM is
+exactly what the TLS assertion exists for.
