@@ -97,13 +97,18 @@ if command -v docker > /dev/null; then
     # sysroot without them cannot be rescued from a build file.
     rm -rf "$ROOT"
     mkdir -p "$ROOT/sysroot/usr/lib" "$ROOT/gcc"
-    docker run --rm -v "$ROOT":/out alpine:3.21 sh -c '
+    # CHOWNED BACK ON THE WAY OUT, and that is not tidiness. `apk` needs root inside the container,
+    # so the files land owned by root — and then this script's own `rm -rf` above fails with
+    # "Permission denied" on the SECOND run. A reproduction that works once is not a reproduction;
+    # this was found by running it from a clean clone, which is the only way it could have been.
+    docker run --rm -v "$ROOT":/out -e OWNER="$(id -u):$(id -g)" alpine:3.21 sh -c '
         apk add --no-cache g++ musl-dev > /dev/null 2>&1
         G=$(dirname "$(find / -name libgcc.a 2>/dev/null | head -1)")
         cp /usr/lib/*.a /usr/lib/*.o /out/sysroot/usr/lib/ 2>/dev/null
         cp /usr/lib/libstdc++.a /usr/lib/libsupc++.a /out/sysroot/usr/lib/ 2>/dev/null
         cp "$G"/libgcc.a "$G"/libgcc_eh.a /out/sysroot/usr/lib/ 2>/dev/null
         cp "$G"/crtbegin.o "$G"/crtend.o "$G"/libgcc.a "$G"/libgcc_eh.a /out/gcc/ 2>/dev/null
+        chown -R "$OWNER" /out
     ' > /dev/null 2>&1
     # THE LINKER'S REAL ARGV, finding 2 of the report. A shim in place of `linker.linux_x64` records
     # what ld.lld was actually given and execs the real one — the property mechanism used to look
