@@ -33,8 +33,20 @@ a sysroot assembled by hand, which is exactly what should not be in a report.
 linkerOpts=-lresolv -lm -lpthread -lutil -lcrypt -lrt
 ```
 
-Measured on four unrelated binaries — two Ktor services, a CLI and a hello-world — all four declare
-the identical ten `NEEDED` entries and import symbols from **three** of them:
+`experiments.sh` builds one binary — the hello-world probe in this directory — and prints its ten
+`NEEDED` entries. The table below adds three more: two Ktor services and a CLI from the same
+portfolio, all declaring the identical ten. **Those three are not rebuilt by the script**, and
+saying so matters more than the tidiness of pretending otherwise: what a reader can reproduce here
+is one binary's list and the manifest it comes from, which is enough, because the list is the klib's
+rather than the application's. To retake the other three:
+
+```bash
+./gradlew :server:linkReleaseExecutableLinuxX64          # in any Kotlin/Native service
+readelf -d build/bin/linuxX64/releaseExecutable/*.kexe | grep NEEDED
+```
+
+Which library actually supplies anything is the load-bearing half, and it is the same command over
+`nm -D --undefined-only` against each library's exports:
 
 | library | symbols the binary actually imports |
 |---|---|
