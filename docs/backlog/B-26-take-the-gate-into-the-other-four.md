@@ -1,7 +1,7 @@
 ---
 id: B-26
 title: "Take the platform gate into the other four subjects, metrik first"
-status: wip
+status: done
 priority: P1
 size: M
 stage: stage-5-parity-gate
@@ -82,3 +82,33 @@ agent stops", `Refs: #29`, written 2026-09-12 09:55. Pushing it inside my pull r
 over it is not mine to do. metrik is also the subject that matters most here: it is the only one that
 can pass a real `tlsRequest`, since `ktor-client-curl` on native and `ktor-client-cio` on the JVM is
 exactly what the TLS assertion exists for.
+
+## Done, 2026-09-12 — three took it, one refused, and the TLS half came back out
+
+metrik [#32](https://github.com/youndie/metrik/pull/32), `700caf4`. With katcher and shildik, three
+of the four run `parityCheck`; razves refuses it for the reason recorded above.
+
+**The TLS assertion was wired into metrik, run, and removed — and that is the item's real result.**
+metrik is the only subject that can hand the probe a real engine, so if the assertion cannot be made
+to mean something there, it cannot anywhere in this portfolio. On `linuxX64`:
+
+```
+reach-over-tls(https://localhost:56093): IllegalStateException: Connection failed …
+Reason: SSL connect error (CURLE_SSL_CONNECT_ERROR)
+```
+
+Curl reports its **ordinary** handshake failure as `IllegalStateException`, which is the same type
+ktor uses to refuse TLS outright. So no exception type separates *reached the TLS layer and failed*
+from *has no TLS at all*; only the message text does, and a gate resting on a sentence passes the day
+the sentence is reworded. The hermetic shape is not available, and the report saying "TLS uncovered"
+is true where a green line would have proved nothing.
+
+**What would cover it is a stand with a certificate** — `parityProbe` pointed at a real service.
+That is the one thing this whole strand keeps arriving back at, and it is the same gap named in D1's
+price: this gate does not exercise the real socket, DNS or TLS path, which is where all the
+divergences that cost anything actually were.
+
+Two smaller things the rollout paid for, both recorded where they bit: a listener that accepts and
+never speaks makes a TLS handshake wait **forever** — a ten-minute hang that reads as a slow build;
+and `parityCheck`'s summary names Gradle targets, so on katcher, whose native target is called
+`native`, only the probe's own report says which platform it was.
