@@ -71,17 +71,16 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (5)
+## Open (4)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
 | [B-15](docs/backlog/B-15-where-the-two-runtimes-actually-diverge.md) `[~]` | The page: where the JVM and Kotlin/Native actually diverge, and it is not in the stdlib | P1 | S | - |
-| [B-22](docs/backlog/B-22-take-the-flag-into-the-two-images.md) `[ ]` | Release the flag and take the COPY line out of the two images that carry it | P1 | S | B-18 |
 | [B-23](docs/backlog/B-23-move-the-rest-of-the-native-only-suites.md) `[ ]` | Move the other eighteen native-only server tests to commonTest | P1 | S | B-10 |
 | [B-26](docs/backlog/B-26-take-the-gate-into-the-other-four.md) `[ ]` | Take the platform gate into the other four subjects, metrik first | P1 | M | B-25 |
 | [B-24](docs/backlog/B-24-file-what-the-musl-route-found.md) `[ ]` | File the two hardcoded sources upstream, with a reproduction that reaches main | P2 | XS | B-19 |
 
-## Closed (21)
+## Closed (22)
 
 **The detectors match what was measured**
 
@@ -121,6 +120,7 @@ feature document, so re-prioritising must never move a file.
 - [B-19](docs/backlog/B-19-set-the-properties-instead-of-working-around-them.md) `[x]` - Set the four properties instead of working around them, and give musl a C++ runtime built for it
 - [B-20](docs/backlog/B-20-strip-the-binary.md) `[-]` - Strip the release binary: a third of the scratch prize, for one flag, today
 - [B-21](docs/backlog/B-21-print-what-the-binary-declares.md) `[x]` - Print the binary's NEEDED list into the build log, so a new dependency shows up in a diff
+- [B-22](docs/backlog/B-22-take-the-flag-into-the-two-images.md) `[x]` - Release the flag and take the COPY line out of the two images that carry it
 
 <!-- END INDEX -->
 

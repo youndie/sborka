@@ -1,7 +1,7 @@
 ---
 id: B-22
 title: "Release the flag and take the COPY line out of the two images that carry it"
-status: open
+status: done
 priority: P1
 size: S
 stage: stage-6-static-binary
@@ -34,3 +34,35 @@ sborka release carrying it.
   seven `NEEDED` entries; both services start in their cluster and answer their health endpoint.
 - Anchors: `tracy/server/Dockerfile`, `katcher/server/Dockerfile`,
   `build-logic/conventions/src/main/kotlin/io/github/youndie/sborka/kmp.gradle.kts`
+
+## Done, 2026-09-12 — both images, and the rule went with the line
+
+[tracy#34](https://github.com/youndie/tracy/pull/34) (`f3314cc`) and
+[katcher#52](https://github.com/youndie/katcher/pull/52) (`731f794`).
+
+| | tracy | katcher |
+|---|---|---|
+| sborka | 0.4.0.57, already taken | 0.4.0.43 → **0.4.0.58** |
+| `readelf -d` **before** the edit | 7 entries, no `libcrypt` | 7 entries, no `libcrypt` |
+| image with nothing beside the binary | starts, fails on `TRACY_INGEST_KEY` | starts, reaches its database migrations |
+
+**The application's own refusal is the proof.** A message from the program means the loader found
+everything it asked for; anything short of that would have been `cannot open shared object file`,
+which is what this item existed to make impossible.
+
+**The order was the item's and it mattered.** Bump, then read the produced binary, then delete the
+line. Reversed, it gives an image that builds and a container that exits before it logs — the exact
+failure being removed.
+
+**What went with the line is a rule.** The copied file is glibc-version-coupled, so the builder's
+glibc had to be no newer than the runtime's; both Dockerfiles carried a paragraph saying so. There is
+nothing to copy now, so there is no pair to get wrong, and the paragraph is replaced by what to do if
+the image ever does say `cannot open shared object file`: read `readelf -d` on the binary, because it
+means the convention did not apply — not add a second `COPY`.
+
+**A neighbouring belief corrected in the same commits.** `distroless/cc` rather than `base` is needed
+**not because of glibc** but because Kotlin/Native's exception handling imports thirteen `_Unwind_*`
+symbols from `libgcc`, which `base` does not carry. Both files said the former.
+
+tracy's image: 15 107 059 bytes against 15 192 364 with the copy. The size is incidental; the pairing
+hazard was the point.
