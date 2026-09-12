@@ -76,7 +76,7 @@ feature document, so re-prioritising must never move a file.
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
 | [B-13](docs/backlog/B-13-a-platform-probe-that-runs-on-every-target.md) `[ ]` | parityCheck: a dozen tests that make the platform layer answer on every target | P0 | M | B-10 |
-| [B-15](docs/backlog/B-15-where-the-two-runtimes-actually-diverge.md) `[ ]` | The page: where the JVM and Kotlin/Native actually diverge, and it is not in the stdlib | P1 | S | - |
+| [B-15](docs/backlog/B-15-where-the-two-runtimes-actually-diverge.md) `[~]` | The page: where the JVM and Kotlin/Native actually diverge, and it is not in the stdlib | P1 | S | - |
 | [B-22](docs/backlog/B-22-take-the-flag-into-the-two-images.md) `[ ]` | Release the flag and take the COPY line out of the two images that carry it | P1 | S | B-18 |
 | [B-23](docs/backlog/B-23-move-the-rest-of-the-native-only-suites.md) `[ ]` | Move the other eighteen native-only server tests to commonTest | P1 | S | B-10 |
 | [B-24](docs/backlog/B-24-file-what-the-musl-route-found.md) `[ ]` | File the two hardcoded sources upstream, with a reproduction that reaches main | P2 | XS | B-19 |

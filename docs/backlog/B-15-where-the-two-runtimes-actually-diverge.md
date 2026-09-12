@@ -1,7 +1,7 @@
 ---
 id: B-15
 title: "The page: where the JVM and Kotlin/Native actually diverge, and it is not in the stdlib"
-status: open
+status: wip
 priority: P1
 size: S
 stage: stage-5-parity-gate
@@ -45,3 +45,33 @@ no equivalent anywhere else — [research-parity §1.5](../research/research-par
 - Anchors: `docs/research/parity-probe/results/`, `docs/research/research-parity.md`,
   `metrik/docs/research/research-architecture.md`,
   `kotlin-website/site/src/jsMain/resources/markdown/blog`
+
+## Drafted, 2026-09-12 — written, registered by the build, and not published
+
+`kotlin-website`, branch `feat/jvm-native-differences` (`363e53d`):
+`site/src/jsMain/resources/markdown/blog/JvmAndNativeDifferences.md`, 115 lines. The repository's
+own check passes — `./gradlew :site:jsProcessResources` prints
+`blog post: blog/JvmAndNativeDifferences.md -> /blog/jvm-and-native-differences`, which is what says
+the post is registered and the route is the expected one.
+
+**Not pushed, and that is the whole of what is left.** Publishing on that site is a push to `main`,
+which builds an image and deploys; putting something under the owner's name on a public site is
+theirs to do, not something to finish inside a loop.
+
+**The framing in this item did not survive contact with the repository's own rules.** It said to
+structure the page around the four cases with their cost. `kotlin-website`'s `blog-post` skill
+rejects exactly that: *"это не жанр «история одного бага»… драматургия вокруг находки не нужна"*.
+So the page is a reference page in that register — what was measured, what agrees, what differs, the
+JDK as a variable, the platform layer, limits — and the cases appear as facts in the section they
+belong to rather than as the plot. The substance is unchanged; the shape is the site's.
+
+**One deviation from that checklist, flagged rather than skipped.** It requires a section with
+installation coordinates, "so the reader has something to copy". The subject is a set of
+measurements, not a tool, and there are no coordinates. The commands that reproduce it are in their
+place instead. If that is the wrong call for this site, the fix is small and it is the owner's.
+
+**What the page carries that no summary of it would.** Forty-nine rows agreeing exactly, twenty of
+22 regex probes agreeing including the constructs usually named as risks, the JDK moving five rows
+between 17 and 25, and the `InetSocketAddress` case having been true and now not — with the reason
+that matters: a hand-kept list of platform differences only grows, because nothing in it reports the
+day an entry stops being true.
