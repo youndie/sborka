@@ -1,7 +1,7 @@
 ---
 id: B-23
 title: "Move the other eighteen native-only server tests to commonTest"
-status: wip
+status: done
 priority: P1
 size: S
 stage: stage-4-parity-evidence
@@ -61,3 +61,18 @@ do. Neither half of this was visible while the tests ran on one target.
 **metrik's seven are blocked**, and not technically: its branch `parity/metrik-findings` carries a
 commit that is not mine — `7d898c7`, `Refs: #29` — and moving or pushing it inside someone else's
 pull request is not a decision to take unattended.
+
+## Done, 2026-09-12 — metrik too, and the contrast between the two is the finding
+
+metrik [#30](https://github.com/youndie/metrik/pull/30) and
+[#31](https://github.com/youndie/metrik/pull/31): all eight moved, `jvmTest` runs 8 classes where it
+ran none. Nothing broke.
+
+**That katcher broke and metrik did not is the useful half.** metrik's tests already opened a
+file-backed database through `openDatabase(dbPath)`; katcher's harness used `:memory:`. The
+divergence between sqlx4k's two drivers is real either way — whether a repository *meets* it depends
+on a choice its harness made for entirely unrelated reasons. Which is the argument for moving suites
+onto both targets rather than trusting that one target's green is the other's.
+
+metrik's branch was unblocked without touching what was not mine: a fresh branch off `main` carrying
+only my two commits, leaving `parity/metrik-findings` and its foreign commit alone.
