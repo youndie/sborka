@@ -1,7 +1,7 @@
 ---
 id: B-15
 title: "The page: where the JVM and Kotlin/Native actually diverge, and it is not in the stdlib"
-status: wip
+status: done
 priority: P1
 size: S
 stage: stage-5-parity-gate
@@ -75,3 +75,28 @@ place instead. If that is the wrong call for this site, the fix is small and it 
 between 17 and 25, and the `InetSocketAddress` case having been true and now not — with the reason
 that matters: a hand-kept list of platform differences only grows, because nothing in it reports the
 day an entry stops being true.
+
+## Published, 2026-09-12
+
+[kotlin-website#20](https://github.com/vedutsya-raboty/kotlin-website/pull/20), merged as `d7179c2`,
+at `/blog/jvm-and-native-differences`. That repository publishes on a push to `main`, so the merge is
+the publication.
+
+**Not published as written.** Between drafting and merging, two more platform-layer facts turned up
+and a page that omitted them would have been out of date on the day it went out:
+
+- **one library can be two.** sqlx4k is the Rust driver on Kotlin/Native and Xerial's `sqlite-jdbc`
+  on the JVM behind one API, and they disagree about in-memory databases. A suite that ran on the
+  native target alone met neither half (B-23);
+- **a whole section on why the platform layer resists the treatment the stdlib takes.** The stdlib
+  rows are a transcript — run one source twice, diff. The platform is not: an assertion has to go
+  through the API the program uses rather than the syscall beneath it, and some of it cannot be
+  settled hermetically at all, because curl reports its ordinary handshake failure with the same
+  exception type ktor uses to refuse TLS outright (B-26).
+
+That last section is the reason to read the page. Everything before it is a table other people could
+produce; it is the part that says what to do about the half that matters.
+
+**Two deviations from that repository's checklist, flagged in the pull request rather than skipped:**
+no installation section, because the subject is a set of measurements and there are no coordinates to
+copy; and 146 lines against a 70–110 guide, which is four tables and the closing section.
