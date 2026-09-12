@@ -67,9 +67,11 @@ native target from `os.name` and `os.arch`, so a parity run on a Mac compares th
 macOS binary and never against the Linux one that ships. Any gate on katcher has to run where the
 binary is built.
 
-**Consequence — razves is the only subject where a process-level gate is buildable today** (D2).
-It is a CLI, so "run it and diff the output" needs a command line, not a service, a database and a
-stand.
+**Consequence — no subject ships a JVM process, razves included.** This document first said razves
+was the exception, because it is a CLI with `jvm()` and native executables. Corrected 2026-09-12
+(B-14): `razves/cli` states in its own comment that `jvm` "is here for the tests only: nothing is
+published from it", and the module deliberately ships a native executable rather than a jar. So
+there is no artefact to start on the JVM side anywhere in the portfolio.
 
 ### 1.2 What the two standard libraries do differently — the least important section here
 
@@ -362,12 +364,22 @@ Why this and not the brief's design:
 - The price, stated plainly: this gate says nothing about the 17 rows of §1.2. Those move at a
   Kotlin or JDK bump, not at a pull request, and D4 puts them where things that move on a bump go.
 
-### D2. razves keeps a process-level gate, because it can
+### D2. There is no process-level gate anywhere, and that is a fact rather than a choice
 
-razves is a CLI with `jvm()` and two native executables. "Run the binary on the fixture, capture
-stdout, diff" is one script and needs no stand. It is the portfolio's one instance of the brief's
-original design, and worth keeping for exactly that reason: where it and D1's probe disagree about
-the same commit, the difference is what the in-process design cannot see.
+*(Revised 2026-09-12. This used to say razves kept the brief's design "because it can". It cannot:
+its `jvm()` target is for tests and publishes nothing — §1.1, B-14.)*
+
+The brief's design needs two processes of the same commit. **Not one subject in this portfolio
+produces a JVM process**: no server module applies the `application` plugin, shildik's only
+distribution declares `linuxX64` alone, and razves ships a native executable on purpose — "telling
+them to install a JVM to measure one would be absurd", in its own words. D1 is therefore not the
+cheaper of two designs, it is the only one available, and anything wanting a process comparison has
+to begin by building an artefact nobody ships.
+
+What razves shows instead is the kind of thing a process check catches and an in-process one does
+not: every refusal its CLI has used to leave the process with **status 0**, found by running the
+built binary by hand and fixed with an explicit `exitWith`. That is a CLI conformance question — one
+target, nothing to compare against — and it belongs in razves, not here.
 
 ### D3. The stdlib transcript is a probe for version bumps, not a gate
 
