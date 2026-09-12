@@ -27,6 +27,15 @@ includeBuild("build-logic")
 
 include(":catalog")
 
+// THE ONE MODULE HERE THAT HOLDS KOTLIN, and it is a library rather than a plugin.
+//
+// `:platform-probe` is the assertions a repository puts on `commonTest` so its build finds out, on
+// every target it declares, whether the platform underneath does what the code assumes. It cannot be
+// a convention: a convention configures a build, and this has to compile and run inside one. It
+// cannot be generated into the consumer either — the assertions go through ktor rather than through
+// the syscalls, which is the whole point of them, and a generated source cannot bring a dependency.
+include(":platform-probe")
+
 // THE PROOF, and it is a separate build on purpose.
 //
 // A convention plugin exercised from inside the build that defines it is exercised through a

@@ -1,0 +1,33 @@
+Does ktor-network resolve a HOSTNAME on each target? Ktor 3.5.2, Kotlin 2.4.10, 2026-09-12.
+Run as `./gradlew jvmTest macosArm64Test` on the Mac and `./gradlew jvmTest linuxX64Test` on the
+Linux box (Ubuntu 24.04 under WSL2). Port 80 on purpose: 127.0.0.1 and localhost have nothing
+listening, so their "connection refused" is the control — it proves the probe reached a syscall.
+
+macosArm64:
+    NETPROBE	127.0.0.1	IOException: Failed to connect to InetSocketAddress(127.0.0.1:80).
+    NETPROBE	localhost	IOException: Failed to connect to InetSocketAddress(localhost:80).
+    NETPROBE	example.com	connected
+jvm (on macOS):
+    NETPROBE	127.0.0.1	ConnectException: Connection refused
+    NETPROBE	localhost	ConnectException: Connection refused
+    NETPROBE	example.com	connected
+
+linuxX64:
+    NETPROBE	127.0.0.1	IOException: Failed to connect to InetSocketAddress(127.0.0.1:80).
+    NETPROBE	localhost	IOException: Failed to connect to InetSocketAddress(localhost:80).
+    NETPROBE	example.com	connected
+jvm (on Linux):
+    NETPROBE	127.0.0.1	ConnectException: Connection refused (connect failed)
+    NETPROBE	localhost	ConnectException: Connection refused (connect failed)
+    NETPROBE	example.com	connected
+
+So metrik's research §1.6 — "InetSocketAddress on Kotlin/Native does not resolve a name, connect
+fails with EINVAL" — DOES NOT REPRODUCE at these versions, on either native target.
+
+Scope, and it matters: this is a TCP connect through ktor-network. metrik's agent sends UDP, and a
+UDP socket takes a different path to the same address type. "Fixed for TCP at Ktor 3.5.2" is what
+was measured; metrik's own path has to be re-run in metrik.
+
+First run of this probe reported every host as timed out on both targets, which reads as a platform
+verdict and was a harness one: `runTest` has a virtual clock, so `withTimeout` fired before the
+socket did anything. It uses `runBlocking` for that reason.

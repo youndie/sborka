@@ -1,0 +1,63 @@
+Output of ./experiments.sh, 2026-09-11.
+
+HOST: Linux 6.6.87.2-microsoft-standard-WSL2 x86_64 | ldd (Ubuntu GLIBC 2.39-0ubuntu8.8) 2.39 | openjdk version "25.0.4" 2026-07-21
+
+===== default
+size=506968
+type=ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 2.6.16, BuildID[sha1]=86e6246a4ca24bc93eeb20676bc628976928341b, not stripped
+NEEDED: libresolv.so.2 libm.so.6 libpthread.so.0 libutil.so.1 libcrypt.so.1 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+interp: 1
+glibc symbols above the 2.2.5 floor:
+  U memcpy@GLIBC_2.14
+  U pthread_setname_np@GLIBC_2.12
+run on the host: probe=started hosts-file-lookup=ok dns-lookup=ok read-file=ok probe=finished 
+
+===== asneeded
+size=506888
+type=ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 2.6.16, BuildID[sha1]=0a734df05dc233a92cf29e154729bbcfc00ba906, not stripped
+NEEDED: libm.so.6 libpthread.so.0 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+interp: 1
+glibc symbols above the 2.2.5 floor:
+  U memcpy@GLIBC_2.14
+  U pthread_setname_np@GLIBC_2.12
+run on the host: probe=started hosts-file-lookup=ok dns-lookup=ok read-file=ok probe=finished 
+
+===== static (glibc, toolchain sysroot)
+LINK FAILED
+missing archives: 
+distinct undefined symbols: 7
+  __libc_setup_tls
+  __syscall_error
+  _dl_cpuclock_offset
+  _dl_init_static_tls
+  _dl_pagesize
+  _dl_stack_flags
+  _dl_wait_lookup_done
+
+===== musl (route 1: -Xoverride-konan-properties targetSysRoot)
+size=398840
+type=ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux), statically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=c025f24e769a3481acf4fb609fc23ff0721226e8, not stripped
+NEEDED: 
+interp: 1
+glibc symbols above the 2.2.5 floor:
+run on the host: rc=139 out= 
+
+===== base images
+base                             variant        image  result
+cc-debian13                      default     10824231  /probe: error while loading shared libraries: libcrypt.so.1: cannot open shared object f
+cc-debian13                      asneeded    10824229  probe=started hosts-file-lookup=ok dns-lookup=ok read-file=ok probe=finished 
+cc-debian13                      musl        10813555  
+base-debian13                    default      9627284  /probe: error while loading shared libraries: libcrypt.so.1: cannot open shared object f
+base-debian13                    asneeded     9627282  /probe: error while loading shared libraries: libgcc_s.so.1: cannot open shared object f
+base-debian13                    musl         9616608  
+static-debian13                  default      1006599  exec /probe: no such file or directory 
+static-debian13                  asneeded     1006597  exec /probe: no such file or directory 
+static-debian13                  musl          995920  exec /probe: no such file or directory 
+scratch                          default       183730  exec /probe: no such file or directory 
+scratch                          asneeded      183728  exec /probe: no such file or directory 
+scratch                          musl          173054  exec /probe: no such file or directory 
+--- base images on their own
+gcr.io/distroless/cc-debian13          10643700
+gcr.io/distroless/base-debian13        9446621
+gcr.io/distroless/static-debian13      825807
+debian:13-slim                         29803103

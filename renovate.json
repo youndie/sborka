@@ -3,10 +3,27 @@
   "description": [
     "sborka is the first consumer of its own preset, which is the only way the preset gets exercised at all: `default.json` is a file nothing reads until a repository names it.",
     "The harness preset is extended second on purpose — package rules are concatenated in the order the presets are named, and its rule has to come after the base preset's `majors get a human`. Its precondition holds here: check.yaml runs on `pull_request`.",
-    "The Kotlin/Native toolchain and the stand are what those pull requests build, so nothing else is added here yet. What this repository does need beyond the preset will be found by the preset failing to cover it, not by guessing now."
+    "The Kotlin/Native toolchain and the stand are what those pull requests build, so nothing else is added here yet. What this repository does need beyond the preset will be found by the preset failing to cover it, not by guessing now.",
+    "A bump of Kotlin or a kotlinx library moves rows in the parity transcript — five of 129 move between two JDKs alone — so those pull requests carry the commands that refresh it. `parity-probe.yaml` runs them and puts the diff in the job summary; the note is for the person, because the job is deliberately not a gate (research-parity D3, B-17)."
   ],
   "extends": [
     "github>youndie/sborka",
     "github>youndie/sborka:automerge-harness"
+  ],
+  "packageRules": [
+    {
+      "description": [
+        "The stdlib parity transcript is a property of these versions and of the JDK, not of Kotlin/Native in general. It is NOT on the pull-request path as a gate — a moved row is usually an improvement in one of the runtimes, and a red build would teach people to update the expected file without reading it.",
+        "So: a note naming the two commands, and a workflow that runs them and prints the diff. Whoever takes the bump reads it."
+      ],
+      "matchPackageNames": [
+        "/^org\\.jetbrains\\.kotlin[:.]/",
+        "/^org\\.jetbrains\\.kotlinx[:.]/"
+      ],
+      "prBodyNotes": [
+        "**Parity transcript.** This bump can move rows in `docs/research/parity-probe/results/`. The `parity probe` check has run them and put the diff in its job summary; if a row moved, refresh the transcripts and update `docs/research/research-parity.md` §1.2 in this pull request:",
+        "```\ndocs/research/parity-probe/run.sh jvm\ndocs/research/parity-probe/run.sh macosArm64   # linuxX64 on a Linux host\ndocs/research/parity-probe/compare.py results/<old> results/<new>\n```"
+      ]
+    }
   ]
 }

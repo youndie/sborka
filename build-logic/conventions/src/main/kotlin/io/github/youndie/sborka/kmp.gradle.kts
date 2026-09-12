@@ -6,7 +6,10 @@ import org.gradle.api.attributes.Usage
 import org.gradle.api.attributes.java.TargetJvmVersion
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
+import org.jetbrains.kotlin.gradle.plugin.mpp.Executable
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import org.jetbrains.kotlin.gradle.targets.jvm.KotlinJvmTarget
+import org.jetbrains.kotlin.konan.target.Family
 
 // The mechanics of a multiplatform library — AND DELIBERATELY NOT ITS TARGETS.
 //
@@ -45,6 +48,34 @@ plugins.withId("org.jetbrains.kotlin.multiplatform") {
                 allWarningsAsErrors.set(true)
             }
         }
+
+        // A LINUX EXECUTABLE DECLARES ONLY WHAT IT USES.
+        //
+        // A Kotlin/Native binary lists ten shared libraries and imports symbols from three. The other
+        // seven come with `platform.posix`, whose klib manifest carries
+        // `-lresolv -lm -lpthread -lutil -lcrypt -lrt` for every program on Linux whether or not
+        // anything calls them — measured identically on two servers, a CLI and a hello-world in
+        // `docs/research/research-static-binary.md` §1.2.
+        //
+        // One of the seven is `libcrypt.so.1`, which `gcr.io/distroless/cc` does not carry. So an
+        // image either copies it out of the builder by hand — which two repositories here do — or the
+        // container exits before it logs, with `cannot open shared object file`. And the copy brings
+        // its own hazard: the file is glibc-version-coupled, so the builder image must then be no
+        // newer than the runtime, and when it is not the failure reads `GLIBC_2.38 not found`.
+        //
+        // `--as-needed` lets the linker drop what nothing referenced. Seven NEEDED entries instead of
+        // ten, no copy, and no pairing rule to get wrong.
+        //
+        // LINUX ONLY, and that is not caution: `ld64` and `lld-link` do not take this flag, so an
+        // ungated version would fail every Apple and mingw link in the portfolio.
+        targets
+            .withType<KotlinNativeTarget>()
+            .matching { it.konanTarget.family == Family.LINUX }
+            .configureEach {
+                binaries.withType<Executable>().configureEach {
+                    linkerOpts("-Wl,--as-needed")
+                }
+            }
 
         // THE BYTECODE MATCHES THE FLOOR THE METADATA CLAIMS.
         //

@@ -26,11 +26,22 @@ object NativeImageReference {
         RUN --mount=type=cache,target=/root/.konan,sharing=locked \
             ./gradlew :$module:stageNativeImage --no-daemon
 
+        # `distroless/cc` and not `distroless/base`, and the reason is not glibc: Kotlin/Native's
+        # exception handling imports thirteen `_Unwind_*` symbols from `libgcc_s`, which `base` does not
+        # carry. `base` fails at exec with `cannot open shared object file`.
         FROM gcr.io/distroless/cc-debian13
         # `ca-certificates` is not a library, so `ldd` on the binary will never name it. Without it
         # every outbound TLS call fails with a message about a certificate path and nothing about this
         # line. distroless/cc carries them already — kept as a comment because the first thing anyone
         # does with this file is swap the base image.
+        #
+        # NOTHING ELSE IS COPIED, and that is load-bearing. A Kotlin/Native binary declares
+        # `libcrypt.so.1`, which this base image does not have, and imports nothing from it; older
+        # versions of this file copied it out of the builder and carried a rule that the builder's glibc
+        # must be no newer than the runtime's, because that copied file is glibc-coupled. `sborka.kmp`
+        # links Linux executables with `--as-needed`, the declaration goes away, and so does the rule.
+        # If this image ever fails with `cannot open shared object file`, the answer is that the
+        # convention did not apply — not another COPY line.
         COPY --from=build /app/$module/build/native-image/$binary /app/$binary
         ENTRYPOINT ["/app/$binary"]
         """.trimIndent() + "\n"

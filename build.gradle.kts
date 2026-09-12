@@ -2,6 +2,13 @@ import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
 
 plugins {
     alias(libs.plugins.ktlint)
+    // DECLARED HERE AND APPLIED NOWHERE, which is not a formality. `:platform-probe` applies both
+    // Kotlin and ktlint, and ktlint looks Kotlin up AT APPLY TIME in the loader it was itself loaded
+    // by — the root's, because the root applies it. Without this line that loader has no Kotlin under
+    // it and the subproject fails with `NoClassDefFoundError: KotlinMultiplatformExtension`, naming a
+    // class and nothing about where the two plugins were loaded. The same story as the note below
+    // about `:catalog`, from the other side.
+    alias(libs.plugins.kotlinMultiplatform) apply false
 }
 
 // The root's own scripts. `:catalog` applies the plugin itself — applied from here it would be loaded
@@ -39,6 +46,12 @@ dependencies {
 // hand. Hence a second reader, of the same kind, pointed at sborka's own output.
 // Emptied first, or the evidence outlives the run that produced it: a directory repository
 // accumulates, and yesterday's artefacts beside today's let this pass on a run that published nothing.
+// The native targets `:platform-probe` declares, named once. A target added to that module and not
+// to this list publishes without the completeness check ever looking at it, which is the failure this
+// whole task exists to make impossible.
+val nativeProbeVariants =
+    listOf("platform-probe-linuxx64", "platform-probe-linuxarm64", "platform-probe-macosarm64")
+
 val cleanLocalRepo =
     tasks.register<Delete>("cleanLocalRepo") {
         description = "Empties the local repository so a run cannot pass on the last run's artefacts"
@@ -62,14 +75,19 @@ val verifyBuildLogicPublications =
         description = "Checks what sborka's own publish actually wrote"
         dependsOn(gradle.includedBuild("build-logic").task(":publishAllPublicationsToLocalRepository"))
         dependsOn(":catalog:publishAllPublicationsToLocalRepository")
+        dependsOn(":platform-probe:publishAllPublicationsToLocalRepository")
         dependsOn(cleanLocalRepo)
 
         // Two directories, because two builds write them and each cleans its own.
         val pluginRepoDir = layout.buildDirectory.dir("local-repo-plugins")
         val catalogRepoDir = layout.buildDirectory.dir("local-repo")
         val expectedVersion = providers.gradleProperty("VERSION").orNull
+        // CAPTURED HERE, not read from the action. A top-level `val` in a build script is a script
+        // object reference, and the configuration cache refuses to serialise one — the task ran,
+        // printed its verdict, and then failed the build on the way out.
+        val nativeVariants = nativeProbeVariants
         val pluginIds =
-            listOf("base", "lint", "test", "publish", "jvm", "kmp", "mutation", "native-service", "settings")
+            listOf("base", "lint", "test", "publish", "jvm", "kmp", "mutation", "native-service", "parity", "settings")
         outputs.upToDateWhen { false }
 
         doLast {
@@ -81,14 +99,24 @@ val verifyBuildLogicPublications =
             // both a module name and a plugin id, so `.../sborka/settings/` holds the version
             // directories AND `io.github.youndie.sborka.settings.gradle.plugin` beside them — which the
             // "more than one version" check below duly reported as a second version.
+            // The root build's modules land in one directory and `build-logic`'s in another, so the
+            // lookup is by which build published it rather than by name.
+            val fromRootBuild = setOf("catalog", "platform-probe") + nativeVariants + "platform-probe-jvm"
+
             fun versionsOf(module: String) =
-                File(if (module == "catalog") catalogGroupDir else groupDir, module)
+                File(if (module in fromRootBuild) catalogGroupDir else groupDir, module)
                     .listFiles()
                     .orEmpty()
                     .filter { it.isDirectory && it.name.first().isDigit() }
                     .map { it.name }
 
-            val libraries = listOf("core", "conventions", "settings", "kapkan", "catalog")
+            // EVERY ARTEFACT ID, not every module. A multiplatform publication is five coordinates —
+            // the root and one per target — and a consumer on a target whose variant did not publish
+            // fails to resolve while the root module sits on the server looking complete. That is the
+            // 0.1.0.3 shape again, one level down.
+            val libraries =
+                listOf("core", "conventions", "settings", "kapkan", "catalog", "platform-probe", "platform-probe-jvm") +
+                    nativeVariants
             val absent = libraries.filter { versionsOf(it).isEmpty() }
             check(absent.isEmpty()) {
                 "these published nothing, though every publish task reported success: ${absent.joinToString()}. " +
@@ -117,7 +145,15 @@ val verifyBuildLogicPublications =
                     // missing module rather than about the rules that did not run.
                     File(groupDir, "kapkan/$version/kapkan-$version.jar"),
                     File(catalogGroupDir, "catalog/$version/catalog-$version.toml"),
+                    // THE ROOT MODULE'S GRADLE METADATA, which is what makes variant resolution work
+                    // at all: without the `.module` file a consumer gets the jvm jar or nothing,
+                    // whatever the klibs beside it say.
+                    File(catalogGroupDir, "platform-probe/$version/platform-probe-$version.module"),
+                    File(catalogGroupDir, "platform-probe-jvm/$version/platform-probe-jvm-$version.jar"),
                 ) +
+                    nativeVariants.map { variant ->
+                        File(catalogGroupDir, "$variant/$version/$variant-$version.klib")
+                    } +
                     // THE MARKERS, one per plugin id. A marker is how `plugins { id(...) version ... }`
                     // finds the jar at all: without it the conventions are on the server and
                     // unreachable by the only means anybody uses to ask for them.
@@ -170,7 +206,8 @@ tasks.register("check") {
 
 tasks.register("publishToWip") {
     group = "publishing"
-    description = "Publishes the conventions and the version catalog to the wip snapshot repository"
+    description = "Publishes the conventions, the version catalog and the platform probe to wip"
     dependsOn(gradle.includedBuild("build-logic").task(":publishAllPublicationsToWipRepository"))
     dependsOn(":catalog:publishAllPublicationsToWipRepository")
+    dependsOn(":platform-probe:publishAllPublicationsToWipRepository")
 }
