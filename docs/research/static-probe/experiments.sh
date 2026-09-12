@@ -43,6 +43,22 @@ link_failure() { # link_failure <mode>
     grep -oE 'cannot open [^ ]*' "$mode.log" | sort -u | sed 's/^/  /' | head -5
 }
 
+# WHERE THE LINK FLAGS COME FROM, read out of the distribution rather than inferred from failures.
+# This is finding 1 of the upstream report: `platform.posix`'s klib manifest names libc's libraries
+# for every Linux program, and no property overrides a klib manifest.
+section "where the flags come from"
+KONAN_DIST="$(ls -d "$HOME"/.konan/kotlin-native-prebuilt-* 2>/dev/null | head -1)"
+if [ -n "$KONAN_DIST" ]; then
+    echo "distribution: $(basename "$KONAN_DIST")"
+    echo "platform.posix manifest:"
+    grep -h '^linkerOpts' "$KONAN_DIST"/klib/platform/linux_x64/*posix*/default/manifest 2>/dev/null | sed 's/^/  /'
+    echo "konan.properties:"
+    grep -hE '^(linkerKonanFlags\.linux_x64|linkerGccFlags|libGcc\.linux_x64|targetSysRoot\.linux_x64|linker\.linux_x64) ' \
+        "$KONAN_DIST"/konan/konan.properties | sed 's/^/  /'
+else
+    echo "SKIPPED: no Kotlin/Native distribution under ~/.konan yet — run any build first"
+fi
+
 # RQ0/RQ1 — what the toolchain produces unasked, and what --as-needed takes off it.
 for mode in default asneeded; do
     section "$mode"
@@ -89,6 +105,24 @@ if command -v docker > /dev/null; then
         cp "$G"/libgcc.a "$G"/libgcc_eh.a /out/sysroot/usr/lib/ 2>/dev/null
         cp "$G"/crtbegin.o "$G"/crtend.o "$G"/libgcc.a "$G"/libgcc_eh.a /out/gcc/ 2>/dev/null
     ' > /dev/null 2>&1
+    # THE LINKER'S REAL ARGV, finding 2 of the report. A shim in place of `linker.linux_x64` records
+    # what ld.lld was actually given and execs the real one — the property mechanism used to look
+    # rather than to change. `-dynamic-linker <glibc loader>` appears BEFORE `-static` and is in none
+    # of the properties, which is why `-linker-option -static` cannot by itself produce a static
+    # binary.
+    LLD="$(ls "$HOME"/.konan/dependencies/llvm-*-x86_64-linux-essentials-*/bin/ld.lld 2>/dev/null | head -1)"
+    if [ -n "$LLD" ]; then
+        printf '#!/bin/sh\nprintf "%%s\\n" "$@" > %s/lld-argv.txt\nexec %s "$@"\n' "$ROOT" "$LLD" > "$ROOT/lld-spy"
+        chmod +x "$ROOT/lld-spy"
+        build musl -PmuslSysRoot="$ROOT/sysroot" -PmuslLinker="$ROOT/lld-spy" > /dev/null 2>&1 || true
+        if [ -f "$ROOT/lld-argv.txt" ]; then
+            echo "the flags ld.lld was actually given, in order:"
+            grep -nE 'dynamic-linker|^-static$|crt.*\.o$|^-l|^-B|sysroot' "$ROOT/lld-argv.txt" | sed 's/^/  /'
+        else
+            echo "the linker shim did not run"
+        fi
+    fi
+
     if build musl -PmuslSysRoot="$ROOT/sysroot"; then
         b="build/bin/linuxX64/releaseExecutable/probe-musl.kexe"
         inspect "$b"
