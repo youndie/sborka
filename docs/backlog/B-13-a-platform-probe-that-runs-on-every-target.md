@@ -1,7 +1,7 @@
 ---
 id: B-13
 title: "parityCheck: a dozen tests that make the platform layer answer on every target"
-status: open
+status: question
 priority: P0
 size: M
 stage: stage-5-parity-gate
