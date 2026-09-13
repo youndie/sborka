@@ -7,28 +7,41 @@ exists only on the machine it was found on.
 **To reproduce, from a clean checkout:**
 
 ```bash
+sudo apt-get install -y binutils file docker.io   # a JDK too; the script checks and says what is missing
 git clone -b docs/the-ticket-and-its-reproduction https://github.com/youndie/sborka
 cd sborka/docs/research/static-probe && ./experiments.sh
 ```
 
-The branch is named on purpose: until it is merged, `main` still carries the script **with** the five
-defects listed below, so a clone of `main` reproduces the defects rather than the findings. Once it
-is merged, drop `-b`.
+The branch is named on purpose: until it is merged, `main` still carries the script **with** the
+seven defects listed below, so a clone of `main` reproduces the defects rather than the findings.
+Once it is merged, drop `-b`.
 
 Verified from a clean clone on 2026-09-13, run **twice in a row**, on a host wiped of every
 hand-assembled sysroot first — output in
 [`results/2026-09-13-clean-clone-twice.txt`](results/2026-09-13-clean-clone-twice.txt), which
-records **both** passes in full. Both exit 0 and are byte-identical apart from their marker. The one
-step that verification did not exercise is the ~1 GB toolchain fetch of a truly first run: the
-Kotlin/Native distribution was already under `~/.konan` on the verifying host.
+records **both** passes in full. Both exit 0 and are byte-identical apart from their marker.
 
-Running it that way is what found five defects in this reproduction, none of which a run on the
+That left the ~1 GB toolchain fetch of a truly first run unexercised, because the Kotlin/Native
+distribution was already under `~/.konan` on both hosts. It was then run on a third host with
+`~/.konan` emptied and no binutils installed — output in
+[`results/2026-09-13-cold-first-run.txt`](results/2026-09-13-cold-first-run.txt). The fetch itself
+works, and the findings come out identical on a third machine, down to the build IDs. The cold host
+found two further defects first.
+
+Running it these ways is what found seven defects in this reproduction, none of which a run on the
 machine it was written on could have shown: it called a Gradle wrapper that does not exist in this
 directory; its failure report said "LINK FAILED, 0 undefined symbols" for failures that were not
 link failures; it quoted the manifest of whichever Kotlin/Native distribution the shell listed
 first; it could not run twice, because the container wrote the sysroot as root; and it **never
 terminated**, because the base-image matrix runs the hanging binary of finding 3 and neither an
-untimed `docker run` nor `timeout 20 docker run` bounds a container.
+untimed `docker run` nor `timeout 20 docker run` bounds a container. The two the cold host added
+are both of the same shape: it **reported the strongest possible result where a tool was absent**,
+because every ELF fact here comes from `readelf`/`nm` called under `2>/dev/null`, so a box without
+binutils got "no NEEDED libraries, no interpreter, 0 imported symbols" for a binary the neighbouring
+`file` line calls dynamically linked — and exit 0; and the section that reads the link flags out of
+the distribution **stood before the build that fetches it**, so on a genuinely first run it skipped
+itself and the paths to the toolchain stayed empty for the whole run. Missing tools now abort the
+run, and the first section fetches the distribution rather than reporting its absence.
 
 Needs a Linux host with a JDK and docker; `strace` is optional and buys the last line of finding 3.
 The Kotlin/Native toolchain (~1 GB) is fetched by Gradle on the first run; docker is used once, to
