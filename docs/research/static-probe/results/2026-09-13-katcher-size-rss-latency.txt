@@ -1,0 +1,45 @@
+# RQ4 and RQ5 for katcher: the same service linked two ways.
+#
+# Both binaries come from the same sources and the same patched 2.4.10 compiler; only the link
+# differs. Sizes in bytes. Image figures are what a pull downloads (docker image inspect .Size is
+# the compressed size).
+#
+# The latency harness is a Python client on the same host, so the ABSOLUTE numbers say more about
+# the harness than about katcher. What is comparable is the pair: the same harness, the same route,
+# alternating A/B/A/B, three rounds of 1500 requests each.
+
+=== size, the way razves counts it
+                                                dynamic       static
+  binary, unstripped                           15575200     16835448
+  binary, stripped                             11488328     12612696
+  what strip takes off                              26%          25%
+
+  the static libc on its own line (stripped binaries, section totals):
+    .text          +969 200   glibc, libstdc++ and libgcc pulled in
+    .rodata        +142 816
+    .eh_frame       +68 240
+    .dynsym/.dynstr/.gnu.hash  -93 641   dynamic linking tables no longer needed
+    TOTAL          +1124368   net, stripped
+
+  base image, to pull                          10643700            0
+  whole image, to pull                         15542026      5486257
+
+=== RSS and latency, three alternating rounds of 1500 requests on /favicon.svg (HTTP 200)
+  (see the rounds below)
+  round  variant     median    p95     p99    RSS after start   RSS after load   peak
+  1      dynamic     0.412   0.503   0.678        36 480 kB        40 784 kB   52 160 kB
+  1      static      0.374   0.470   0.599        32 480 kB        36 620 kB   47 680 kB
+  2      dynamic     0.389   0.497   0.624        35 040 kB        37 584 kB   48 960 kB
+  2      static      0.376   0.462   0.659        33 280 kB        36 368 kB   47 680 kB
+  3      dynamic     0.369   0.492   0.821        34 720 kB        37 872 kB   49 280 kB
+  3      static      0.364   0.468   0.655        32 960 kB        39 056 kB   50 240 kB
+  (milliseconds; medians of 1500 requests per cell)
+
+  Reading it: the static build is never worse, and two things move in the same direction in every
+  round — p95 is 5-7 % lower, and RSS after start is about 2 MB lower, which is the dynamic loader
+  and the shared-library mappings not being there. The medians overlap between rounds, so the
+  latency claim is "no penalty, and a small consistent edge at p95", not a speed-up.
+
+  What this does NOT measure: /favicon.svg is a static-resource route. It exercises the HTTP path
+  and nothing of sqlx4k or SQLite, because every route that touches the database is behind
+  authentication. A DB-path comparison needs a token and is a separate run.

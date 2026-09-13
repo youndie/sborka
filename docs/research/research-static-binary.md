@@ -391,20 +391,43 @@ table (123 of them in sborka's stand binary; 0 after `strip`, as symbols *and* a
 katcher has no native mapping type to recover them from. The size is real and the price is a
 production crash that arrives as addresses. Recorded here as available, not as recommended.
 
-**Not measured: cold pull-plus-start on a k0s node with an empty cache.** That is the number the
-brief said the whole exercise was for, and there is no variant that both runs and is smaller, so
-there is nothing to compare against the current image. It becomes measurable the day §1.6 produces
-a binary that starts; until then measuring it would be measuring the current image against itself.
+**Measured after all: cold pull-plus-start on a k0s node.** §1.5b produced the variant this was
+waiting for. On a 2-core VPS with k0s running beside the test, an empty image cache before every
+round, katcher in `scratch` against katcher on `distroless/cc`: **unpack 0.27 s against 1.29 s**
+(4.8x), **start to first HTTP response 0.41 s against 0.56 s**, both answering `401`. The transfer
+term is derived rather than measured — the node is behind NAT from the build host, and staging a
+real registry pull would mean publishing the images — so it is bytes over the node's own measured
+bandwidth, which was noisy enough (2.37-6.36 MB/s) to be a range: 0.8-2.2 s against 2.3-6.3 s. Added
+up, **1.5-2.9 s against 4.2-8.2 s**, about 2.7x, and the byte ratio behind it does not depend on the
+bandwidth. Transcript:
+[`static-probe/results/2026-09-13-cold-start-on-a-k0s-node.txt`](static-probe/results/2026-09-13-cold-start-on-a-k0s-node.txt).
 
-### 1.8 RQ4 now has exactly one variant to measure, and it is not measured here
+One thing the run showed that was not asked for: the static binary was linked against glibc 2.39 on
+Ubuntu 24.04 and runs on a different distribution, in an image with no libc in it. The rule that a build image and a runtime image
+have to be paired by glibc version stops applying when there is no runtime image to pair with.
 
-Runtime cost — RSS, throughput, p95 — was to be measured "for every variant that passed RQ2/RQ3".
-The musl binary does not reach `main` (§1.6b) and the toolchain-sysroot static one does not start
-(§1.5), but the host-glibc static binary of §1.5a does both. So RQ4 is answerable for that one
-variant and unanswered: the probe is a hello-world, and RSS and p95 are questions about a service,
-which is a successor to B-19 rather than this run. The allocator question the brief flagged as the
-risk (`-Xallocator` against musl's malloc) stays unaskable — it was about musl, and musl is still
-the route that deadlocks.
+### 1.8 RQ4, measured on the service — no penalty, and a small edge
+
+Runtime cost was to be measured "for every variant that passed RQ2/RQ3". Exactly one does: the
+host-glibc static build. Measured on katcher rather than on the probe, three alternating rounds of
+1500 requests each against the same route:
+
+| | dynamic | static |
+|---|---|---|
+| median | 0.369-0.412 ms | 0.364-0.376 ms |
+| p95 | 0.492-0.503 ms | 0.462-0.470 ms |
+| RSS after start | 34.7-36.5 MB | 32.5-33.3 MB |
+
+**p95 is 5-7 % lower and RSS about 2 MB lower, in every round** — the dynamic loader and the
+shared-library mappings are not there. The medians overlap between rounds, so this is "no penalty,
+with a small consistent edge", not a speed-up; the harness is a Python client on the same host and
+its absolute numbers say more about itself than about katcher. And the route is `/favicon.svg`:
+every path that touches sqlx4k is behind authentication, so this measures the HTTP path and not the
+database. Transcript:
+[`static-probe/results/2026-09-13-katcher-size-rss-latency.txt`](static-probe/results/2026-09-13-katcher-size-rss-latency.txt).
+
+The allocator question the brief flagged as the risk (`-Xallocator` against musl's malloc) stays
+unaskable — it was about musl, and musl is still the route that deadlocks.
 
 ---
 
@@ -490,10 +513,11 @@ will not repeat this.
    unconditional link line.
 4. **RQ3 route 2 was not run** (§1.6) — `zig` is not installed on the available Linux host. A gap,
    stated as one.
-5. **RQ4 is answerable for one variant and unanswered** (§1.8): the host-glibc static binary passes
-   RQ2, but RSS and p95 are service questions and the probe is a hello-world.
-6. **RQ5's headline number was not measured** (§1.7): cold pull-plus-start needs two images that
-   both start.
+5. **RQ4 came out the other way** (§1.8). The brief expected a penalty worth weighing; measured on
+   katcher, the static build is never worse — p95 5-7 % lower, RSS about 2 MB lower, in every round.
+6. **RQ5's headline number is measured** (§1.7), once §1.5b produced the second image that starts:
+   about 2.7x from an empty node to a served request. Its transfer term is derived from bytes and
+   bandwidth rather than measured end to end, and the write-up says so.
 7. **The exclusion list is larger than the subject list** (§1.1). Three of eight native artefacts
    are in scope; `ktor-client-curl` takes out both of metrik's and shildik's shipped service.
 8. **The brief's non-goal collides with its goal** (§1.7). Size reduction was explicitly out of

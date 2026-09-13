@@ -1,0 +1,53 @@
+# RQ5's headline: cold pull-plus-start on a k0s node, katcher in scratch against katcher on
+# distroless/cc.
+#
+# The node is a 2-core, 5.9 GiB VPS with k0s running beside the test — the smallest real machine to
+# hand, which is the point. Both images were produced from the same katcher sources by the same
+# patched 2.4.10 compiler; only the link and the base differ.
+#
+# HOW THIS IS COMPOSED, and why it is not one measured number. The node sits behind NAT from the
+# build host, so a registry pull between them cannot be staged without publishing the images
+# publicly, which is not something to do for a measurement. So the three terms are measured or
+# derived separately and added:
+#
+#   transfer  = image bytes / the node's measured download bandwidth   (derived, and a range)
+#   unpack    = `docker load` from an empty image cache                (measured, 3 rounds)
+#   start     = `docker run` until the first HTTP response             (measured, 3 rounds)
+#
+# `docker system prune -af` runs before every round, so each unpack starts from an empty cache.
+
+=== measured on the node, three alternating rounds
+
+  round  variant   unpack, s   to first response, s   code
+  1      scratch        0.27                   0.46    401
+  1      cc             1.32                   0.60    401
+  2      scratch        0.27                   0.42    401
+  2      cc             1.28                   0.54    401
+  3      scratch        0.26                   0.36    401
+  3      cc             1.28                   0.53    401
+
+  Unpack: 0.26-0.27 s against 1.28-1.32 s — the scratch image is 4.8x faster to unpack, and the
+  spread within each variant is under 5 %, so that ratio is solid.
+  Start:  0.36-0.46 s against 0.53-0.60 s. Consistent in every round, smaller in absolute terms.
+
+  Both answer HTTP 401, which is katcher serving: a binary linked against glibc 2.39 on Ubuntu
+  24.04, running on a different distribution, in an image that contains no libc at all.
+
+=== transfer, derived, because bandwidth on this node is noisy
+
+  Three downloads of the same 11 629 145-byte file: 2.37, 2.54 and 6.36 MB/s. That is a 2.7x
+  spread, so transfer is a range and not a number:
+
+  image             bytes      at 2.37 MB/s   at 6.36 MB/s
+  scratch       5 498 368            2.21 s         0.82 s
+  cc           15 572 480            6.27 s         2.33 s
+
+  The ratio does not depend on the bandwidth: 2.83x fewer bytes, always.
+
+=== the whole thing, added up
+
+  scratch:  0.8-2.2 s transfer + 0.27 unpack + 0.41 start  =  1.5-2.9 s
+  cc:       2.3-6.3 s transfer + 1.29 unpack + 0.56 start  =  4.2-8.2 s
+
+  Call it 2.7x faster from an empty node to a served request, and say that the transfer term is
+  derived rather than measured end to end.
