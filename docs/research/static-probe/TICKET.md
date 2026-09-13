@@ -147,6 +147,9 @@ small, precise and independently fixable, and they are what makes this one worth
 
 ---
 
+Where each finding goes upstream, which tickets already exist and the exact text to post are in
+[`UPSTREAM.md`](UPSTREAM.md). Two of the three belong in existing issues; none of it has been posted.
+
 ## What the report asks for
 
 Not "support musl", which is not a change that lands. Two smaller things:

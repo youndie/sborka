@@ -285,7 +285,9 @@ if [ -d "$ROOT/sysroot" ]; then
     if build musl -PmuslSysRoot="$ROOT/sysroot" -PmuslLibGcc=../gcc -Pgc=noop; then
         b=build/bin/linuxX64/releaseExecutable/probe-musl-gcnoop.kexe
         printf '  %-22s %s\n' "musl, noop" "$(run_probe "$b" 10)"
-        timeout -s KILL 10 strace -f -o /tmp/probe-noop.strace "$b" > /dev/null 2>&1
+        # In a subshell: the binary dies of SIGSEGV, and bash announces that on ITS stderr, not the
+        # command's, so the report otherwise carries a line that reads like a fault in this script.
+        ( timeout -s KILL 10 strace -f -o /tmp/probe-noop.strace "$b" > /dev/null 2>&1 ) 2>/dev/null
         printf '  %-22s %s\n' "musl, noop, strace" \
             "$(wc -l < /tmp/probe-noop.strace) syscalls, $(grep -c 'clone' /tmp/probe-noop.strace) clone, ending: $(tail -2 /tmp/probe-noop.strace | tr '\n' ' ' | cut -c1-90)"
     else
