@@ -85,6 +85,10 @@ run on the host: probe=started hosts-file-lookup=ok dns-lookup=ok read-file=ok p
   static-debian13                    no network    1506618  probe=started hosts-file-lookup=ok dns-lookup=FAIL(rc=-3 Temporary failure in name resol
   static-debian13                    bad name      1506618  probe=started hosts-file-lookup=ok dns-lookup=FAIL(rc=-2 Name or service not known) read
 
+===== finding 2 in two rows: the same build without --no-dynamic-linker
+  with --no-dynamic-linker INTERP=0  rc=0    probe=started hosts-file-lookup=ok dns-lookup=ok read-file=ok probe=fi
+  without --no-dynamic-linker INTERP=1  rc=139  timeout: the monitored command dumped core 
+
 ===== musl (properties, with an Alpine-built C++ runtime)
 the flags ld.lld was actually given, in order:
   1:--sysroot=/home/youndie/alpine-out/sysroot
@@ -126,7 +130,7 @@ under strace for 5s: under 100 syscalls, 0 write(2), threads named: "GC Timer th
 ===== the musl hang against KT-85658: the GC switched off
   control: glibc, noop   rc=0 out=[probe=started hosts-file-lookup=ok dns-lookup=ok read-file=ok probe=finished ]
   musl, noop             rc=139 (segfault) out=[timeout: the monitored command dumped core ]
-  musl, noop, strace     10 syscalls, 0 clone, ending: 94344 --- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=NULL} --- 94344 +++ kill
+  musl, noop, strace     10 syscalls, 0 clone, ending: 110315 --- SIGSEGV {si_signo=SIGSEGV, si_code=SEGV_MAPERR, si_addr=NULL} --- 110315 +++ ki
 
 ===== musl (route 1 as first attempted: targetSysRoot only, against the distribution's musl)
 SKIPPED: superseded by the section above; kept for the record, not re-run

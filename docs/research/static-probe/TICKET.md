@@ -128,6 +128,13 @@ though it were dynamic. The result is a segfault with no output — a failure th
 looks like a Kotlin/Native runtime fault. Passing `--no-dynamic-linker` alongside `-static` removes
 it and produces a genuine static binary: no `PT_INTERP`, no `NEEDED`, 430 904 bytes for the probe.
 
+**The flag on its own, everything else held still:**
+
+| | `INTERP` | exit | output |
+|---|---|---|---|
+| with `--no-dynamic-linker` | 0 | 0 | `hosts-file-lookup=ok dns-lookup=ok read-file=ok` |
+| without it | 1 | 139 | none — segfault |
+
 **And with both undone by hand, the picture is worth the ticket:** against the host's glibc 2.39 —
 not the 2.19 the compiler ships — the same 2.4.10 produces a 1 618 024-byte static executable that
 runs in `scratch`, a **683 745-byte image**, and still resolves hostnames over DNS. That last claim

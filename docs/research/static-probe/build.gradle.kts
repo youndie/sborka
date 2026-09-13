@@ -46,7 +46,8 @@ kotlin {
             val linkerSpy = (findProperty("linkerSpy") as String?)?.takeIf { linkMode != "musl" }
             if (linkerSpy != null) freeCompilerArgs += "-Xoverride-konan-properties=linker.linux_x64=$linkerSpy"
             val gc = findProperty("gc") as String?
-            baseName = "probe-$linkMode" + (gc?.let { "-gc$it" } ?: "")
+            baseName = "probe-$linkMode" + (gc?.let { "-gc$it" } ?: "") +
+                (if (findProperty("keepDynamicLinker") != null) "-keepdl" else "")
             if (gc != null) freeCompilerArgs += "-Xbinary=gc=$gc"
             when (linkMode) {
                 "default" -> Unit
@@ -73,8 +74,13 @@ kotlin {
                 // sysroot's `usr/lib/libc.so` — a GNU ld script naming the SHARED libc, which does
                 // not export the glibc-internal `_dl_*` symbols that `libpthread.a`, picked up while
                 // `-static` still applied, references. Dropping `-Bdynamic` is the whole experiment.
+                // `-PkeepDynamicLinker` leaves `--no-dynamic-linker` OFF, which is the control for
+                // the central claim of finding 2: that a `-static` link still comes out with a
+                // PT_INTERP. Every run so far passed both flags together, so the claim had never
+                // actually been measured on its own — only inherited.
                 "staticfixed" -> {
-                    linkerOpts("-static", "--no-dynamic-linker")
+                    val keep = findProperty("keepDynamicLinker") != null
+                    if (keep) linkerOpts("-static") else linkerOpts("-static", "--no-dynamic-linker")
                     freeCompilerArgs +=
                         "-Xoverride-konan-properties=" +
                         "linkerGccFlags=-lgcc -lgcc_eh -lc;" +
@@ -103,7 +109,14 @@ kotlin {
                     // `/usr/lib/x86_64-linux-gnu`, which is in none of them. Without this the link
                     // fails with "unable to find library -lc", not with undefined symbols.
                     val libDir = (findProperty("hostLibDir") as String?) ?: "/usr/lib/x86_64-linux-gnu"
-                    linkerOpts("-static", "--no-dynamic-linker", "-L$libDir")
+                    // Same control as `staticfixed`: with `-PkeepDynamicLinker` this is the exact
+                    // recipe that reaches scratch, minus one flag. It is the clearest exhibit for
+                    // the ticket — same everything, and the binary stops working.
+                    if (findProperty("keepDynamicLinker") != null) {
+                        linkerOpts("-static", "-L$libDir")
+                    } else {
+                        linkerOpts("-static", "--no-dynamic-linker", "-L$libDir")
+                    }
                     freeCompilerArgs +=
                         "-Xoverride-konan-properties=" +
                         "targetSysRoot.linux_x64=/;" +

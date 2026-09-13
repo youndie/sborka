@@ -244,6 +244,30 @@ else
     fi
 fi
 
+# THE ONE-FLAG CONTROL, which is finding 2 in two rows. Everything above passes `-static` and
+# `--no-dynamic-linker` together, so "without it you get a PT_INTERP" had never been measured on its
+# own — it was inherited from the first attempt. Same recipe, same sysroot, one flag removed.
+section "finding 2 in two rows: the same build without --no-dynamic-linker"
+if [ -n "$HOST_GCC" ] && [ -f "$HOST_LIB/libc.a" ]; then
+    G="${HOST_GCC#/}"; G="${G%/}"
+    for keep in with without; do
+        args="-PhostGccDir=$G -PhostLibDir=$HOST_LIB"
+        name=probe-statichost
+        [ "$keep" = without ] && { args="$args -PkeepDynamicLinker"; name=probe-statichost-keepdl; }
+        if build statichost $args; then
+            b="build/bin/linuxX64/releaseExecutable/$name.kexe"
+            out=$(bash -c "timeout -s KILL 10 '$b' 2>&1" 2>/dev/null); rc=$?
+            printf '  %-18s INTERP=%s  rc=%-4s %s\n' "$keep --no-dynamic-linker" \
+                "$(readelf -l "$b" | grep -c INTERP)" "$rc" \
+                "$(echo "$out" | tr '\n' ' ' | cut -c1-70)"
+        else
+            printf '  %-18s BUILD FAILED\n' "$keep --no-dynamic-linker"
+        fi
+    done
+else
+    echo "SKIPPED: same prerequisites as the section above"
+fi
+
 # RQ3 — musl, by setting the properties rather than working around them.
 #
 # The sysroot comes out of an Alpine image, where `g++` builds `libstdc++.a` against musl. That is the
