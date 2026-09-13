@@ -218,12 +218,16 @@ With that (`-PlinkMode=statichost`):
 |---|---|
 | binary | 1 618 024 bytes, `statically linked`, no `NEEDED`, no `PT_INTERP` |
 | on the host | `hosts-file-lookup=ok dns-lookup=ok read-file=ok` |
-| in `scratch` | **runs**, image **683 745 bytes** |
-| in `distroless/static` | runs, image 1 506 618 bytes |
+| in `scratch` | **runs**; 683 745 bytes to pull, 1 618 024 on disk |
+| in `distroless/static` | runs; 1 506 618 bytes to pull |
 
-**The DNS row is the surprising one and it is controlled.** Static glibc is supposed to lose name
-resolution, because NSS is `dlopen`ed at run time; since glibc 2.34 `files` and `dns` are built into
-libc, and this is what that looks like from outside. "ok" on its own would prove only that the probe
+**The DNS row is the surprising one and it is controlled.** The brief predicted red here, and the
+prediction was right about the mechanism and out of date about the version: `getaddrinfo` under a
+static glibc used to `dlopen` the NSS modules, and an image with nothing in it has none. Since
+**glibc 2.34** `nss_files` and `nss_dns` are compiled into libc, so the lookup needs nothing on
+disk — this is what that looks like from outside. It also sharpens §1.5: the toolchain's bundled
+sysroot is glibc **2.19**, so even with the link fixed, that route would lose name resolution.
+The sysroot is not merely old, it is old on the far side of the line that makes this work. "ok" on its own would prove only that the probe
 printed "ok", so the same image is also run with the network removed — `dns-lookup=FAIL(rc=-3
 Temporary failure in name resolution)` — and on a name that does not exist —
 `FAIL(rc=-2 Name or service not known)`. Both times `hosts-file-lookup` stays `ok`, because Docker
@@ -234,6 +238,35 @@ the case Kubernetes presents.
 **What this costs the reader of §1.5:** RQ2 is not red. It is red against the sysroot the compiler
 ships and green against the host's, and the difference is one glibc version plus flags nobody
 documents.
+
+### 1.5b A real service in `scratch`: katcher, statically linked
+
+The probe answers the linking question; it does not answer whether a service survives the same
+treatment. katcher does: ktor CIO, sqlx4k, kotlinx.serialization, KSP, SQLite migrations.
+
+Nothing in katcher's sources changed. The build gained the §1.5a recipe —
+`linkerOpts("-static", "-L/usr/lib/x86_64-linux-gnu")` and the five property overrides — and it was
+compiled with a **patched 2.4.10** (§2 of [`static-probe/UPSTREAM.md`](static-probe/UPSTREAM.md)),
+which is why `--no-dynamic-linker` is absent: with the fix, `-static` is enough.
+
+**The risk worth naming first was sqlx4k**, a Rust staticlib: a static link can demand static
+versions of whatever it pulls in. It did not. Zero missing archives, zero undefined symbols, no
+`-lssl`/`-lcrypto` anywhere.
+
+| | |
+|---|---|
+| binary | 16 835 448 bytes, `statically linked`, no `PT_INTERP`, no `NEEDED` |
+| in `scratch` | runs migrations, ktor up in 0.022 s, answers `401` to an unauthenticated `GET` |
+| to pull | **5 486 257 bytes**, against 15 542 026 for the same service on `distroless/cc` |
+
+**Two numbers, not one, and the report used to give the wrong one.** `docker image inspect .Size` is
+the **compressed** size — what a `pull` downloads — not the bytes on disk. Calibrated: a `scratch`
+image holding 10 MB of `/dev/urandom` reports 10 005 026, one holding 10 MB of zeros reports 11 602.
+Every image figure in §1.4, §1.5a and §1.7 is that number, and now says so. On disk the static image
+is *larger* than the dynamic binary (16.8 MB against 15.6 MB) — static glibc costs about a megabyte;
+what collapses is the base image, from 10 643 700 bytes of `distroless/cc` to nothing.
+
+Transcript: [`static-probe/results/2026-09-13-katcher-static-in-scratch.txt`](static-probe/results/2026-09-13-katcher-static-in-scratch.txt).
 
 ### 1.6 musl links, and the binary segfaults — RQ3, route 1
 
@@ -401,7 +434,8 @@ otherwise — which is also why the musl attempt had to shim `-lgcc_s` before it
 ### D3. No `image { base = scratch }` option in sborka yet, though the binary now exists
 
 **Amended after §1.5a.** The brief's green deliverable *is* earned at the level of a binary: the
-host-glibc static build starts in `scratch`, in a 684 KB image, with name resolution working. What
+host-glibc static build starts in `scratch`, in an image of 684 KB to pull, with name resolution
+working. What
 is not earned is the sborka option, and the reason has changed from "impossible" to "too sharp to
 hand out": the recipe pins five `konan.properties` keys, and JetBrains' own advice on that mechanism
 (KT-38876, 2021-03-05) is that those keys may change in any patch release. An option in a shared

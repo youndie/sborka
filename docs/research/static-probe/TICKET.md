@@ -137,7 +137,8 @@ it and produces a genuine static binary: no `PT_INTERP`, no `NEEDED`, 430 904 by
 
 **And with both undone by hand, the picture is worth the ticket:** against the host's glibc 2.39 —
 not the 2.19 the compiler ships — the same 2.4.10 produces a 1 618 024-byte static executable that
-runs in `scratch`, a **683 745-byte image**, and still resolves hostnames over DNS. That last claim
+runs in `scratch` — **683 745 bytes to pull**, 1 618 024 on disk — and still resolves hostnames
+over DNS. That last claim
 is controlled: the same image with the network removed answers `FAIL(rc=-3)`, and a name that does
 not exist answers `FAIL(rc=-2)`. Two flags nobody can reach are what stands between Kotlin/Native
 and an image with nothing in it.
