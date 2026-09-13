@@ -1,0 +1,26 @@
+# katcher built with a patched compiler, on the tag it actually uses.
+#
+# The master build (2.5.255-SNAPSHOT) cannot compile our projects at all: the kotlinx.serialization
+# compiler plugin that ships with Gradle plugin 2.4.10 fails in SerializerClassPreLowering against a
+# 2.5 back-end. The UNPATCHED 2.5 build fails identically, so that is the version jump. The fix is to
+# patch the tag the project uses instead: v2.4.10, where the same three lines in Linker.kt apply
+# unchanged.
+
+=== the patched 2.4.10 distribution
+tag:   build-2.4.10-380
+patch present in konan/lib jars: 1
+build: BUILD SUCCESSFUL in 8m 16s
+
+=== katcher :server:linkReleaseExecutableNative
+with the patched 2.4.10:   BUILD SUCCESSFUL in 1m 39s
+with stock 2.4.10:         BUILD SUCCESSFUL in 9s
+
+patched binary:            15575200 bytes, PT_INTERP=1
+stock binary:              15575152 bytes, PT_INTERP=1
+NEEDED, patched: libm.so.6 libpthread.so.0 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+NEEDED, stock:   libm.so.6 libpthread.so.0 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+
+=== the patched binary actually runs
+  [INFO] (io.ktor.server.Application): Application started in 0.015 seconds.
+  [INFO] (io.ktor.server.Application): Responding at http://0.0.0.0:8080
+  GET / over HTTP answered 401 (authentication required — the server is serving)

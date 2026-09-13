@@ -60,11 +60,25 @@ source and used in anger. Transcript:
 * **a real project of ours**: `platform-probe` — ktor-network, coroutines, kotlinx-io — compiles,
   links and passes its five `linuxX64Test` cases under the patched compiler.
 
-**One thing that did not build, and it is not the patch.** `hub-backend:server-native` fails on
-`:shared:compileKotlinLinuxX64` with an `IrGenerationExtensionException` on a ktor `@Resource` class.
-The **unpatched** build of the same tree fails identically, and the project builds green on stock
-2.4.10 — so it is the version jump from 2.4.x to a 2.5 snapshot, at compile time, nowhere near the
-link line. Worth saying in the PR only if asked; it is not evidence about this change.
+**A real service, on the tag it actually uses.** Our projects are on Kotlin 2.4.10, and none of them
+compiles against a 2.5 snapshot at all: the `kotlinx.serialization` plugin shipped with Gradle plugin
+2.4.10 fails in `SerializerClassPreLowering` against a 2.5 back-end, and `hub-backend` dies the same
+way on a ktor `@Resource`. Both failures reproduce with the **unpatched** 2.5 build and neither
+happens on stock 2.4.10, so that is the version jump and not this change.
+
+So the patch was applied to `v2.4.10` as well — the same three lines, same anchor, no adjustment —
+and the distribution built from the tag (8m16s). With it,
+[`katcher`](https://github.com/youndie/katcher) — ktor, sqlx4k, kotlinx.serialization, KSP —
+builds its `linuxX64` server green, and the binary is not just linked but working:
+
+| | bytes | `PT_INTERP` | `NEEDED` |
+|---|---|---|---|
+| patched 2.4.10 | 15 575 200 | 1 | m, pthread, rt, dl, gcc_s, c, ld-linux |
+| stock 2.4.10 | 15 575 152 | 1 | the same seven |
+
+48 bytes apart, and the patched one runs its migrations, starts ktor in 0.015 s, listens on 8080 and
+answers `401` to an unauthenticated `GET` — which is what it is supposed to do. Transcript:
+[`results/2026-09-13-katcher-on-patched-2.4.10.txt`](results/2026-09-13-katcher-on-patched-2.4.10.txt).
 
 **A note for whoever builds this tree next:** the first attempt died in dependency resolution with
 "Network is unreachable". The box has AAAA records for `cloudfront.net` and no IPv6 default route,
