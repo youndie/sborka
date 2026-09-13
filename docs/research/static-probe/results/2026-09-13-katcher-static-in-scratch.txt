@@ -1,0 +1,34 @@
+# katcher, statically linked, running from FROM scratch.
+#
+# Built with the patched 2.4.10 compiler, so `-static` alone is enough — no `--no-dynamic-linker`.
+# Recipe: linkerOpts("-static", "-L/usr/lib/x86_64-linux-gnu") plus five konan.properties overrides
+# (targetSysRoot=/, crtFilesLocation, libGcc, linkerGccFlags without -lgcc_s, linkerKonanFlags
+# without -Bdynamic). Nothing in katcher's own sources changed.
+#
+# On sizes: `docker image inspect .Size` is the COMPRESSED size — what a pull downloads. Calibrated
+# on this host with a scratch image of 10 MB of /dev/urandom (reports 10 005 026) and one of 10 MB
+# of zeros (reports 11 602).
+
+=== the risk that was flagged first: sqlx4k
+  sqlx4k is a Rust staticlib, and it was not an obstacle: the link needed no extra archives,
+  no -lssl/-lcrypto, and produced no undefined symbols.
+  link errors: 0
+  BUILD SUCCESSFUL in 1m 44s
+
+=== the binary
+  size:      16835448
+  type:      ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked
+  PT_INTERP: 0
+  NEEDED:    []
+
+=== FROM scratch
+  Migrated to version 6
+  [INFO] (io.ktor.server.Application): Application started in 0.022 seconds.
+  [INFO] (io.ktor.server.Application): Responding at http://0.0.0.0:8080
+  GET / -> HTTP 401 (authentication required: it is serving)
+
+=== what it costs, both numbers
+  image                                pull bytes binary bytes
+  scratch, static                         5486257     16835448
+  cc-debian13, dynamic                   15542026     15575200
+  cc-debian13 base on its own            10643700

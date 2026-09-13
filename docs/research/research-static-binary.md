@@ -239,6 +239,35 @@ the case Kubernetes presents.
 ships and green against the host's, and the difference is one glibc version plus flags nobody
 documents.
 
+### 1.5b A real service in `scratch`: katcher, statically linked
+
+The probe answers the linking question; it does not answer whether a service survives the same
+treatment. katcher does: ktor CIO, sqlx4k, kotlinx.serialization, KSP, SQLite migrations.
+
+Nothing in katcher's sources changed. The build gained the §1.5a recipe —
+`linkerOpts("-static", "-L/usr/lib/x86_64-linux-gnu")` and the five property overrides — and it was
+compiled with a **patched 2.4.10** (§2 of [`static-probe/UPSTREAM.md`](static-probe/UPSTREAM.md)),
+which is why `--no-dynamic-linker` is absent: with the fix, `-static` is enough.
+
+**The risk worth naming first was sqlx4k**, a Rust staticlib: a static link can demand static
+versions of whatever it pulls in. It did not. Zero missing archives, zero undefined symbols, no
+`-lssl`/`-lcrypto` anywhere.
+
+| | |
+|---|---|
+| binary | 16 835 448 bytes, `statically linked`, no `PT_INTERP`, no `NEEDED` |
+| in `scratch` | runs migrations, ktor up in 0.022 s, answers `401` to an unauthenticated `GET` |
+| to pull | **5 486 257 bytes**, against 15 542 026 for the same service on `distroless/cc` |
+
+**Two numbers, not one, and the report used to give the wrong one.** `docker image inspect .Size` is
+the **compressed** size — what a `pull` downloads — not the bytes on disk. Calibrated: a `scratch`
+image holding 10 MB of `/dev/urandom` reports 10 005 026, one holding 10 MB of zeros reports 11 602.
+Every image figure in §1.4, §1.5a and §1.7 is that number, and now says so. On disk the static image
+is *larger* than the dynamic binary (16.8 MB against 15.6 MB) — static glibc costs about a megabyte;
+what collapses is the base image, from 10 643 700 bytes of `distroless/cc` to nothing.
+
+Transcript: [`static-probe/results/2026-09-13-katcher-static-in-scratch.txt`](static-probe/results/2026-09-13-katcher-static-in-scratch.txt).
+
 ### 1.6 musl links, and the binary segfaults — RQ3, route 1
 
 `-Xoverride-konan-properties=targetSysRoot.linux_x64=…`, in four steps, each of which failed
