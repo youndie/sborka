@@ -20,7 +20,7 @@ repositories { mavenCentral() }
  *   -PlinkMode=override    only the -Xoverride-konan-properties half of the circulating workaround
  *   -PlinkMode=recipe      the circulating workaround in full: --as-needed AND that override
  *   -PlinkMode=static      -static against the toolchain's own sysroot (RQ2)
- *   -PlinkMode=statichost  -static against the host's newer glibc, by overriding targetSysRoot
+ *   -PlinkMode=statichost  -static against the HOST's glibc 2.39, whose libc.a is complete
  *   -PlinkMode=musl        the same override pointed at a musl sysroot (RQ3, route 1)
  */
 val linkMode = (findProperty("linkMode") as String?) ?: "default"
@@ -37,6 +37,14 @@ kotlin {
             // and says `gc=noop` makes it go away. If the hang this probe records on a musl sysroot
             // is the same bug, it must answer to the same switch — and if it does not, it is a
             // second bug wearing the same symptom.
+            // `-PlinkerSpy=` records ld.lld's argv and execs the real linker, in ANY mode. It was
+            // wired into the musl route only, which is how "the toolchain's libc.a must be
+            // incomplete" survived as an explanation for the RQ2 failure: the argv was never read
+            // for that route, and `nm` on the archive says it defines all seven symbols.
+            // Not in `musl`: that mode builds one override string of its own and already has
+            // `-PmuslLinker=`; two `-Xoverride-konan-properties` arguments would fight.
+            val linkerSpy = (findProperty("linkerSpy") as String?)?.takeIf { linkMode != "musl" }
+            if (linkerSpy != null) freeCompilerArgs += "-Xoverride-konan-properties=linker.linux_x64=$linkerSpy"
             val gc = findProperty("gc") as String?
             baseName = "probe-$linkMode" + (gc?.let { "-gc$it" } ?: "")
             if (gc != null) freeCompilerArgs += "-Xbinary=gc=$gc"
@@ -58,13 +66,52 @@ kotlin {
                     freeCompilerArgs += OVERRIDE_GCC_FLAGS
                 }
                 "static" -> linkerOpts("-static")
+                // ROUTE 1 AGAIN, WITH ONE FLAG TAKEN OUT. The argv of the failing `static` build
+                // shows `-static` at position 23 and `-Bdynamic` at 32, the latter hardcoded in
+                // `linkerKonanFlags.linux_x64` and therefore emitted after the user's flags. It
+                // cancels static mode for everything after it, so `-lc` at 43 resolves to the
+                // sysroot's `usr/lib/libc.so` — a GNU ld script naming the SHARED libc, which does
+                // not export the glibc-internal `_dl_*` symbols that `libpthread.a`, picked up while
+                // `-static` still applied, references. Dropping `-Bdynamic` is the whole experiment.
+                "staticfixed" -> {
+                    linkerOpts("-static", "--no-dynamic-linker")
+                    freeCompilerArgs +=
+                        "-Xoverride-konan-properties=" +
+                        "linkerGccFlags=-lgcc -lgcc_eh -lc;" +
+                        "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -ldl -lm -lpthread " +
+                        "--defsym __cxa_demangle=Konan_cxa_demangle"
+                }
                 // Route 1 of RQ3's two, and the reason it is tried on glibc first: if overriding
                 // `targetSysRoot` cannot even reach the host's own libc, pointing it at a musl one
                 // is not going to be the thing that works, and the failure will be easier to read
                 // with a familiar libc on the other end.
+                // THE LAST ROUTE INTO `scratch`, and the only one left after RQ2 failed: the host's
+                // own glibc, which is 2.39 and ships a complete `libc.a`, instead of the 2.19 sysroot
+                // the compiler brings. It needs five properties rather than one, for the same reason
+                // the musl route did — the crt files, the gcc directory and the two flag lists all
+                // still point into the toolchain, and `-lgcc_s` has no static archive anywhere.
+                //
+                // `--no-dynamic-linker` is not optional here either: `-dynamic-linker` is emitted
+                // unconditionally, so without it this produces a static binary carrying a PT_INTERP.
                 "statichost" -> {
-                    linkerOpts("-static")
-                    freeCompilerArgs += "-Xoverride-konan-properties=targetSysRoot.linux_x64=/"
+                    val gccDir = (findProperty("hostGccDir") as String?)
+                        ?: error("-PhostGccDir= is required, e.g. usr/lib/gcc/x86_64-linux-gnu/13")
+                    val crtDir = (findProperty("hostCrtDir") as String?) ?: "usr/lib/x86_64-linux-gnu"
+                    // `-L` IS NOT OPTIONAL EITHER. With the sysroot at `/` the linker is given
+                    // `-L/lib`, `-L/usr/lib`, `-L/lib64`, `-L/usr/lib64` — the layout of the
+                    // toolchain's own sysroot — and on a multiarch distribution every archive is in
+                    // `/usr/lib/x86_64-linux-gnu`, which is in none of them. Without this the link
+                    // fails with "unable to find library -lc", not with undefined symbols.
+                    val libDir = (findProperty("hostLibDir") as String?) ?: "/usr/lib/x86_64-linux-gnu"
+                    linkerOpts("-static", "--no-dynamic-linker", "-L$libDir")
+                    freeCompilerArgs +=
+                        "-Xoverride-konan-properties=" +
+                        "targetSysRoot.linux_x64=/;" +
+                        "crtFilesLocation.linux_x64=$crtDir;" +
+                        "libGcc.linux_x64=$gccDir;" +
+                        "linkerGccFlags=-lgcc -lgcc_eh -lc;" +
+                        "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -lsupc++ " +
+                        "--defsym __cxa_demangle=Konan_cxa_demangle"
                 }
                 // FOUR PROPERTIES, NOT ONE, and reading them was worth more than the first attempt.
                 //
@@ -103,7 +150,7 @@ kotlin {
                         "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -lsupc++ " +
                         "--defsym __cxa_demangle=Konan_cxa_demangle --gc-sections"
                 }
-                else -> error("linkMode: default, asneeded, static, statichost or musl; got $linkMode")
+                else -> error("linkMode: default, asneeded, override, recipe, static, staticfixed, statichost or musl; got $linkMode")
             }
         }
     }

@@ -178,17 +178,62 @@ LINK FAILED — 7 distinct undefined symbols
   _dl_pagesize       _dl_stack_flags        _dl_wait_lookup_done
 ```
 
-**Consequence — the prediction was right about the colour and wrong about the stage.** The brief
-expected "builds but DNS fails", NSS under static glibc being the known trap, and asked for a test
-that includes a real name lookup. The binary never gets that far: these are glibc-internal symbols
-that a complete static glibc provides out of `libc.a`'s loader-support objects, and this sysroot's
-does not. Seven symbols is under the brief's kill line of ten, which makes it a reportable list
-rather than a dead end — but it is a list about a **sysroot's completeness**, not about the
-Kotlin/Native runtime, and that is a different ticket from the one the brief anticipated.
+**The first reading of this was wrong, and it is worth saying how.** It read the seven symbols as a
+**sysroot's incompleteness** — glibc-internal symbols that a complete `libc.a` provides and this one
+does not. That is checkable, and it is false: the sysroot's `libc.a` is 28 MB across 1 559 members
+and `nm --defined-only` finds **all seven** in it. Its own `libpthread.a` is what references them.
 
-The probe still carries the DNS test, and it is not wasted: it is what proves the `--as-needed`
-binary of §1.4 resolves a hostname inside `distroless/cc`, and it is what any future static build
-has to pass.
+**The mechanism is the link command, and the argv says it.** With a shim in place of
+`linker.linux_x64` (`-PlinkerSpy=`), the failing build's argv reads:
+
+```
+23  -static            <- the user's flag, from linkerArgs
+30  -Bstatic
+32  -Bdynamic          <- from linkerKonanFlags.linux_x64, emitted AFTER the user's
+43  -lc
+```
+
+`-Bdynamic` cancels static mode for everything after it, so `-lc` resolves to the sysroot's
+`usr/lib/libc.so` — a GNU ld script naming the **shared** `libc.so.6`, which does not export
+glibc-internal symbols. The references come from `libpthread.a`, taken at position 26 while
+`-static` still applied. Two libcs, one static and one shared, in one link.
+
+**Drop `-Bdynamic` and the same sysroot links** (`-PlinkMode=staticfixed`): 1 440 064 bytes, no
+`NEEDED`, no `PT_INTERP`. It then segfaults at startup — a null dereference eighteen syscalls in,
+right after `readlink("/proc/self/exe")` — which is a glibc 2.19 question this report does not pull,
+because §1.5a does not need it answered.
+
+### 1.5a The host's glibc links, runs, and reaches `scratch` — RQ2, route 2
+
+The toolchain brings glibc 2.19. The host has 2.39, where `libpthread.a` is a 4 KB stub that
+references none of the seven. Pointing the sysroot there needs five properties rather than one —
+`targetSysRoot`, `crtFilesLocation` and `libGcc` all still aim into the toolchain, `-lgcc_s` has no
+static archive anywhere, and on a multiarch distribution every archive is in
+`/usr/lib/x86_64-linux-gnu`, which is in none of the `-L` paths the compiler emits — plus
+`--no-dynamic-linker`, or §1.6a's flag puts a `PT_INTERP` back.
+
+With that (`-PlinkMode=statichost`):
+
+| | |
+|---|---|
+| binary | 1 618 024 bytes, `statically linked`, no `NEEDED`, no `PT_INTERP` |
+| on the host | `hosts-file-lookup=ok dns-lookup=ok read-file=ok` |
+| in `scratch` | **runs**, image **683 745 bytes** |
+| in `distroless/static` | runs, image 1 506 618 bytes |
+
+**The DNS row is the surprising one and it is controlled.** Static glibc is supposed to lose name
+resolution, because NSS is `dlopen`ed at run time; since glibc 2.34 `files` and `dns` are built into
+libc, and this is what that looks like from outside. "ok" on its own would prove only that the probe
+printed "ok", so the same image is also run with the network removed — `dns-lookup=FAIL(rc=-3
+Temporary failure in name resolution)` — and on a name that does not exist —
+`FAIL(rc=-2 Name or service not known)`. Both times `hosts-file-lookup` stays `ok`, because Docker
+mounts `/etc/hosts` into every container whatever the image holds. That last point is also the
+caveat: `scratch` here is not config-free, it is config-supplied-by-the-runtime, which is exactly
+the case Kubernetes presents.
+
+**What this costs the reader of §1.5:** RQ2 is not red. It is red against the sysroot the compiler
+ships and green against the host's, and the difference is one glibc version plus flags nobody
+documents.
 
 ### 1.6 musl links, and the binary segfaults — RQ3, route 1
 
@@ -318,12 +363,15 @@ brief said the whole exercise was for, and there is no variant that both runs an
 there is nothing to compare against the current image. It becomes measurable the day §1.6 produces
 a binary that starts; until then measuring it would be measuring the current image against itself.
 
-### 1.8 RQ4 has nothing to measure
+### 1.8 RQ4 now has exactly one variant to measure, and it is not measured here
 
 Runtime cost — RSS, throughput, p95 — was to be measured "for every variant that passed RQ2/RQ3".
-None did. The musl binary does not reach `main`; the static-glibc one does not link. The allocator
-question (`-Xallocator` against musl's malloc) that the brief flagged as the risk cannot be asked
-of a binary that does not run.
+The musl binary does not reach `main` (§1.6b) and the toolchain-sysroot static one does not start
+(§1.5), but the host-glibc static binary of §1.5a does both. So RQ4 is answerable for that one
+variant and unanswered: the probe is a hello-world, and RSS and p95 are questions about a service,
+which is a successor to B-19 rather than this run. The allocator question the brief flagged as the
+risk (`-Xallocator` against musl's malloc) stays unaskable — it was about musl, and musl is still
+the route that deadlocks.
 
 ---
 
@@ -350,9 +398,16 @@ Kotlin/Native's exception handling imports thirteen `_Unwind_*` symbols from `li
 §1.4). Anything that makes `base` or `static` work has to carry the unwinder, statically or
 otherwise — which is also why the musl attempt had to shim `-lgcc_s` before it would link.
 
-### D3. No `image { base = scratch }` option in sborka, and no KT ticket yet
+### D3. No `image { base = scratch }` option in sborka yet, though the binary now exists
 
-The brief's green deliverable is not earned: nothing produces a binary that starts in `scratch`.
+**Amended after §1.5a.** The brief's green deliverable *is* earned at the level of a binary: the
+host-glibc static build starts in `scratch`, in a 684 KB image, with name resolution working. What
+is not earned is the sborka option, and the reason has changed from "impossible" to "too sharp to
+hand out": the recipe pins five `konan.properties` keys, and JetBrains' own advice on that mechanism
+(KT-38876, 2021-03-05) is that those keys may change in any patch release. An option in a shared
+convention plugin that breaks on a Kotlin bump, silently, in someone else's service, costs more than
+the 9 MB it saves. It becomes a reasonable option when `-static` means static without overrides —
+which is what the ticket in [`UPSTREAM.md`](static-probe/UPSTREAM.md) asks for.
 
 Nor is the red deliverable, quite. The brief's red was "a KT ticket with the symbol list", and §1.6
 shows the symbol list is not what the experiment produces — it produces a segfault with no
@@ -392,14 +447,17 @@ will not repeat this.
 
 1. **`distroless/base` does not work** (§1.4). RQ1's pre-declared green said it would. The blocker
    is `libgcc_s`, not glibc.
-2. **RQ2 fails at link, not at DNS** (§1.5). The predicted NSS trap is real and untested, because
-   nothing gets far enough to test it.
+2. **RQ2 splits in two** (§1.5, §1.5a). Against the toolchain's sysroot it fails at link — and for
+   the reason in the argv, not the one first written down. Against the host's glibc it links, runs
+   and reaches `scratch`. The predicted NSS trap did get tested there, and did not fire: since
+   glibc 2.34 `files` and `dns` are inside libc, so a static binary still resolves names.
 3. **RQ3's deliverable is a flags list, not a symbol list** (§1.6). The brief's red outcome assumed
    the obstruction would be the Kotlin/Native runtime's use of glibc; it is the toolchain's
    unconditional link line.
 4. **RQ3 route 2 was not run** (§1.6) — `zig` is not installed on the available Linux host. A gap,
    stated as one.
-5. **RQ4 is unanswerable** (§1.8): no variant passed RQ2 or RQ3.
+5. **RQ4 is answerable for one variant and unanswered** (§1.8): the host-glibc static binary passes
+   RQ2, but RSS and p95 are service questions and the probe is a hello-world.
 6. **RQ5's headline number was not measured** (§1.7): cold pull-plus-start needs two images that
    both start.
 7. **The exclusion list is larger than the subject list** (§1.1). Three of eight native artefacts
