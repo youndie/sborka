@@ -199,13 +199,20 @@ for base in gcr.io/distroless/cc-debian13 gcr.io/distroless/base-debian13 \
         tag="sp-$(echo "$base-$mode" | tr '/:.' '---')"
         printf 'FROM %s\nCOPY probe-%s /probe\nENTRYPOINT ["/probe"]\n' "$base" "$mode" > "$ctx/Dockerfile.$tag"
         docker build -q -f "$ctx/Dockerfile.$tag" -t "$tag" "$ctx" < /dev/null > /dev/null 2>&1 || continue
-        # TIMED, and this is the whole reason the script used to never finish. One of the variants
-        # in this matrix is the musl binary of finding 3, which HANGS — so an untimed `docker run`
-        # here waits forever, and every earlier "successful" run of this script only reached the end
-        # because ssh dropped first or the musl build had failed. A reproduction that does not
-        # terminate is worse than one that fails: it looks like patience.
-        out=$(timeout 20 docker run --rm "$tag" 2>&1 < /dev/null | tr '\n' ' ' | cut -c1-88)
-        [ -z "$out" ] && out="<no output; timed out or silent>"
+        # DETACHED, THEN KILLED — and `timeout docker run` is NOT a substitute, which cost two runs
+        # to learn. One variant in this matrix is the musl binary of finding 3, which hangs. An
+        # untimed `docker run` waits forever; and `timeout 20 docker run` waits forever too, because
+        # `timeout` sends SIGTERM to the CLIENT, the client forwards it to a process that does not
+        # handle signals, and the container outlives both — observed at nine hours, with the
+        # container still "Up".
+        #
+        # So: start it detached, give it a moment, read what it printed, and remove it by force. The
+        # only thing that bounds a container is killing the container.
+        cid=$(docker run -d "$tag" 2>/dev/null)
+        sleep 5
+        out=$(docker logs "$cid" 2>&1 | tr '\n' ' ' | cut -c1-88)
+        docker rm -f "$cid" > /dev/null 2>&1
+        [ -z "$out" ] && out="<no output in 5s: hung, or silent>"
         size=$(docker image inspect "$tag" --format '{{.Size}}' < /dev/null)
         printf '%-32s %-9s %10s  %s\n' "$(basename "$base")" "$mode" "$size" "$out"
     done
