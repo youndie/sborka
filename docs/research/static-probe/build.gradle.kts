@@ -37,6 +37,14 @@ kotlin {
             // and says `gc=noop` makes it go away. If the hang this probe records on a musl sysroot
             // is the same bug, it must answer to the same switch — and if it does not, it is a
             // second bug wearing the same symptom.
+            // `-PlinkerSpy=` records ld.lld's argv and execs the real linker, in ANY mode. It was
+            // wired into the musl route only, which is how "the toolchain's libc.a must be
+            // incomplete" survived as an explanation for the RQ2 failure: the argv was never read
+            // for that route, and `nm` on the archive says it defines all seven symbols.
+            // Not in `musl`: that mode builds one override string of its own and already has
+            // `-PmuslLinker=`; two `-Xoverride-konan-properties` arguments would fight.
+            val linkerSpy = (findProperty("linkerSpy") as String?)?.takeIf { linkMode != "musl" }
+            if (linkerSpy != null) freeCompilerArgs += "-Xoverride-konan-properties=linker.linux_x64=$linkerSpy"
             val gc = findProperty("gc") as String?
             baseName = "probe-$linkMode" + (gc?.let { "-gc$it" } ?: "")
             if (gc != null) freeCompilerArgs += "-Xbinary=gc=$gc"
