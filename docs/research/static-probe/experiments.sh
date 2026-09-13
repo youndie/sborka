@@ -295,14 +295,17 @@ fi
 section "base images"
 command -v docker > /dev/null || { echo "SKIPPED: no docker"; exit 0; }
 ctx=$(mktemp -d)
-for mode in default asneeded musl; do
+# `recipe` earns its place in the matrix rather than only in the table above: --as-needed alone gets
+# as far as cc-debian13, and the half that the tickets bundle with it — the linkerGccFlags override —
+# is what drops libgcc_s.so.1 and so gets one rung further, to base-debian13.
+for mode in default asneeded recipe musl; do
     b="build/bin/linuxX64/releaseExecutable/probe-$mode.kexe"
     [ -f "$b" ] && cp "$b" "$ctx/probe-$mode"
 done
 printf '%-32s %-9s %10s  %s\n' base variant image result
 for base in gcr.io/distroless/cc-debian13 gcr.io/distroless/base-debian13 \
             gcr.io/distroless/static-debian13 scratch; do
-    for mode in default asneeded musl; do
+    for mode in default asneeded recipe musl; do
         [ -f "$ctx/probe-$mode" ] || continue
         tag="sp-$(echo "$base-$mode" | tr '/:.' '---')"
         printf 'FROM %s\nCOPY probe-%s /probe\nENTRYPOINT ["/probe"]\n' "$base" "$mode" > "$ctx/Dockerfile.$tag"
