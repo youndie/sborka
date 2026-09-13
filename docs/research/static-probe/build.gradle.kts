@@ -32,7 +32,14 @@ kotlin {
     linuxX64 {
         binaries.executable {
             entryPoint = "probe.main"
-            baseName = "probe-$linkMode"
+            // `-Pgc=noop` switches the Kotlin/Native garbage collector off. It is here for exactly
+            // one question, and it is a discriminating one: KT-85658 reports a GC deadlock on musl
+            // and says `gc=noop` makes it go away. If the hang this probe records on a musl sysroot
+            // is the same bug, it must answer to the same switch — and if it does not, it is a
+            // second bug wearing the same symptom.
+            val gc = findProperty("gc") as String?
+            baseName = "probe-$linkMode" + (gc?.let { "-gc$it" } ?: "")
+            if (gc != null) freeCompilerArgs += "-Xbinary=gc=$gc"
             when (linkMode) {
                 "default" -> Unit
                 // `-Wl,--as-needed` has to reach the linker BEFORE the `-l` flags it is meant to
