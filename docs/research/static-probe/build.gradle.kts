@@ -74,7 +74,13 @@ kotlin {
                     val gccDir = (findProperty("hostGccDir") as String?)
                         ?: error("-PhostGccDir= is required, e.g. usr/lib/gcc/x86_64-linux-gnu/13")
                     val crtDir = (findProperty("hostCrtDir") as String?) ?: "usr/lib/x86_64-linux-gnu"
-                    linkerOpts("-static", "--no-dynamic-linker")
+                    // `-L` IS NOT OPTIONAL EITHER. With the sysroot at `/` the linker is given
+                    // `-L/lib`, `-L/usr/lib`, `-L/lib64`, `-L/usr/lib64` — the layout of the
+                    // toolchain's own sysroot — and on a multiarch distribution every archive is in
+                    // `/usr/lib/x86_64-linux-gnu`, which is in none of them. Without this the link
+                    // fails with "unable to find library -lc", not with undefined symbols.
+                    val libDir = (findProperty("hostLibDir") as String?) ?: "/usr/lib/x86_64-linux-gnu"
+                    linkerOpts("-static", "--no-dynamic-linker", "-L$libDir")
                     freeCompilerArgs +=
                         "-Xoverride-konan-properties=" +
                         "targetSysRoot.linux_x64=/;" +
