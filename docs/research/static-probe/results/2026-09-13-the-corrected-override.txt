@@ -1,0 +1,80 @@
+# The recipe, corrected: the stock linkerKonanFlags with -Bdynamic removed, and nothing else.
+#
+# The first version rewrote the key from scratch. The stock value continues onto a SECOND LINE in
+# konan.properties, so the tail was missed and the override silently dropped --gc-sections (and
+# -ldl -lm -lpthread) and added -lsupc++. Nothing was broken by it; the binaries were just bigger.
+#
+#   stock: -Bstatic -lstdc++ -Bdynamic -ldl -lm -lpthread \
+#          --defsym __cxa_demangle=Konan_cxa_demangle --gc-sections
+#   used:  -Bstatic -lstdc++ -ldl -lm -lpthread \
+#          --defsym __cxa_demangle=Konan_cxa_demangle --gc-sections
+
+=== the probe
+
+  variant                  binary      scratch, to pull
+  first version          1 618 024               683 745
+  stock minus -Bdynamic  1 393 592               606 825
+  difference              -224 432               -76 920
+
+  Both: PT_INTERP=0, no NEEDED, and the controls still hold —
+    as is:      probe=started hosts-file-lookup=ok dns-lookup=ok read-file=ok probe=finished
+    no network: dns-lookup=FAIL(rc=-3 Temporary failure in name resolution)
+    bad name:   dns-lookup=FAIL(rc=-2 Name or service not known)
+
+  The static binary in every base image, one measurement, corrected recipe:
+    cc-debian13       11 247 326 to pull   runs
+    base-debian13     10 050 379 to pull   runs
+    static-debian13    1 429 697 to pull   runs
+    scratch              606 825 to pull   runs
+
+=== katcher
+
+  variant                  binary       stripped     scratch, to pull
+  first version        16 835 448     12 612 696            5 486 257
+  stock minus -Bdynamic 16 518 960    12 381 640            5 383 000
+  difference             -316 488       -231 056             -103 257
+
+  Against the dynamic build (15 575 200 / 11 488 328): +893 312 stripped.
+    .text      8 288 784 ->  9 083 264   +794 480
+    .rodata      267 380 ->    402 260   +134 880
+    .eh_frame    810 552 ->    844 816    +34 264
+    .dynsym/.dynstr/.gnu.hash            -93 641
+
+  In scratch: ktor up in 0.021 s, GET / -> 401.
+
+=== RSS and latency, a second session (the box was busy; the first session is in
+=== 2026-09-13-katcher-size-rss-latency.txt)
+
+  round  variant    median    p95     p99    RSS after start
+  1      dynamic     0.532   0.892   1.341        35 520 kB
+  1      static      0.498   0.728   0.986        33 440 kB
+  2      dynamic     0.496   0.782   1.120        34 720 kB
+  2      static      0.414   0.571   0.704        35 040 kB
+  3      dynamic     0.419   0.610   0.804        36 000 kB
+  3      static      0.444   0.608   0.778        33 600 kB
+
+  Across both sessions, six rounds: p95 is lower for the static build in 6 of 6, RSS after start in
+  5 of 6 — round 2 here is the exception, 0.3 MB the other way. The first session's medians do not
+  survive into this one, which is what a busy machine looks like and why both are printed.
+
+=== cold start on the k0s node, corrected image
+
+  round  variant   unpack, s   to first response, s   code
+  1      scratch        0.29                   0.47    401
+  1      cc             1.20                   0.58    401
+  2      scratch        0.25                   0.39    401
+  2      cc             1.26                   0.54    401
+  3      scratch        0.24                   0.36    401
+  3      cc             1.23                   0.54    401
+
+  With the derived transfer term (5 394 944 against 15 572 480 bytes at the node's measured
+  2.37-6.36 MB/s): 1.5-2.8 s against 4.1-8.1 s.
+
+=== ELF type, which settles the ASLR question
+
+  dynamic  Type: EXEC (Executable file)
+  static   Type: EXEC (Executable file)
+
+  Kotlin/Native's Linux executables are not position-independent either way, so static linking takes
+  no address-space randomisation away — there was none of the main image to take. -static-pie was
+  not attempted.

@@ -183,6 +183,13 @@ LINK FAILED — 7 distinct undefined symbols
 does not. That is checkable, and it is false: the sysroot's `libc.a` is 28 MB across 1 559 members
 and `nm --defined-only` finds **all seven** in it. Its own `libpthread.a` is what references them.
 
+**And the override itself was sloppier than it needed to be.** The first version of §1.5a's recipe
+rewrote `linkerKonanFlags.linux_x64` from scratch rather than editing it, and so dropped
+`--gc-sections` along with `-Bdynamic` — 224 432 bytes of probe binary, and 316 488 of katcher's,
+for nothing. The key's value continues onto a second line in `konan.properties`, which is how the
+tail was missed. Every figure in §1.5a and §1.5b is from the corrected recipe: the stock value with
+`-Bdynamic` removed and nothing else.
+
 **The mechanism is the link command, and the argv says it.** With a shim in place of
 `linker.linux_x64` (`-PlinkerSpy=`), the failing build's argv reads:
 
@@ -216,10 +223,11 @@ With that (`-PlinkMode=statichost`):
 
 | | |
 |---|---|
-| binary | 1 618 024 bytes, `statically linked`, no `NEEDED`, no `PT_INTERP` |
+| binary | 1 393 592 bytes, `statically linked`, no `NEEDED`, no `PT_INTERP` |
 | on the host | `hosts-file-lookup=ok dns-lookup=ok read-file=ok` |
-| in `scratch` | **runs**; 683 745 bytes to pull, 1 618 024 on disk |
-| in `distroless/static` | runs; 1 506 618 bytes to pull |
+| in `scratch` | **runs**; 606 825 bytes to pull, 1 393 592 on disk |
+| in `distroless/static` | runs; 1 429 697 bytes to pull |
+| in `distroless/base` and `/cc` | runs too — a static binary needs nothing from the base |
 
 **The DNS row is the surprising one and it is controlled.** The brief predicted red here, and the
 prediction was right about the mechanism and out of date about the version: `getaddrinfo` under a
@@ -255,15 +263,15 @@ versions of whatever it pulls in. It did not. Zero missing archives, zero undefi
 
 | | |
 |---|---|
-| binary | 16 835 448 bytes, `statically linked`, no `PT_INTERP`, no `NEEDED` |
-| in `scratch` | runs migrations, ktor up in 0.022 s, answers `401` to an unauthenticated `GET` |
-| to pull | **5 486 257 bytes**, against 15 542 026 for the same service on `distroless/cc` |
+| binary | 16 518 960 bytes, `statically linked`, no `PT_INTERP`, no `NEEDED` |
+| in `scratch` | runs migrations, ktor up in 0.021 s, answers `401` to an unauthenticated `GET` |
+| to pull | **5 383 000 bytes**, against 15 542 026 for the same service on `distroless/cc` |
 
 **Two numbers, not one, and the report used to give the wrong one.** `docker image inspect .Size` is
 the **compressed** size — what a `pull` downloads — not the bytes on disk. Calibrated: a `scratch`
 image holding 10 MB of `/dev/urandom` reports 10 005 026, one holding 10 MB of zeros reports 11 602.
 Every image figure in §1.4, §1.5a and §1.7 is that number, and now says so. On disk the static image
-is *larger* than the dynamic binary (16.8 MB against 15.6 MB) — static glibc costs about a megabyte;
+is *larger* than the dynamic binary (16.5 MB against 15.6 MB) — static glibc costs about a megabyte;
 what collapses is the base image, from 10 643 700 bytes of `distroless/cc` to nothing.
 
 Transcript: [`static-probe/results/2026-09-13-katcher-static-in-scratch.txt`](static-probe/results/2026-09-13-katcher-static-in-scratch.txt).

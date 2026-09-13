@@ -123,20 +123,14 @@ kotlin {
                         "crtFilesLocation.linux_x64=$crtDir;" +
                         "libGcc.linux_x64=$gccDir;" +
                         "linkerGccFlags=-lgcc -lgcc_eh -lc;" +
-                        // THE STOCK VALUE MINUS ONE FLAG. The first version of this rewrote the key
-                        // from scratch and so silently also dropped `-ldl -lm -lpthread` and
-                        // `--gc-sections` and added `-lsupc++` — none of which was the point, and
-                        // `--gc-sections` earns its place in the output size. `-PfullKonanFlags`
-                        // keeps everything the distribution ships except `-Bdynamic`.
-                        (
-                            if (findProperty("minimalOverride") != null) {
-                                "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -ldl -lm -lpthread " +
-                                    "--defsym __cxa_demangle=Konan_cxa_demangle --gc-sections"
-                            } else {
-                                "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -lsupc++ " +
-                                    "--defsym __cxa_demangle=Konan_cxa_demangle"
-                            }
-                            )
+                        // THE STOCK VALUE MINUS ONE FLAG, and that is the whole edit. The first
+                        // version rewrote the key from scratch, which silently also dropped
+                        // `-ldl -lm -lpthread` and `--gc-sections` and added `-lsupc++` — none of it
+                        // intended, and losing `--gc-sections` cost 224 432 bytes of binary for
+                        // nothing. Read the key before overriding it; its value continues onto a
+                        // second line in konan.properties, which is how the tail got missed.
+                        "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -ldl -lm -lpthread " +
+                        "--defsym __cxa_demangle=Konan_cxa_demangle --gc-sections"
                 }
                 // FOUR PROPERTIES, NOT ONE, and reading them was worth more than the first attempt.
                 //
