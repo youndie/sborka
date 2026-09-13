@@ -37,18 +37,39 @@ provided the link to the related issue(s) from YouTrack", and their commit rules
 commits must mention the issue. So the ticket comes first either way; the patch is what turns it
 from a report into a pull request.
 
-**What was verified, on the Linux box:**
+**What was verified, on the Linux box** — the unit tests, then a compiler built from the patched
+source and used in anger. Transcript:
+[`results/2026-09-13-patched-compiler.txt`](results/2026-09-13-patched-compiler.txt).
 
 * `./gradlew :native:kotlin-native-utils:test` — 10 classes, 24 tests, 0 failures, with the patch;
 * the new test **fails without the patch**, printing the argv with `-dynamic-linker` still in it,
   and its sibling — an ordinary executable *does* get an interpreter — passes either way, so the
   change is not over-reaching;
-* the behaviour it stands for was measured separately: the same recipe that reaches `scratch`, with
-  `--no-dynamic-linker` removed, goes from `INTERP=0 rc=0` to `INTERP=1 rc=139`.
+* **the compiler was built** (`:kotlin-native:dist :kotlin-native:distPlatformLibs`, 4m34s) and the
+  probe compiled with it, passing `-linker-option -static` and **nothing else** — no
+  `--no-dynamic-linker` anywhere. The same `master` built twice, the patch the only variable:
 
-**What was not:** no Kotlin/Native compiler was built from the patched source, so the end-to-end
-claim rests on passing `--no-dynamic-linker` by hand rather than on a patched `kotlinc`. Building the
-distribution is hours of work on this hardware; say so in the PR rather than implying otherwise.
+  | 2.5.255-SNAPSHOT from this tree | `PT_INTERP` | exit | output |
+  |---|---|---|---|
+  | without the patch | 1 | 139 | none — segfault |
+  | with the patch | 0 | 0 | `hosts-file-lookup=ok dns-lookup=ok read-file=ok` |
+
+* **no regression on the ordinary path**: the same probe built normally through Gradle with
+  `kotlin.native.home` pointed at the patched distribution still gets its interpreter and all ten
+  `NEEDED` entries, and runs;
+* **a real project of ours**: `platform-probe` — ktor-network, coroutines, kotlinx-io — compiles,
+  links and passes its five `linuxX64Test` cases under the patched compiler.
+
+**One thing that did not build, and it is not the patch.** `hub-backend:server-native` fails on
+`:shared:compileKotlinLinuxX64` with an `IrGenerationExtensionException` on a ktor `@Resource` class.
+The **unpatched** build of the same tree fails identically, and the project builds green on stock
+2.4.10 — so it is the version jump from 2.4.x to a 2.5 snapshot, at compile time, nowhere near the
+link line. Worth saying in the PR only if asked; it is not evidence about this change.
+
+**A note for whoever builds this tree next:** the first attempt died in dependency resolution with
+"Network is unreachable". The box has AAAA records for `cloudfront.net` and no IPv6 default route,
+and Gradle's HTTP client does not fall back the way `curl` does.
+`-Dorg.gradle.jvmargs="… -Djava.net.preferIPv4Stack=true"` fixes it.
 
 **What the patch deliberately leaves alone:** the `-Bdynamic` half. It lives in
 `konan.properties`, not in code, a user can already override it, and changing a shipped property
