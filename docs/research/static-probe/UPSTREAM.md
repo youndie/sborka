@@ -25,6 +25,22 @@ we dynamically link with libc, as static linking would be waste of space").
 All three texts cite one run:
 [`results/2026-09-13-workaround-halves-and-gc.txt`](results/2026-09-13-workaround-halves-and-gc.txt).
 
+## The order matters
+
+1. **File finding 2 first.** It is the only new ticket, and its number is quoted in the other two —
+   `KT-XXXXX` appears in the KT-55643 comment and beside `--no-dynamic-linker` in the KT-85658 one.
+   Posting the comments first means editing them afterwards to add a number.
+2. **Then merge `docs/the-ticket-and-its-reproduction`.** All three texts end in a link to the
+   reproduction, and until the branch is merged `main` carries the script *with* the seven defects —
+   a link that reproduces the defects instead of the findings is worse than no link. The clone line
+   in [`TICKET.md`](TICKET.md) drops its `-b` at the same time.
+3. **Then the two comments**, in either order.
+
+Mentions are written as YouTrack logins (`@di.gerasimov`, `@aleksei.glushko`), because a full name
+with a space does not resolve and notifies nobody. Both were checked against the comments they refer
+to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (2022-12-27), and
+"a couple more incompatibility problems" is Aleksei Glushko on KT-85658 (2026-04-27).
+
 ---
 
 ## 1 → comment on KT-55643
@@ -42,10 +58,16 @@ All three texts cite one run:
 > | + `-Wl,--as-needed` only | m, pthread, rt, dl, gcc_s, c, ld-linux |
 > | both | m, pthread, rt, dl, c, ld-linux |
 >
+> (`pthread`, `rt` and `dl` survive `--as-needed` because `--as-needed` judges at link time, and the
+> toolchain links against its own glibc 2.19 sysroot, where those three are real libraries that do
+> export symbols the binary imports. On a 2.34+ host they are stubs — the second table below counts
+> both.)
+>
 > The property removes exactly one library — `libgcc_s`, the one `linkerGccFlags` contributes — and
 > leaves `libcrypt` in place. It cannot do otherwise: the six this issue is about
 > (`-lresolv -lm -lpthread -lutil -lcrypt -lrt`) come from `linkerOpts` in the `platform.posix`
-> klib's manifest, as @Dmitry Gerasimov pointed at in the first comment via `posix.def`, and
+> klib's manifest, as @di.gerasimov pointed at in the first comment on this issue, via `posix.def`,
+> and
 > `-Xoverride-konan-properties` names `konan.properties` keys — there is no key that names that
 > list. So `--as-needed` is not one workaround among several; it is the only lever a user has.
 >
@@ -106,7 +128,8 @@ All three texts cite one run:
 > **Why nothing in a build file can undo it.** The *path* is a property — `dynamicLinker.linux_x64`
 > — so `-Xoverride-konan-properties` can point it elsewhere. The *emission* is not:
 > [`GccBasedLinker.finalLinkCommands`](https://github.com/JetBrains/kotlin/blob/v2.4.10/native/utils/src/org/jetbrains/kotlin/konan/target/Linker.kt#L451-L452)
-> adds `-dynamic-linker` and its value with no condition, about thirty lines before `+linkerArgs`.
+> adds `-dynamic-linker` and its value with no condition, twenty-nine lines above the
+> `+linkerArgs` that brings in the user's own flags (line 481 of the same function).
 > Neither `targetSysRoot`, `libGcc`, `linkerGccFlags` nor `linkerKonanFlags` reaches it.
 >
 > **What it costs.** A binary linked with `-linker-option -static` still carries a `PT_INTERP`. The
@@ -116,9 +139,13 @@ All three texts cite one run:
 > produces a genuine static binary — no `PT_INTERP`, no `NEEDED`, 430 904 bytes for a hello-world.
 > That workaround is only reachable by a user who has already read the linker's argv.
 >
-> This is also what keeps Kotlin/Native out of `gcr.io/distroless/static` and `scratch`: with
-> `--as-needed` the binary runs on `cc-debian13`, but the two images without a loader refuse it with
-> `exec: no such file or directory` no matter what else is set.
+> This is the first of the things that keeps Kotlin/Native out of `gcr.io/distroless/static` and
+> `scratch`, and I am not claiming it is the only one: with `--as-needed` the binary runs on
+> `cc-debian13`, but the two images without a loader refuse it with `exec: no such file or directory`
+> no matter what else is set. Behind this one there are more — `-static` against the toolchain's own
+> glibc sysroot fails at link time with 7 undefined symbols (`__libc_setup_tls`, `_dl_pagesize`,
+> `_dl_init_static_tls` and so on), and the musl route gets past the linker and stops in the runtime
+> (KT-85658). Each is a separate obstruction; this issue is about the one that no setting can reach.
 >
 > **Suggested fix.** `linkerArgs` is a field of the same `LinkerArguments` receiver, so the minimal
 > change is to skip the two lines when the user asked for a static link:
@@ -148,8 +175,9 @@ All three texts cite one run:
 >
 > No Ktor, no curl, no HTTP, no gcompat, and Alpine is not the host: a hello-world — resolve a
 > hostname, read a file, print four words — cross-linked on Debian x86_64 against a musl sysroot
-> assembled from `alpine:3.21` packages (musl `libc.a` and crt files, and Alpine's own musl-built
-> `libstdc++.a`), statically, with `--no-dynamic-linker`. Kotlin 2.4.10.
+> the script extracts from `alpine:3.21` (musl `libc.a` and crt files, and Alpine's own
+> musl-built `libstdc++.a`), statically, with `--no-dynamic-linker` — which is needed because the
+> link command carries `-dynamic-linker` unconditionally, filed as KT-XXXXX. Kotlin 2.4.10.
 >
 > **It hangs before its first `println`.** Under `strace -f`: 41 lines of output in total, not one
 > `write(2)` among them, and at the kill three threads, all three in `FUTEX_WAIT`. Their names are
@@ -175,9 +203,9 @@ All three texts cite one run:
 > from one run: the same `-Xbinary=gc=noop` on the ordinary glibc build of the same program exits 0
 > and prints normally.
 >
-> I cannot tell from here whether that second failure is the runtime or my hand-assembled sysroot,
-> so please read it as a hint rather than a finding — it is consistent with @Aleksei Glushko's "a
-> couple more incompatibility problems" above. The deadlock is the solid part: it reproduces on
+> I cannot tell from here whether that second failure is the runtime or the sysroot the script extracts,
+> so please read it as a hint rather than a finding — it is consistent with @aleksei.glushko's
+> "a couple more incompatibility problems" above. The deadlock is the solid part: it reproduces on
 > x86_64, on a glibc host, with no gcompat and no libraries, in a program that has not done
 > anything.
 >
