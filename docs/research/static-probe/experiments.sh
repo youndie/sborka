@@ -179,6 +179,54 @@ else
     link_failure static
 fi
 
+# RQ2, ROUTE 2 — the host's glibc instead of the toolchain's, which is the route that works.
+#
+# Route 1 failed with seven undefined `_dl_*` symbols, and the tempting reading — that the
+# toolchain's sysroot ships no `libc.a`, or a cut-down one — is wrong: it ships a 28 MB `libc.a` that
+# DEFINES all seven, and its own `libpthread.a` is what references them. The host's glibc is 2.39,
+# where those references are gone because libpthread is a stub, so the same link succeeds there.
+section "static against the host glibc (RQ2 route 2)"
+HOST_GCC="$(ls -d /usr/lib/gcc/x86_64-linux-gnu/*/ 2>/dev/null | sort -V | tail -1)"
+HOST_LIB=/usr/lib/x86_64-linux-gnu
+if [ -z "$HOST_GCC" ] || [ ! -f "$HOST_LIB/libc.a" ] || [ ! -f "${HOST_GCC}libstdc++.a" ]; then
+    echo "SKIPPED: needs libc6-dev and libstdc++-dev on the host (multiarch layout)"
+else
+    echo "host glibc: $(ldd --version | head -1 | awk '{print $NF}'), gcc dir: $HOST_GCC"
+    G="${HOST_GCC#/}"; G="${G%/}"
+    if build statichost -PhostGccDir="$G" -PhostLibDir="$HOST_LIB"; then
+        b=build/bin/linuxX64/releaseExecutable/probe-statichost.kexe
+        inspect "$b"
+        echo "run on the host: $(timeout -s KILL 10 "$b" 2>&1 | tr '\n' ' ')"
+        if command -v docker > /dev/null; then
+            c=$(mktemp -d); cp "$b" "$c/probe"
+            # THE CONTROLS ARE THE POINT. `dns-lookup=ok` from a statically linked glibc is the
+            # surprising half of this result — static glibc is supposed to lose NSS — so it has to be
+            # shown that the lookup can fail: once with the network taken away, once on a name that
+            # does not exist. Without those two rows "ok" proves only that the probe printed "ok".
+            for img in scratch gcr.io/distroless/static-debian13; do
+                printf 'FROM %s\nCOPY probe /probe\nENTRYPOINT ["/probe"]\n' "$img" > "$c/Dockerfile"
+                tag="sh-$(echo "$img" | tr '/:.' '---')"
+                docker build -q -t "$tag" "$c" < /dev/null > /dev/null 2>&1 || continue
+                for mode in "" "--network none" "ARG:no-such-host.invalid"; do
+                    case "$mode" in
+                        ARG:*) cid=$(docker run -d "$tag" "${mode#ARG:}" 2>/dev/null); label="bad name" ;;
+                        "")    cid=$(docker run -d "$tag" 2>/dev/null); label="as is" ;;
+                        *)     cid=$(docker run -d $mode "$tag" 2>/dev/null); label="no network" ;;
+                    esac
+                    sleep 5
+                    printf '  %-34s %-11s %9s  %s\n' "${img##*/}" "$label" \
+                        "$(docker image inspect "$tag" --format '{{.Size}}' 2>/dev/null)" \
+                        "$(docker logs "$cid" 2>&1 | tr '\n' ' ' | cut -c1-88)"
+                    docker rm -f "$cid" > /dev/null 2>&1
+                done
+            done
+            rm -rf "$c"
+        fi
+    else
+        link_failure statichost
+    fi
+fi
+
 # RQ3 — musl, by setting the properties rather than working around them.
 #
 # The sysroot comes out of an Alpine image, where `g++` builds `libstdc++.a` against musl. That is the
