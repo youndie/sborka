@@ -7,14 +7,20 @@ exists only on the machine it was found on.
 **To reproduce, from a clean checkout:**
 
 ```bash
-git clone https://github.com/youndie/sborka && cd sborka/docs/research/static-probe
-./experiments.sh
+git clone -b docs/the-ticket-and-its-reproduction https://github.com/youndie/sborka
+cd sborka/docs/research/static-probe && ./experiments.sh
 ```
+
+The branch is named on purpose: until it is merged, `main` still carries the script **with** the five
+defects listed below, so a clone of `main` reproduces the defects rather than the findings. Once it
+is merged, drop `-b`.
 
 Verified from a clean clone on 2026-09-13, run **twice in a row**, on a host wiped of every
 hand-assembled sysroot first — output in
-[`results/2026-09-13-clean-clone-twice.txt`](results/2026-09-13-clean-clone-twice.txt). Both passes
-exit 0 and are byte-identical apart from their marker.
+[`results/2026-09-13-clean-clone-twice.txt`](results/2026-09-13-clean-clone-twice.txt), which
+records **both** passes in full. Both exit 0 and are byte-identical apart from their marker. The one
+step that verification did not exercise is the ~1 GB toolchain fetch of a truly first run: the
+Kotlin/Native distribution was already under `~/.konan` on the verifying host.
 
 Running it that way is what found five defects in this reproduction, none of which a run on the
 machine it was written on could have shown: it called a Gradle wrapper that does not exist in this
@@ -24,9 +30,10 @@ first; it could not run twice, because the container wrote the sysroot as root; 
 terminated**, because the base-image matrix runs the hanging binary of finding 3 and neither an
 untimed `docker run` nor `timeout 20 docker run` bounds a container.
 
-Needs a Linux host with a JDK and docker. The Kotlin/Native toolchain (~1 GB) is fetched by Gradle on
-the first run; docker is used once, to take a musl sysroot out of `alpine:3.21` — the alternative is
-a sysroot assembled by hand, which is exactly what should not be in a report.
+Needs a Linux host with a JDK and docker; `strace` is optional and buys the last line of finding 3.
+The Kotlin/Native toolchain (~1 GB) is fetched by Gradle on the first run; docker is used once, to
+take a musl sysroot out of `alpine:3.21` — the alternative is a sysroot assembled by hand, which is
+exactly what should not be in a report.
 
 ---
 
@@ -50,15 +57,24 @@ rather than the application's. To retake the other three:
 readelf -d build/bin/linuxX64/releaseExecutable/*.kexe | grep NEEDED
 ```
 
-Which library actually supplies anything is the load-bearing half, and it is the same command over
-`nm -D --undefined-only` against each library's exports:
+Which library actually supplies anything is the load-bearing half, and `experiments.sh` prints it
+too: the probe's `nm -D --undefined-only` list intersected with each `NEEDED` library's exports.
+**Against which glibc** is part of the answer, so the script does it twice — against the sysroot
+the toolchain links with (glibc 2.19) and against the host it runs on (glibc 2.39):
 
-| library | symbols the binary actually imports |
-|---|---|
-| `libc.so.6` | the rest |
-| `libgcc_s.so.1` | 13 — `_Unwind_*`, the C++ unwinder Kotlin/Native's exceptions use |
-| `libm.so.6` | 2 — `log`, `pow` |
-| `libcrypt`, `libresolv`, `libutil`, `librt`, `libdl`, `libpthread` | **0** |
+| library | exports, of the 103 the probe imports | |
+|---|---|---|
+| | *link-time sysroot, glibc 2.19* | *host, glibc 2.39* |
+| `libc.so.6` | the rest | the rest |
+| `libgcc_s.so.1` | 13 — `_Unwind_*`, the C++ unwinder Kotlin/Native's exceptions use | 13 |
+| `libm.so.6` | 2 — `ceil`, `floor` | 2 |
+| `libpthread.so.0`, `librt.so.1`, `libdl.so.2` | 30, 1, 1 | **0** — stubs since glibc 2.34 |
+| `libcrypt.so.1`, `libresolv.so.2`, `libutil.so.1` | **0** | **0** |
+
+So three of the six names are dead on every glibc, and three more are dead on any glibc from 2.34
+on — which includes every distroless image in the matrix below (Debian 13, glibc 2.41). The claim
+is not "nothing uses `libpthread`"; it is that the manifest names libraries by a layout glibc gave up
+two years before Kotlin 2.4, and a consumer cannot follow.
 
 **Why it costs something.** `gcr.io/distroless/cc` does not carry `libcrypt.so.1`. A program that
 declares it and never calls it therefore fails at exec with `cannot open shared object file`, and the
@@ -82,8 +98,13 @@ The argv `ld.lld` is actually given, recorded by a shim in place of `linker.linu
 23  -static
 ```
 
-The interpreter is emitted **before** `-static`, regardless of `targetSysRoot`, and is reachable from
-none of `targetSysRoot`, `libGcc`, `linkerGccFlags` or `linkerKonanFlags`.
+The interpreter is emitted **before** `-static`, regardless of `targetSysRoot`. Its *path* is a
+property — `dynamicLinker.linux_x64` in `konan.properties`, and `-Xoverride-konan-properties` can
+point it elsewhere — but its *emission* is not: `GccBasedLinker.finalLinkCommands` in
+`native/utils/src/org/jetbrains/kotlin/konan/target/Linker.kt` (tag `v2.4.10`) adds
+`-dynamic-linker` and the value unconditionally, ahead of the user's `linkerArgs`, so no value of
+that property and none of `targetSysRoot`, `libGcc`, `linkerGccFlags` or `linkerKonanFlags` can make
+`-static` mean static.
 
 **What it costs.** A binary linked with `-linker-option -static` still carries a `PT_INTERP`, so the
 kernel hands a statically linked musl program to **glibc's** dynamic loader, which relocates it as
@@ -95,6 +116,12 @@ it and produces a genuine static binary: no `PT_INTERP`, no `NEEDED`, 430 904 by
 
 The static musl binary **hangs before its first `println`** — `timeout 20` reports 124, and nothing
 is printed, so the Kotlin/Native runtime does not complete start-up.
+
+It is a deadlock, not a spin. Under `strace -f` the process makes about fifty system calls in five
+seconds and no `write(2)`; it creates `GC Timer thread` and `Main GC thread`, and then all three
+threads are asleep in `FUTEX_WAIT` with zero CPU. The main thread blocks on a futex immediately
+after the GC thread is named, before anything the program itself does. The script prints those
+counts when `strace` is on the host.
 
 **And it hangs in `scratch` too**, which is the environment the whole question was about. With the
 interpreter of finding 2 removed, the kernel *executes* it there rather than refusing it: the last

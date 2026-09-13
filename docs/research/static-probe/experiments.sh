@@ -35,6 +35,38 @@ inspect() { # inspect <binary>
     nm -D --undefined-only "$b" 2>/dev/null | grep -E 'GLIBC_2\.(3[^.]|[4-9]|1[0-9]|2[0-9]|3[0-9])' | sed 's/^ */  /' | sort -u
 }
 
+suppliers() { # suppliers <binary> — of the symbols it imports, how many does each NEEDED library export?
+    # AGAINST WHICH GLIBC is half the answer, and the report's first draft got a row wrong by not
+    # saying. Since 2.34, libpthread, librt and libdl are empty stubs and libc exports what they used
+    # to; against the 2.19 sysroot the toolchain links with they are the real thing. So: both.
+    local b="$1" undef def sysroot host
+    undef=$(mktemp); def=$(mktemp)
+    nm -D --undefined-only "$b" 2>/dev/null | awk '{print $2}' | sed 's/@.*//' | sort -u > "$undef"
+    sysroot="$KON/x86_64-unknown-linux-gnu/sysroot"
+    host=$(ldd --version 2>/dev/null | head -1 | awk '{print $NF}')
+    echo "of the $(wc -l < "$undef") symbols it imports, each NEEDED library exports (link-time sysroot glibc 2.19 / host glibc $host):"
+    local lib f n1 n2 names
+    for lib in $(readelf -d "$b" 2>/dev/null | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p'); do
+        f=$(find "$sysroot/lib64" "$sysroot/lib" -maxdepth 1 -name "$lib" 2>/dev/null | head -1)
+        if [ -n "$f" ]; then
+            nm -D --defined-only "$f" 2>/dev/null | awk '$2 ~ /^[TWiDBV]$/ {print $3}' | sed 's/@.*//' | sort -u > "$def"
+            n1=$(comm -12 "$undef" "$def" | wc -l)
+            names=$(comm -12 "$undef" "$def" | head -3 | tr '\n' ' ')
+        else
+            n1="?"; names=""
+        fi
+        f="/lib/x86_64-linux-gnu/$lib"
+        if [ -e "$f" ]; then
+            nm -D --defined-only "$f" 2>/dev/null | awk '$2 ~ /^[TWiDBV]$/ {print $3}' | sed 's/@.*//' | sort -u > "$def"
+            n2=$(comm -12 "$undef" "$def" | wc -l)
+        else
+            n2="?"
+        fi
+        printf '  %-22s %3s / %3s   %s\n' "$lib" "$n1" "$n2" "$names"
+    done
+    rm -f "$undef" "$def"
+}
+
 link_failure() { # link_failure <mode>
     local mode="$1"
     echo "LINK FAILED"
@@ -66,7 +98,7 @@ if [ -n "$KONAN_DIST" ]; then
     echo "platform.posix manifest:"
     grep -h '^linkerOpts' "$KONAN_DIST"/klib/platform/linux_x64/*posix*/default/manifest 2>/dev/null | sed 's/^/  /'
     echo "konan.properties:"
-    grep -hE '^(linkerKonanFlags\.linux_x64|linkerGccFlags|libGcc\.linux_x64|targetSysRoot\.linux_x64|linker\.linux_x64) ' \
+    grep -hE '^(linkerKonanFlags\.linux_x64|linkerGccFlags|libGcc\.linux_x64|targetSysRoot\.linux_x64|linker\.linux_x64|dynamicLinker\.linux_x64) ' \
         "$KONAN_DIST"/konan/konan.properties | sed 's/^/  /'
 else
     echo "SKIPPED: no Kotlin/Native distribution under ~/.konan yet — run any build first"
@@ -78,6 +110,7 @@ for mode in default asneeded; do
     if build "$mode"; then
         b="build/bin/linuxX64/releaseExecutable/probe-$mode.kexe"
         inspect "$b"
+        [ "$mode" = default ] && suppliers "$b"
         echo "run on the host: $(./"$b" 2>&1 | tr '\n' ' ')"
     else
         link_failure "$mode"
@@ -149,6 +182,27 @@ if command -v docker > /dev/null; then
         # process behind on every invocation.
         out=$(timeout 20 ./"$b" 2>&1); rc=$?
         echo "run on the host: rc=$rc (124 = hung) out=$(echo "$out" | tr "\n" " ")"
+        # WHERE IT STOPS, not only that it stops: a hang that spins and a hang that sleeps are two
+        # different bugs, and `rc=124` cannot tell them apart. Every thread parked in FUTEX_WAIT with
+        # no write(2) ever issued is a deadlock in the runtime's own start-up. Optional — strace is
+        # not on every host — and only the counts are printed, so two passes stay comparable.
+        if command -v strace > /dev/null; then
+            st="$ROOT/musl.strace"
+            timeout 5 strace -f -o "$st" ./"$b" > /dev/null 2>&1
+            # The exact syscall count drifts by one between runs, so only its order of magnitude is
+            # printed. The blocked count is per THREAD: the last call each thread made, kept only if
+            # the kill interrupted it — a wait that was later woken is not a thread that is stuck.
+            n=$(wc -l < "$st")
+            echo "under strace for 5s: $([ "$n" -lt 100 ] && echo "under 100" || echo "$n") syscalls, $(grep -c ' write(' "$st") write(2)," \
+                 "threads named: $(grep -o 'PR_SET_NAME, "[^"]*"' "$st" | sed 's/PR_SET_NAME, //' | tr '\n' ' ')"
+            blocked=$(awk '/\+\+\+ |--- SIG/ { next }
+                           /<\.\.\. .* resumed>/ { if ($0 !~ /= \?/) delete last[$1]; next }
+                           { last[$1] = $0 }
+                           END { for (p in last) print last[p] }' "$st" |
+                      grep -cE 'FUTEX_WAIT|resuming interrupted futex')
+            echo "  at the kill: $(grep -c 'killed by SIGTERM' "$st") threads," \
+                 "$blocked of them blocked in FUTEX_WAIT — asleep, not spinning"
+        fi
     else
         link_failure musl
     fi
