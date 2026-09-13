@@ -179,6 +179,23 @@ else
     link_failure static
 fi
 
+# WHY ROUTE 1 FAILED, which is not what the first write-up of this said. It blamed an incomplete
+# `libc.a` in the toolchain's sysroot. That archive is 28 MB and DEFINES all seven symbols; its own
+# `libpthread.a` is what references them. The argv says the rest: `-static` arrives at position 23
+# from the user's flags and `-Bdynamic` at 32 from `linkerKonanFlags`, after them, cancelling static
+# mode — so `-lc` at 43 picks up `usr/lib/libc.so`, a GNU ld script naming the SHARED libc, which
+# does not export glibc-internal symbols. Take `-Bdynamic` out and the same sysroot links.
+section "route 1 without the hardcoded -Bdynamic"
+if build staticfixed; then
+    b=build/bin/linuxX64/releaseExecutable/probe-staticfixed.kexe
+    inspect "$b"
+    echo "run on the host: $(bash -c "timeout -s KILL 10 '$b' 2>&1" 2>/dev/null | tr '\n' ' ')"
+    echo "  (rc 139 = segfault: it links, and a glibc 2.19 static binary still does not start —"
+    echo "   a null dereference about eighteen syscalls in, which is a thread this report does not pull)"
+else
+    link_failure staticfixed
+fi
+
 # RQ2, ROUTE 2 — the host's glibc instead of the toolchain's, which is the route that works.
 #
 # Route 1 failed with seven undefined `_dl_*` symbols, and the tempting reading — that the
