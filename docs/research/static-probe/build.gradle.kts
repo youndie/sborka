@@ -109,7 +109,14 @@ kotlin {
                     // `/usr/lib/x86_64-linux-gnu`, which is in none of them. Without this the link
                     // fails with "unable to find library -lc", not with undefined symbols.
                     val libDir = (findProperty("hostLibDir") as String?) ?: "/usr/lib/x86_64-linux-gnu"
-                    linkerOpts("-static", "--no-dynamic-linker", "-L$libDir")
+                    // Same control as `staticfixed`: with `-PkeepDynamicLinker` this is the exact
+                    // recipe that reaches scratch, minus one flag. It is the clearest exhibit for
+                    // the ticket — same everything, and the binary stops working.
+                    if (findProperty("keepDynamicLinker") != null) {
+                        linkerOpts("-static", "-L$libDir")
+                    } else {
+                        linkerOpts("-static", "--no-dynamic-linker", "-L$libDir")
+                    }
                     freeCompilerArgs +=
                         "-Xoverride-konan-properties=" +
                         "targetSysRoot.linux_x64=/;" +
