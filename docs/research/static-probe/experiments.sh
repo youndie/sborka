@@ -220,7 +220,10 @@ else
             # surprising half of this result — static glibc is supposed to lose NSS — so it has to be
             # shown that the lookup can fail: once with the network taken away, once on a name that
             # does not exist. Without those two rows "ok" proves only that the probe printed "ok".
-            for img in scratch gcr.io/distroless/static-debian13; do
+            # All four bases, not just the two that need the static binary: the article's table
+            # has a cell for every one of them, and a cell filled in by reasoning is not a cell.
+            for img in scratch gcr.io/distroless/static-debian13 \
+                       gcr.io/distroless/base-debian13 gcr.io/distroless/cc-debian13; do
                 printf 'FROM %s\nCOPY probe /probe\nENTRYPOINT ["/probe"]\n' "$img" > "$c/Dockerfile"
                 tag="sh-$(echo "$img" | tr '/:.' '---')"
                 docker build -q -t "$tag" "$c" < /dev/null > /dev/null 2>&1 || continue
