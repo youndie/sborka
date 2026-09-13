@@ -8,13 +8,9 @@ exists only on the machine it was found on.
 
 ```bash
 sudo apt-get install -y binutils file docker.io   # a JDK too; the script checks and says what is missing
-git clone -b docs/the-ticket-and-its-reproduction https://github.com/youndie/sborka
+git clone https://github.com/youndie/sborka
 cd sborka/docs/research/static-probe && ./experiments.sh
 ```
-
-The branch is named on purpose: until it is merged, `main` still carries the script **with** the
-seven defects listed below, so a clone of `main` reproduces the defects rather than the findings.
-Once it is merged, drop `-b`.
 
 Verified from a clean clone on 2026-09-13, run **twice in a row**, on a host wiped of every
 hand-assembled sysroot first — output in
