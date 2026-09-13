@@ -7,6 +7,7 @@
 | 1. the klib manifest's `linkerOpts` | [comment on KT-55643](https://youtrack.jetbrains.com/issue/KT-55643) |
 | 2. `-static` is undone twice | [**KT-89362**](https://youtrack.jetbrains.com/issue/KT-89362), and [JetBrains/kotlin#8127](https://github.com/JetBrains/kotlin/pull/8127) with the patch |
 | 3. the musl deadlock | [comment on KT-85658](https://youtrack.jetbrains.com/issue/KT-85658) |
+| the answer for the Alpine thread | [comment on KT-38876](https://youtrack.jetbrains.com/issue/KT-38876) |
 
 Two things learned while posting, for whoever does this next. YouTrack renders a single newline as
 `<br/>`, so hard-wrapped markdown arrives with a line break every hundred characters and never
@@ -332,3 +333,61 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 >
 > Reproduction: https://github.com/youndie/sborka/tree/main/docs/research/static-probe
 > `./experiments.sh`, section "the musl hang against KT-85658".
+
+## 4 → comment on KT-38876, posted 2026-09-13
+
+[KT-38876](https://youtrack.jetbrains.com/issue/KT-38876) is the Alpine feature request: Feature,
+Open since 2020-05, 61 votes, no comment since 2023-06-19. Finding 3 went to KT-85658 because that is
+the specific bug; this is the other half of the answer for the people subscribed to the older thread
+— musl is a no and here is its bug number, static glibc is a yes and here is the recipe.
+
+The claim that makes it worth posting **here** rather than anywhere else was measured for it: a
+statically linked service runs on `alpine:3.21` itself — musl only, no glibc loader in the image, no
+gcompat — and serves. That is what this issue asks for, and it does not need this issue resolved.
+Transcript: [`results/2026-09-13-static-binary-on-alpine.txt`](results/2026-09-13-static-binary-on-alpine.txt).
+
+> Two findings that bear on this issue from opposite directions: musl is further away than it looks, and the thing most people are here for already works without it.
+>
+> **musl: the runtime deadlocks before `main`.** @Sergey.Bogolepov wrote here in October 2020: "Compiler itself is not a problem indeed. The standard library is the problem, because we use STL in runtime codebase. So to support musl-based targets, we need to recompile `libc++` (or `libstdc++`) against musl." That was done, in the cheapest available way — the sysroot is assembled from `alpine:3.21` packages, so `libstdc++.a` is Alpine's own, built against musl by Alpine's `g++`. The binary links cleanly, and then hangs **before its first `println`**. Under `strace -f`: 41 lines of output in total, not one `write(2)` among them, three threads at the kill, all three in `FUTEX_WAIT`, two of them named `Main GC thread` and `GC Timer thread`. No Ktor, no gcompat, x86_64, on a glibc host — a hello-world that has not run any user code yet.
+>
+> That is [KT-85658](https://youtrack.jetbrains.com/issue/KT-85658), a lost `FUTEX_WAKE` after `FUTEX_REQUEUE_PRIVATE` in GC thread coordination, and there is a second failure behind it: with `-Xbinary=gc=noop` the hang is replaced by a segfault at address 0 ten syscalls in, before the first `clone`. The same switch on the glibc build of the same program runs clean, so the switch is not the cause. Details and the reproducer are in a comment there rather than here.
+>
+> **Static glibc: it works today, and it runs on Alpine.** If what you want is "my Kotlin/Native service runs in a minimal container" rather than "musl specifically", you do not need this issue resolved. A binary linked statically against the *host's* glibc has no libc dependency at all, so the question of which libc the target has stops applying.
+>
+> Measured, not inferred. A real service — Ktor CIO, sqlx4k over SQLite, kotlinx.serialization, KSP, schema migrations — built with the recipe below and run on `alpine:3.21`:
+>
+> ```
+> /lib/ld-musl-x86_64.so.1        <- musl only, no glibc loader in the image
+> gcompat installed: 0
+> Migrated to version 6
+> [INFO] (io.ktor.server.Application): Application started in 0.015 seconds.
+> [INFO] (io.ktor.server.Application): Responding at http://0.0.0.0:8080
+> GET / -> HTTP 401
+> ```
+>
+> The same binary in `FROM scratch` is 5 383 000 bytes to pull against 15 542 026 for the same service on `distroless/cc`. A hello-world built the same way is 1 393 592 bytes, in a `scratch` image of 606 825 bytes to pull, and it still resolves hostnames over DNS — checked against the same image with the network removed, where the lookup fails as it should, and on a name that does not exist.
+>
+> **The recipe**, on a stock 2.4.10, `linuxX64`:
+>
+> ```kotlin
+> linkerOpts("-static", "--no-dynamic-linker", "-L/usr/lib/x86_64-linux-gnu")
+> freeCompilerArgs.addAll(
+>     "-Xoverride-konan-properties=" +
+>         "targetSysRoot.linux_x64=/;" +
+>         "crtFilesLocation.linux_x64=usr/lib/x86_64-linux-gnu;" +
+>         "libGcc.linux_x64=usr/lib/gcc/x86_64-linux-gnu/13;" +
+>         "linkerGccFlags=-lgcc -lgcc_eh -lc;" +
+>         "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -ldl -lm -lpthread " +
+>         "--defsym __cxa_demangle=Konan_cxa_demangle --gc-sections",
+> )
+> ```
+>
+> `libc6-dev` and `libstdc++-dev` on the build machine; the `13` is your gcc version. `linkerKonanFlags` here is the stock value with `-Bdynamic` removed and nothing else — read the key before overriding it, its value continues onto a second line in `konan.properties`.
+>
+> **Why name resolution survives, since it is the first objection.** `getaddrinfo` under a static glibc used to `dlopen` the NSS modules, and an empty image has none. Since **glibc 2.34** `nss_files` and `nss_dns` are compiled into libc. Which is also why this has to be the *host's* glibc: the sysroot the compiler ships is 2.19, and that route would lose DNS even if everything else were fixed.
+>
+> **What it does not cover.** This is about *running* on Alpine; *building* on Alpine is [KT-38891](https://youtrack.jetbrains.com/issue/KT-38891), which nothing here touches. `linuxX64` only — `linuxArm64` was not attempted. Nothing that calls `dlopen` at run time, directly or through a library. Name resolution was measured in a `scratch` image with both controls and **not** re-measured on Alpine — it depends on the binary and on the `/etc/resolv.conf` the container runtime supplies, not on the image, but that is reasoning rather than a measurement and you should treat it as such. And `-Xoverride-konan-properties` is not a stable interface, as @Sergey.Bogolepov said here in March 2021 — check the keys on every Kotlin bump rather than pinning them in something shared.
+>
+> Two of the five overrides exist only because `-linker-option -static` does not currently mean static: `-dynamic-linker` is emitted unconditionally and `-Bdynamic` sits hardcoded in `linkerKonanFlags` after the user's flags. That is [KT-89362](https://youtrack.jetbrains.com/issue/KT-89362), with a three-line patch and a test in [JetBrains/kotlin#8127](https://github.com/JetBrains/kotlin/pull/8127); with it, the recipe above loses `--no-dynamic-linker` and the `linkerKonanFlags` line.
+>
+> Everything above, including the transcripts and the controls: https://github.com/youndie/sborka/tree/main/docs/research/static-probe

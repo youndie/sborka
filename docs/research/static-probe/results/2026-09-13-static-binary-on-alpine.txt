@@ -1,0 +1,39 @@
+# The claim KT-38876 is actually about: a Kotlin/Native binary running on Alpine.
+#
+# Not by supporting musl — by not needing a libc in the image at all. The service is katcher
+# (Ktor CIO, sqlx4k over SQLite, kotlinx.serialization, KSP, migrations), linked statically against
+# the HOST's glibc 2.39 on Ubuntu 24.04, then copied into an alpine:3.21 image and run there.
+#
+#   FROM katcher-scratch2 AS src
+#   FROM alpine:3.21
+#   COPY --from=src /server /server
+#
+# Run on a 2-core VPS, which is a third machine again — neither the build host nor the one the
+# earlier numbers came from.
+
+=== what the container has for a libc
+
+  /lib/ld-musl-x86_64.so.1        musl, and only musl
+  (no /lib64/ld-linux-x86-64.so.2 — no glibc loader in the image)
+  gcompat installed: 0
+
+=== what the service does there
+
+  Migrated to version 6
+  [INFO] (io.ktor.server.Application): Application started in 0.015 seconds.
+  [INFO] (io.ktor.server.Application): Responding at http://0.0.0.0:8080
+  GET / -> HTTP 401
+
+  401 is the service answering: the route requires authentication.
+
+=== what this does and does not show
+
+  Shows: a statically linked Kotlin/Native service runs on Alpine, today, on a stock 2.4.10, with no
+  gcompat and no musl support in the compiler. The binary carries its own libc, so which libc the
+  host has stops being a question.
+
+  Does not show: name resolution on Alpine specifically. DNS was measured in a scratch image
+  (2026-09-13-static-against-host-glibc.txt) with both controls — no network gives FAIL(rc=-3), a
+  non-existent name gives FAIL(rc=-2). It is a property of the binary and of /etc/resolv.conf, which
+  the container runtime supplies in either image, but it was not re-measured on Alpine and the
+  comment says so rather than implying otherwise.
