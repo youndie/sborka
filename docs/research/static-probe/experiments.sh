@@ -264,6 +264,37 @@ else
     echo "SKIPPED: needs docker for the Alpine sysroot"
 fi
 
+# IS THE HANG THE GC DEADLOCK OF KT-85658? That ticket says `gc=noop` removes the freeze, so the
+# same switch is a discriminator here — and the answer needs a control, because "it still fails with
+# the GC off" and "the GC switch does nothing on this toolchain" look identical from one run. The
+# control is the same switch on the ordinary glibc binary.
+section "the musl hang against KT-85658: the GC switched off"
+if [ -d "$ROOT/sysroot" ]; then
+    run_probe() { # run_probe <binary> <seconds>
+        local out rc
+        out=$(timeout -s KILL "$2" "$1" 2>&1); rc=$?
+        # 137 = SIGKILL from the timeout, i.e. it hung. 139 = SIGSEGV.
+        echo "rc=$rc$([ $rc = 137 ] && echo ' (hung)'; [ $rc = 139 ] && echo ' (segfault)') out=[$(echo "$out" | tr '\n' ' ')]"
+    }
+    if build default -Pgc=noop; then
+        printf '  %-22s %s\n' "control: glibc, noop" \
+            "$(run_probe build/bin/linuxX64/releaseExecutable/probe-default-gcnoop.kexe 10)"
+    else
+        printf '  %-22s %s\n' "control: glibc, noop" "BUILD FAILED"
+    fi
+    if build musl -PmuslSysRoot="$ROOT/sysroot" -PmuslLibGcc=../gcc -Pgc=noop; then
+        b=build/bin/linuxX64/releaseExecutable/probe-musl-gcnoop.kexe
+        printf '  %-22s %s\n' "musl, noop" "$(run_probe "$b" 10)"
+        timeout -s KILL 10 strace -f -o /tmp/probe-noop.strace "$b" > /dev/null 2>&1
+        printf '  %-22s %s\n' "musl, noop, strace" \
+            "$(wc -l < /tmp/probe-noop.strace) syscalls, $(grep -c 'clone' /tmp/probe-noop.strace) clone, ending: $(tail -2 /tmp/probe-noop.strace | tr '\n' ' ' | cut -c1-90)"
+    else
+        printf '  %-22s %s\n' "musl, noop" "BUILD FAILED"
+    fi
+else
+    echo "SKIPPED: the Alpine sysroot is gone — the section below rebuilds \$ROOT for route 1"
+fi
+
 # The old route, kept because its failure is the reason the one above sets properties.
 section "musl (route 1 as first attempted: targetSysRoot only, against the distribution's musl)"
 if [ -d /usr/lib/x86_64-linux-musl ] && [ -n "$GCCDIR" ]; then
