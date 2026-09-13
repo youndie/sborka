@@ -115,11 +115,25 @@ point it elsewhere — but its *emission* is not: `GccBasedLinker.finalLinkComma
 that property and none of `targetSysRoot`, `libGcc`, `linkerGccFlags` or `linkerKonanFlags` can make
 `-static` mean static.
 
+**And it is not the only flag that undoes `-static`.** `linkerKonanFlags.linux_x64` is
+`-Bstatic -lstdc++ -Bdynamic -ldl -lm -lpthread`, emitted after the user's flags too, and its
+`-Bdynamic` (position 32, against `-static` at 23) switches the linker back to shared libraries, so
+`-lc` at 43 picks up a GNU ld script naming `libc.so.6`. That is where finding 1's companion — the
+seven undefined symbols of a `-static` build — comes from: not an incomplete `libc.a`, which defines
+all seven, but two libcs in one link. This one a user can override; `-dynamic-linker` they cannot.
+
 **What it costs.** A binary linked with `-linker-option -static` still carries a `PT_INTERP`, so the
 kernel hands a statically linked musl program to **glibc's** dynamic loader, which relocates it as
 though it were dynamic. The result is a segfault with no output — a failure that names nothing and
 looks like a Kotlin/Native runtime fault. Passing `--no-dynamic-linker` alongside `-static` removes
 it and produces a genuine static binary: no `PT_INTERP`, no `NEEDED`, 430 904 bytes for the probe.
+
+**And with both undone by hand, the picture is worth the ticket:** against the host's glibc 2.39 —
+not the 2.19 the compiler ships — the same 2.4.10 produces a 1 618 024-byte static executable that
+runs in `scratch`, a **683 745-byte image**, and still resolves hostnames over DNS. That last claim
+is controlled: the same image with the network removed answers `FAIL(rc=-3)`, and a name that does
+not exist answers `FAIL(rc=-2)`. Two flags nobody can reach are what stands between Kotlin/Native
+and an image with nothing in it.
 
 ## 3. With both worked around, the runtime does not finish starting against musl
 
