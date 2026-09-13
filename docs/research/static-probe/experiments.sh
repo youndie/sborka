@@ -4,8 +4,9 @@
 #
 #   scp -r static-probe linuxbox:  &&  ssh linuxbox 'cd static-probe && ./experiments.sh'
 #
-# Needs: a JDK, docker, and `musl-tools musl-dev` for the musl half (RQ3). The Kotlin/Native
-# toolchain is fetched by Gradle on the first run and is ~1 GB.
+# Needs: a JDK, docker, binutils and file (checked below; the report is nothing but ELF facts), and
+# `musl-tools musl-dev` for the musl half (RQ3). The Kotlin/Native toolchain is fetched by Gradle on
+# the first run and is ~1 GB.
 #
 # Writes nothing but a report on stdout; capture it into results/ with the date and the host.
 set -uo pipefail
@@ -15,8 +16,34 @@ cd "$here"
 # copy of the wrapper in one repository is a second version to keep in step. Defaulting to `./gradlew`
 # made every build in a clean clone "fail" with nothing to say, which is how this line came to exist.
 GRADLE="${GRADLE:-$here/../../../gradlew}"
-KON="$(ls -d "$HOME"/.konan/dependencies/x86_64-unknown-linux-gnu-gcc-*-glibc-*-kernel-* 2>/dev/null | head -1)"
-GCCDIR="$(find "$KON" -type d -path '*lib/gcc/x86_64-unknown-linux-gnu/*' 2>/dev/null | head -1)"
+
+# EVERY ELF FACT IN THIS REPORT COMES OUT OF binutils, and every call to it is written `2>/dev/null`
+# so that a binary legitimately without a section does not spew. On a box without binutils that same
+# redirection swallows "command not found", and each variant then reports no NEEDED libraries, no
+# interpreter and no imported symbols — which is not an error, it is the strongest possible result,
+# printed for a binary the neighbouring `file` line calls dynamically linked. Missing tools must stop
+# the run, not decorate it.
+missing=""
+for t in readelf nm file stat comm; do command -v "$t" > /dev/null || missing="$missing $t"; done
+if [ -n "$missing" ]; then
+    echo "ABORT: missing tools:$missing" >&2
+    echo "  Debian/Ubuntu: apt-get install -y binutils file coreutils" >&2
+    exit 2
+fi
+
+# THE DISTRIBUTION IS NOT THERE UNTIL SOMETHING BUILDS IT. These three paths used to be resolved here,
+# in the script's first lines, which on a machine that has never built Kotlin/Native resolves all of
+# them to nothing — and nothing reads as a clean answer rather than a missing one: an empty sysroot
+# makes `suppliers` print a header with no rows under it. Resolve them again after the first build.
+resolve_dist() {
+    KON="$(ls -d "$HOME"/.konan/dependencies/x86_64-unknown-linux-gnu-gcc-*-glibc-*-kernel-* 2>/dev/null | head -1)"
+    GCCDIR="$(find "$KON" -type d -path '*lib/gcc/x86_64-unknown-linux-gnu/*' 2>/dev/null | head -1)"
+    # The NEWEST, not the first: a machine that has built more than one Kotlin version has more than
+    # one distribution, and printing the older one's manifest as evidence for the newer one's
+    # behaviour is a quotation from the wrong file.
+    KONAN_DIST="$(ls -d "$HOME"/.konan/kotlin-native-prebuilt-* 2>/dev/null | sort -V | tail -1)"
+}
+resolve_dist
 
 section() { printf '\n===== %s\n' "$1"; }
 
@@ -89,10 +116,16 @@ link_failure() { # link_failure <mode>
 # This is finding 1 of the upstream report: `platform.posix`'s klib manifest names libc's libraries
 # for every Linux program, and no property overrides a klib manifest.
 section "where the flags come from"
-# The NEWEST, not the first: a machine that has built more than one Kotlin version has more than one
-# distribution, and printing the older one's manifest as evidence for the newer one's behaviour is a
-# quotation from the wrong file.
-KONAN_DIST="$(ls -d "$HOME"/.konan/kotlin-native-prebuilt-* 2>/dev/null | sort -V | tail -1)"
+# ON A FIRST RUN THIS SECTION USED TO SKIP ITSELF. It reads the distribution, the distribution arrives
+# with the first build, and it stands before the first build — so the evidence for finding 1 was
+# produced by every host that had already built Kotlin/Native and by no host that had not. Fetch it
+# here instead of reporting its absence; the ~1 GB download happens once per machine either way, and
+# the build below is then up to date.
+if [ -z "$KONAN_DIST" ]; then
+    echo "no distribution under ~/.konan yet — fetching it with the first build (~1 GB, once)"
+    build default || true
+    resolve_dist
+fi
 if [ -n "$KONAN_DIST" ]; then
     echo "distribution: $(basename "$KONAN_DIST")"
     echo "platform.posix manifest:"
@@ -101,7 +134,9 @@ if [ -n "$KONAN_DIST" ]; then
     grep -hE '^(linkerKonanFlags\.linux_x64|linkerGccFlags|libGcc\.linux_x64|targetSysRoot\.linux_x64|linker\.linux_x64|dynamicLinker\.linux_x64) ' \
         "$KONAN_DIST"/konan/konan.properties | sed 's/^/  /'
 else
-    echo "SKIPPED: no Kotlin/Native distribution under ~/.konan yet — run any build first"
+    echo "FAILED: still no distribution after a build — the last of default.log:"
+    tail -12 default.log 2>/dev/null | sed 's/^/  /'
+    exit 1
 fi
 
 # RQ0/RQ1 — what the toolchain produces unasked, and what --as-needed takes off it.
