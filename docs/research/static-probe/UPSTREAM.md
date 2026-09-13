@@ -1,4 +1,21 @@
-# Where each finding goes, and the text to post
+# Where each finding goes, and the text that was posted
+
+**All three were filed on 2026-09-13.**
+
+| finding | where it went |
+|---|---|
+| 1. the klib manifest's `linkerOpts` | [comment on KT-55643](https://youtrack.jetbrains.com/issue/KT-55643) |
+| 2. `-static` is undone twice | [**KT-89362**](https://youtrack.jetbrains.com/issue/KT-89362), and [JetBrains/kotlin#8127](https://github.com/JetBrains/kotlin/pull/8127) with the patch |
+| 3. the musl deadlock | [comment on KT-85658](https://youtrack.jetbrains.com/issue/KT-85658) |
+
+Two things learned while posting, for whoever does this next. YouTrack renders a single newline as
+`<br/>`, so hard-wrapped markdown arrives with a line break every hundred characters and never
+reflows — unwrap prose paragraphs before posting, leaving code blocks and table rows alone. And
+creating an issue through the API fails with "Please set an Affected version" unless the custom
+field is part of the same request; the failed attempt returns an issue id, but the issue is rolled
+back and does not exist, so do not retry blind — check first, or you get a duplicate.
+
+
 
 Checked against YouTrack on 2026-09-13. **Nothing here has been posted.** Two of the three findings
 belong in existing tickets, and the third is the only one without a home.
@@ -6,7 +23,7 @@ belong in existing tickets, and the third is the only one without a home.
 | finding | destination | state as of 2026-09-13 |
 |---|---|---|
 | 1. `platform.posix` names libc's libraries in a klib manifest | comment on [KT-55643](https://youtrack.jetbrains.com/issue/KT-55643) | Bug, Open, 11 votes, 12 comments, created 2022-12-26 |
-| 2. `-dynamic-linker` is emitted unconditionally | **new ticket** — nothing found in KT or the archived `kotlin-native` repo | — |
+| 2. `-static` is undone twice | **filed as [KT-89362](https://youtrack.jetbrains.com/issue/KT-89362)** | Bug, Submitted, 2026-09-13, affects 2.4.10 |
 | 3. the runtime deadlocks against musl | comment on [KT-85658](https://youtrack.jetbrains.com/issue/KT-85658) | Bug, Open, 2 votes, created 2026-04-17, affects 2.3.0 / 2.3.20 / 2.4.0-Beta2 |
 
 **Finding 3 does not go to [KT-38876](https://youtrack.jetbrains.com/issue/KT-38876).** That one is
@@ -101,9 +118,10 @@ bug fix.
 
 ## The order matters
 
-1. **File finding 2 first.** It is the only new ticket, its number is quoted in the other two, and
-   the pull request cannot be opened without it —
-   `KT-XXXXX` appears in the KT-55643 comment and beside `--no-dynamic-linker` in the KT-85658 one.
+1. ~~File finding 2 first.~~ **Done — [KT-89362](https://youtrack.jetbrains.com/issue/KT-89362)**,
+   filed 2026-09-13 as Bug against 2.4.10, Subsystem left for triage to set. Its number is quoted
+   in the other two texts, and the pull request cannot be opened without it —
+   `KT-89362` appears in the KT-55643 comment and beside `--no-dynamic-linker` in the KT-85658 one.
    Posting the comments first means editing them afterwards to add a number.
 2. ~~Merge `docs/the-ticket-and-its-reproduction`.~~ **Done** — merged as #57 on 2026-09-13, CI
    green on `main`, and the clone line in [`TICKET.md`](TICKET.md) no longer carries `-b`. The links
@@ -176,7 +194,7 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 > two smallest images are out of reach for a separate reason: the link command always carries
 > `-dynamic-linker`, so a dynamically linked binary is all `--as-needed` can give you. Passing
 > `--no-dynamic-linker` and `-static` by hand does reach them — a `scratch` image of 684 KB to pull, that still
-> resolves hostnames — which is filed separately as KT-XXXXX.
+> resolves hostnames — which is filed separately as KT-89362.
 >
 > Would you consider re-stating this issue as the general case — that a klib manifest's `linkerOpts`
 > cannot be overridden, so `platform.posix` adds six libraries to every Linux binary and five of them
@@ -236,6 +254,7 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 > it has none. Since **glibc 2.34** `nss_files` and `nss_dns` are built into libc, so a static binary
 > resolves names on its own. Which is also a second reason the bundled sysroot is the problem rather
 > than the answer: at glibc 2.19 this route would lose DNS even if everything else were fixed.
+>
 > So this is not a corner case for embedded targets. Two flags — only one of which no setting can
 > reach — are what stands between Kotlin/Native and `FROM scratch`, and only that one needs a
 > compiler change.
@@ -272,7 +291,7 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 > hostname, read a file, print four words — cross-linked on Debian x86_64 against a musl sysroot
 > the script extracts from `alpine:3.21` (musl `libc.a` and crt files, and Alpine's own
 > musl-built `libstdc++.a`), statically, with `--no-dynamic-linker` — which is needed because the
-> link command carries `-dynamic-linker` unconditionally, filed as KT-XXXXX. Kotlin 2.4.10.
+> link command carries `-dynamic-linker` unconditionally, filed as KT-89362. Kotlin 2.4.10.
 >
 > **It hangs before its first `println`.** Under `strace -f`: 41 lines of output in total, not one
 > `write(2)` among them, and at the kill three threads, all three in `FUTEX_WAIT`. Their names are
