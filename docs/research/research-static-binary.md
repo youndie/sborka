@@ -221,9 +221,13 @@ With that (`-PlinkMode=statichost`):
 | in `scratch` | **runs**, image **683 745 bytes** |
 | in `distroless/static` | runs, image 1 506 618 bytes |
 
-**The DNS row is the surprising one and it is controlled.** Static glibc is supposed to lose name
-resolution, because NSS is `dlopen`ed at run time; since glibc 2.34 `files` and `dns` are built into
-libc, and this is what that looks like from outside. "ok" on its own would prove only that the probe
+**The DNS row is the surprising one and it is controlled.** The brief predicted red here, and the
+prediction was right about the mechanism and out of date about the version: `getaddrinfo` under a
+static glibc used to `dlopen` the NSS modules, and an image with nothing in it has none. Since
+**glibc 2.34** `nss_files` and `nss_dns` are compiled into libc, so the lookup needs nothing on
+disk — this is what that looks like from outside. It also sharpens §1.5: the toolchain's bundled
+sysroot is glibc **2.19**, so even with the link fixed, that route would lose name resolution.
+The sysroot is not merely old, it is old on the far side of the line that makes this work. "ok" on its own would prove only that the probe
 printed "ok", so the same image is also run with the network removed — `dns-lookup=FAIL(rc=-3
 Temporary failure in name resolution)` — and on a name that does not exist —
 `FAIL(rc=-2 Name or service not known)`. Both times `hosts-file-lookup` stays `ok`, because Docker

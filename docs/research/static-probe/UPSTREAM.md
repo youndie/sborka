@@ -90,8 +90,14 @@ and Gradle's HTTP client does not fall back the way `curl` does.
 affects every Linux link — a separate decision for the maintainers, raised in the issue text.
 
 **Still to do, and none of it is mine to do:** fork `JetBrains/kotlin`, apply the patch, push, and
-open the PR against `master` quoting the new issue number. No CLA is mentioned in their contributing
-doc, but a first-time contributor may still be asked for one.
+open the PR against `master` quoting the new issue number. JetBrains asks contributors to `kotlin`
+for a CLA — their contributing doc does not mention it, but the bot on the pull request will, so
+expect to sign it before review starts.
+
+**Keep the PR to the three lines.** `STATIC_EXECUTABLE` in `LinkerOutputKind` is the fuller answer
+and it belongs in the issue as a suggestion, not in the patch: a new output kind touches the compiler
+CLI and the Gradle link task, and a reviewer weighing that is a reviewer not merging the one-line
+bug fix.
 
 ## The order matters
 
@@ -221,8 +227,15 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 > the same 2.4.10 compiler produces a **1 618 024-byte static executable, no `PT_INTERP`, no
 > `NEEDED`, that runs in `scratch`**: a 684 KB image, in which it still resolves hostnames over DNS
 > (checked against the same image with the network removed, where the lookup fails as it should).
-> So this is not a corner case for embedded targets. Two flags the user cannot reach are what stands
-> between Kotlin/Native and `FROM scratch`, and only the first of them needs a compiler change.
+>
+> That last part is worth a sentence, because the first objection to any static glibc is "yes, but
+> no name resolution": `getaddrinfo` used to `dlopen` the NSS modules, and an image with nothing in
+> it has none. Since **glibc 2.34** `nss_files` and `nss_dns` are built into libc, so a static binary
+> resolves names on its own. Which is also a second reason the bundled sysroot is the problem rather
+> than the answer: at glibc 2.19 this route would lose DNS even if everything else were fixed.
+> So this is not a corner case for embedded targets. Two flags — only one of which no setting can
+> reach — are what stands between Kotlin/Native and `FROM scratch`, and only that one needs a
+> compiler change.
 >
 > **Suggested fix.** `linkerArgs` is a field of the same `LinkerArguments` receiver, so the minimal
 > change is to skip the two lines when the user asked for a static link:
