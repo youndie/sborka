@@ -11,13 +11,18 @@ git clone https://github.com/youndie/sborka && cd sborka/docs/research/static-pr
 ./experiments.sh
 ```
 
-Verified from a clean clone on 2026-09-12 with every trace of the earlier hand-made state removed
-from the host first — output in
-[`results/2026-09-12-clean-clone.txt`](results/2026-09-12-clean-clone.txt). That run is also what
-found three defects in this reproduction: it used a Gradle wrapper that does not exist in this
-directory, it reported "LINK FAILED, 0 undefined symbols" for failures that were not link failures,
-and it quoted the manifest of whichever Kotlin/Native distribution the shell listed first, which on a
-host with two was the older one.
+Verified from a clean clone on 2026-09-13, run **twice in a row**, on a host wiped of every
+hand-assembled sysroot first — output in
+[`results/2026-09-13-clean-clone-twice.txt`](results/2026-09-13-clean-clone-twice.txt). Both passes
+exit 0 and are byte-identical apart from their marker.
+
+Running it that way is what found five defects in this reproduction, none of which a run on the
+machine it was written on could have shown: it called a Gradle wrapper that does not exist in this
+directory; its failure report said "LINK FAILED, 0 undefined symbols" for failures that were not
+link failures; it quoted the manifest of whichever Kotlin/Native distribution the shell listed
+first; it could not run twice, because the container wrote the sysroot as root; and it **never
+terminated**, because the base-image matrix runs the hanging binary of finding 3 and neither an
+untimed `docker run` nor `timeout 20 docker run` bounds a container.
 
 Needs a Linux host with a JDK and docker. The Kotlin/Native toolchain (~1 GB) is fetched by Gradle on
 the first run; docker is used once, to take a musl sysroot out of `alpine:3.21` — the alternative is
@@ -90,6 +95,12 @@ it and produces a genuine static binary: no `PT_INTERP`, no `NEEDED`, 430 904 by
 
 The static musl binary **hangs before its first `println`** — `timeout 20` reports 124, and nothing
 is printed, so the Kotlin/Native runtime does not complete start-up.
+
+**And it hangs in `scratch` too**, which is the environment the whole question was about. With the
+interpreter of finding 2 removed, the kernel *executes* it there rather than refusing it: the last
+four rows of the base-image matrix show the binary starting in `cc`, `base`, `static` and `scratch`
+alike and printing nothing in five seconds. Every other variant in those rows fails at the loader
+with a message; this one gets past the loader and stops inside the runtime.
 
 This is where the investigation stops. It is reported third and last on purpose: findings 1 and 2 are
 small, precise and independently fixable, and they are what makes this one worth an afternoon.

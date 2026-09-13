@@ -1,12 +1,24 @@
-Output of ./experiments.sh run from a CLEAN CLONE, 2026-09-12.
+Output of ./experiments.sh from a CLEAN CLONE at 8215e91, run TWICE in a row, 2026-09-13.
 Ubuntu 24.04 (WSL2), glibc 2.39, JDK 25.0.4, Kotlin/Native 2.4.10, docker 29.1.3.
-Every trace of the earlier hand-assembled state was removed from the host first; the
-sysroot below is built by the script itself out of alpine:3.21.
+The host was wiped of every hand-assembled sysroot first; the one below is built by the
+script out of alpine:3.21.
 
-The ssh session dropped during the base-image matrix at the end — the three findings are
-above it and complete; the matrix is context and is reproduced in 2026-09-11-linuxX64.txt.
+BOTH PASSES: exit 0, 103 lines, and byte-identical apart from the PASS1/PASS2 marker.
+The second pass is the one that matters for re-runnability: the container writes the sysroot
+as root, and until that was chowned back the script's own rm -rf failed the second time.
 
-=== clean clone: cd07eb8 fix(static-probe): make the reproduction work in a clean clone
+The run this replaces was recorded on 2026-09-12 and was NOT complete. It stopped inside
+the base-image matrix, which its header blamed on ssh. The real cause was the script: the
+matrix runs the musl binary of finding 3, which hangs, and neither an untimed 'docker run'
+nor 'timeout 20 docker run' bounds a container - timeout signals the client, the client
+forwards to a process that ignores signals, and the container outlives both. Observed at
+nine hours with the container still Up. The matrix now runs each image detached and removes
+it by force.
+
+Note the last four matrix rows: with no PT_INTERP the musl binary is EXECUTED in scratch
+rather than refused by the loader, and hangs there - finding 3 in the environment the whole
+brief was about.
+
 
 ===== where the flags come from
 distribution: kotlin-native-prebuilt-linux-x86_64-2.4.10
@@ -94,4 +106,19 @@ SKIPPED: superseded by the section above; kept for the record, not re-run
 base                             variant        image  result
 cc-debian13                      default     10824231  /probe: error while loading shared libraries: libcrypt.so.1: cannot open shared object f
 cc-debian13                      asneeded    10824229  probe=started hosts-file-lookup=ok dns-lookup=ok read-file=ok probe=finished 
-Connection to 127.0.0.1 closed by remote host.
+cc-debian13                      musl        10826005  <no output in 5s: hung, or silent>
+base-debian13                    default      9627284  /probe: error while loading shared libraries: libcrypt.so.1: cannot open shared object f
+base-debian13                    asneeded     9627282  /probe: error while loading shared libraries: libgcc_s.so.1: cannot open shared object f
+base-debian13                    musl         9629058  <no output in 5s: hung, or silent>
+static-debian13                  default      1006599  exec /probe: no such file or directory 
+static-debian13                  asneeded     1006597  exec /probe: no such file or directory 
+static-debian13                  musl         1008376  <no output in 5s: hung, or silent>
+scratch                          default       183730  exec /probe: no such file or directory 
+scratch                          asneeded      183728  exec /probe: no such file or directory 
+scratch                          musl          185504  <no output in 5s: hung, or silent>
+--- base images on their own
+gcr.io/distroless/cc-debian13          10643700
+gcr.io/distroless/base-debian13        9446621
+gcr.io/distroless/static-debian13      825807
+debian:13-slim                         29803103
+PASS1 exit=0
