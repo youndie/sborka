@@ -94,9 +94,11 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 > | static-debian13 | `exec: no such file` | `exec: no such file` | `exec: no such file` |
 > | scratch | `exec: no such file` | `exec: no such file` | `exec: no such file` |
 >
-> So the half of the recipe that does nothing for `libcrypt` is what gets you one image smaller, and
-> the two smallest images are out of reach for an unrelated reason — the link command always carries
-> `-dynamic-linker`, which I have filed separately as KT-XXXXX.
+> So the half of the recipe that does nothing for `libcrypt` is what gets you one image smaller. The
+> two smallest images are out of reach for a separate reason: the link command always carries
+> `-dynamic-linker`, so a dynamically linked binary is all `--as-needed` can give you. Passing
+> `--no-dynamic-linker` and `-static` by hand does reach them — a 684 KB `scratch` image that still
+> resolves hostnames — which is filed separately as KT-XXXXX.
 >
 > Would you consider re-stating this issue as the general case — that a klib manifest's `linkerOpts`
 > cannot be overridden, so `platform.posix` adds six libraries to every Linux binary and five of them
@@ -109,43 +111,49 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 
 ## 2 → the new ticket
 
-**Title:** `Native: -dynamic-linker is emitted unconditionally on linux_x64, so -linker-option -static cannot produce a static binary`
+**Title:** `Native: -linker-option -static cannot produce a static binary on linux_x64`
 
 **Type:** Bug **Subsystem:** Native **Affected versions:** 2.4.10
 
-> **What happens.** Every `linux_x64` link command contains `-dynamic-linker
-> /lib64/ld-linux-x86-64.so.2`, and it is emitted before the user's own linker arguments. Recorded
-> by putting a shim in place of `linker.linux_x64` that writes `ld.lld`'s argv and execs the real
-> linker:
+> **What happens.** `-linker-option -static` does not produce a static binary on `linux_x64`, because
+> the link command undoes it twice, in flags emitted *after* the user's own. Recorded by putting a
+> shim in place of `linker.linux_x64` that writes `ld.lld`'s argv and execs the real linker:
 >
 > ```
->  1  --sysroot=<the sysroot>
+>  1  --sysroot=<the toolchain sysroot>
 >  7  -dynamic-linker
 >  8  /lib64/ld-linux-x86-64.so.2      <- glibc's loader, whatever the sysroot is
-> 23  -static
+> 23  -static                          <- the user's flag
+> 30  -Bstatic
+> 32  -Bdynamic                        <- cancels it for everything after
+> 43  -lc                              <- so this resolves to the SHARED libc
 > ```
 >
-> **Why nothing in a build file can undo it.** The *path* is a property — `dynamicLinker.linux_x64`
-> — so `-Xoverride-konan-properties` can point it elsewhere. The *emission* is not:
+> **First: `-dynamic-linker`, which no setting reaches.** Its *path* is a property
+> (`dynamicLinker.linux_x64`), so `-Xoverride-konan-properties` can point it elsewhere. Its
+> *emission* is not:
 > [`GccBasedLinker.finalLinkCommands`](https://github.com/JetBrains/kotlin/blob/v2.4.10/native/utils/src/org/jetbrains/kotlin/konan/target/Linker.kt#L451-L452)
-> adds `-dynamic-linker` and its value with no condition, twenty-nine lines above the
-> `+linkerArgs` that brings in the user's own flags (line 481 of the same function).
-> Neither `targetSysRoot`, `libGcc`, `linkerGccFlags` nor `linkerKonanFlags` reaches it.
+> adds `-dynamic-linker` and its value with no condition, twenty-nine lines above the `+linkerArgs`
+> that brings in the user's flags (line 481 of the same function). The binary then carries a
+> `PT_INTERP`; the kernel hands a statically linked program to glibc's dynamic loader, which
+> relocates it as though it were dynamic, and it segfaults with no output.
 >
-> **What it costs.** A binary linked with `-linker-option -static` still carries a `PT_INTERP`. The
-> kernel hands it to glibc's dynamic loader, which relocates a statically linked program as though
-> it were dynamic; the result is a segfault with no output, which looks like a Kotlin/Native runtime
-> fault and names nothing. Passing `--no-dynamic-linker` alongside `-static` removes the segment and
-> produces a genuine static binary — no `PT_INTERP`, no `NEEDED`, 430 904 bytes for a hello-world.
-> That workaround is only reachable by a user who has already read the linker's argv.
+> **Second: `-Bdynamic`, hardcoded mid-list.** `linkerKonanFlags.linux_x64` is
+> `-Bstatic -lstdc++ -Bdynamic -ldl -lm -lpthread`, and it is emitted after the user's `-static`. The
+> `-Bdynamic` switches the linker back to preferring shared libraries, so `-lc` picks up the
+> sysroot's `usr/lib/libc.so` — a GNU ld script naming the shared `libc.so.6`, which does not export
+> the glibc-internal symbols (`__libc_setup_tls`, `_dl_pagesize`, `_dl_init_static_tls`, …) that
+> `libpthread.a`, taken while `-static` still applied, references. The link then fails with seven
+> undefined symbols that look like a broken sysroot and are not: that `libc.a` is 28 MB and defines
+> all seven. This one a user *can* override, once they know to.
 >
-> This is the first of the things that keeps Kotlin/Native out of `gcr.io/distroless/static` and
-> `scratch`, and I am not claiming it is the only one: with `--as-needed` the binary runs on
-> `cc-debian13`, but the two images without a loader refuse it with `exec: no such file or directory`
-> no matter what else is set. Behind this one there are more — `-static` against the toolchain's own
-> glibc sysroot fails at link time with 7 undefined symbols (`__libc_setup_tls`, `_dl_pagesize`,
-> `_dl_init_static_tls` and so on), and the musl route gets past the linker and stops in the runtime
-> (KT-85658). Each is a separate obstruction; this issue is about the one that no setting can reach.
+> **What it is worth fixing for.** With both worked around by hand — `--no-dynamic-linker` alongside
+> `-static`, `-Bdynamic` dropped from `linkerKonanFlags`, and the host's glibc 2.39 as the sysroot —
+> the same 2.4.10 compiler produces a **1 618 024-byte static executable, no `PT_INTERP`, no
+> `NEEDED`, that runs in `scratch`**: a 684 KB image, in which it still resolves hostnames over DNS
+> (checked against the same image with the network removed, where the lookup fails as it should).
+> So this is not a corner case for embedded targets. Two flags the user cannot reach are what stands
+> between Kotlin/Native and `FROM scratch`, and only the first of them needs a compiler change.
 >
 > **Suggested fix.** `linkerArgs` is a field of the same `LinkerArguments` receiver, so the minimal
 > change is to skip the two lines when the user asked for a static link:
@@ -158,15 +166,17 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 > ```
 >
 > A `STATIC_EXECUTABLE` in `LinkerOutputKind` would be the fuller answer — the enum has only
-> `DYNAMIC_LIBRARY`, `STATIC_LIBRARY` and `EXECUTABLE` today — but the check above is enough to make
-> `-linker-option -static` mean what it says.
+> `DYNAMIC_LIBRARY`, `STATIC_LIBRARY` and `EXECUTABLE` today — and would let the same condition drop
+> `-Bdynamic` and `-lgcc_s` as well.
 >
-> With this fixed the musl route gets as far as the runtime, and stops there for a different reason:
-> see KT-85658.
+> **Not in scope here:** against the toolchain's own glibc 2.19 sysroot the binary links once
+> `-Bdynamic` is gone but still segfaults at startup, and the musl route reaches the runtime and
+> deadlocks (KT-85658). Those are separate; this issue is only about `-static` not meaning static.
 >
 > **Reproduction:** https://github.com/youndie/sborka/tree/main/docs/research/static-probe
-> `./experiments.sh`, sections "musl (properties...)" and "base images". Linux only; it needs a
-> JDK, docker and binutils, and fetches the ~1 GB toolchain on a first run.
+> `./experiments.sh`, sections "route 1 without the hardcoded -Bdynamic" and "static against the
+> host glibc". Linux only; it needs a JDK, docker and binutils, and fetches the ~1 GB toolchain on
+> a first run.
 
 ## 3 → comment on KT-85658
 
