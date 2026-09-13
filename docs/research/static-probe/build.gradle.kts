@@ -17,22 +17,46 @@ repositories { mavenCentral() }
  *
  *   -PlinkMode=default     what the toolchain does unasked
  *   -PlinkMode=asneeded    --as-needed, to drop the NEEDED entries nothing imports
+ *   -PlinkMode=override    only the -Xoverride-konan-properties half of the circulating workaround
+ *   -PlinkMode=recipe      the circulating workaround in full: --as-needed AND that override
  *   -PlinkMode=static      -static against the toolchain's own sysroot (RQ2)
  *   -PlinkMode=statichost  -static against the host's newer glibc, by overriding targetSysRoot
  *   -PlinkMode=musl        the same override pointed at a musl sysroot (RQ3, route 1)
  */
 val linkMode = (findProperty("linkMode") as String?) ?: "default"
 
+// Quoted from the workaround as it is passed around, not paraphrased.
+val OVERRIDE_GCC_FLAGS = "-Xoverride-konan-properties=linkerGccFlags=-lgcc -lgcc_eh -lc"
+
 kotlin {
     linuxX64 {
         binaries.executable {
             entryPoint = "probe.main"
-            baseName = "probe-$linkMode"
+            // `-Pgc=noop` switches the Kotlin/Native garbage collector off. It is here for exactly
+            // one question, and it is a discriminating one: KT-85658 reports a GC deadlock on musl
+            // and says `gc=noop` makes it go away. If the hang this probe records on a musl sysroot
+            // is the same bug, it must answer to the same switch — and if it does not, it is a
+            // second bug wearing the same symptom.
+            val gc = findProperty("gc") as String?
+            baseName = "probe-$linkMode" + (gc?.let { "-gc$it" } ?: "")
+            if (gc != null) freeCompilerArgs += "-Xbinary=gc=$gc"
             when (linkMode) {
                 "default" -> Unit
                 // `-Wl,--as-needed` has to reach the linker BEFORE the `-l` flags it is meant to
                 // filter, which is the whole reason this is an experiment rather than a one-line fix.
                 "asneeded" -> linkerOpts("-Wl,--as-needed")
+                // THE RECIPE THAT CIRCULATES, and its two halves separated. KT-55643 and KT-38876
+                // both pass around `linkerOpts("--as-needed")` TOGETHER WITH
+                // `-Xoverride-konan-properties=linkerGccFlags=-lgcc -lgcc_eh -lc`, as one cure. The
+                // two halves reach different lists: the property replaces what konan.properties
+                // contributes, and the six libraries this bug is about come from the `platform.posix`
+                // klib's manifest, which no property names. Building the property half on its own is
+                // what tells the two apart, and nothing in either ticket does.
+                "override" -> freeCompilerArgs += OVERRIDE_GCC_FLAGS
+                "recipe" -> {
+                    linkerOpts("-Wl,--as-needed")
+                    freeCompilerArgs += OVERRIDE_GCC_FLAGS
+                }
                 "static" -> linkerOpts("-static")
                 // Route 1 of RQ3's two, and the reason it is tried on glibc first: if overriding
                 // `targetSysRoot` cannot even reach the host's own libc, pointing it at a musl one
