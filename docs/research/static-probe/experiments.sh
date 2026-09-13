@@ -152,6 +152,25 @@ for mode in default asneeded; do
     fi
 done
 
+# WHICH HALF OF THE CIRCULATING WORKAROUND ACTUALLY DOES IT.
+#
+# KT-55643 and KT-38876 both pass the cure around as one thing: `--as-needed` together with
+# `-Xoverride-konan-properties=linkerGccFlags=-lgcc -lgcc_eh -lc`. The two halves cannot reach the
+# same list — the property replaces konan.properties' contribution, and the six libraries the bug is
+# about are named by the `platform.posix` klib manifest — so building the property half ALONE settles
+# it. A table of NEEDED per variant says more than the claim does.
+section "which half of the circulating workaround removes libcrypt"
+for mode in default override asneeded recipe; do
+    if build "$mode"; then
+        printf '  %-9s %s\n' "$mode" \
+            "$(readelf -d "build/bin/linuxX64/releaseExecutable/probe-$mode.kexe" \
+               | sed -n 's/.*Shared library: \[\(.*\)\]/\1/p' | tr '\n' ' ')"
+    else
+        printf '  %-9s BUILD FAILED\n' "$mode"
+        link_failure "$mode" | sed 's/^/    /'
+    fi
+done
+
 # RQ2 — glibc, statically, against the toolchain's own sysroot.
 section "static (glibc, toolchain sysroot)"
 if build static; then
