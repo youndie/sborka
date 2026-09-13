@@ -123,8 +123,14 @@ kotlin {
                         "crtFilesLocation.linux_x64=$crtDir;" +
                         "libGcc.linux_x64=$gccDir;" +
                         "linkerGccFlags=-lgcc -lgcc_eh -lc;" +
-                        "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -lsupc++ " +
-                        "--defsym __cxa_demangle=Konan_cxa_demangle"
+                        // THE STOCK VALUE MINUS ONE FLAG, and that is the whole edit. The first
+                        // version rewrote the key from scratch, which silently also dropped
+                        // `-ldl -lm -lpthread` and `--gc-sections` and added `-lsupc++` — none of it
+                        // intended, and losing `--gc-sections` cost 224 432 bytes of binary for
+                        // nothing. Read the key before overriding it; its value continues onto a
+                        // second line in konan.properties, which is how the tail got missed.
+                        "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -ldl -lm -lpthread " +
+                        "--defsym __cxa_demangle=Konan_cxa_demangle --gc-sections"
                 }
                 // FOUR PROPERTIES, NOT ONE, and reading them was worth more than the first attempt.
                 //
