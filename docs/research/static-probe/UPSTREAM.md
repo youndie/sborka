@@ -111,6 +111,13 @@ open the PR against `master` quoting the new issue number. JetBrains asks contri
 for a CLA — their contributing doc does not mention it, but the bot on the pull request will, so
 expect to sign it before review starts.
 
+**One correction made after filing.** The recipe quoted in the issue rewrote
+`linkerKonanFlags.linux_x64` from scratch instead of editing it, and so dropped `--gc-sections`
+along with `-Bdynamic` — the key's value continues onto a second line in `konan.properties` and the
+tail was missed. The corrected form is the stock value with `-Bdynamic` removed and nothing else;
+the binary is 1 393 592 bytes rather than 1 618 024, and the two numbers in KT-89362's description
+were updated to match before anyone replied.
+
 **Keep the PR to the three lines.** `STATIC_EXECUTABLE` in `LinkerOutputKind` is the fuller answer
 and it belongs in the issue as a suggestion, not in the patch: a new output kind touches the compiler
 CLI and the Gradle link task, and a reviewer weighing that is a reviewer not merging the one-line
@@ -193,7 +200,7 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 > So the half of the recipe that does nothing for `libcrypt` is what gets you one image smaller. The
 > two smallest images are out of reach for a separate reason: the link command always carries
 > `-dynamic-linker`, so a dynamically linked binary is all `--as-needed` can give you. Passing
-> `--no-dynamic-linker` and `-static` by hand does reach them — a `scratch` image of 684 KB to pull, that still
+> `--no-dynamic-linker` and `-static` by hand does reach them — a `scratch` image of 593 KB to pull, that still
 > resolves hostnames — which is filed separately as KT-89362.
 >
 > Would you consider re-stating this issue as the general case — that a klib manifest's `linkerOpts`
@@ -245,8 +252,8 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 >
 > **What it is worth fixing for.** With both worked around by hand — `--no-dynamic-linker` alongside
 > `-static`, `-Bdynamic` dropped from `linkerKonanFlags`, and the host's glibc 2.39 as the sysroot —
-> the same 2.4.10 compiler produces a **1 618 024-byte static executable, no `PT_INTERP`, no
-> `NEEDED`, that runs in `scratch`**: 684 KB to pull, in which it still resolves hostnames over DNS
+> the same 2.4.10 compiler produces a **1 393 592-byte static executable, no `PT_INTERP`, no
+> `NEEDED`, that runs in `scratch`**: 593 KB to pull, in which it still resolves hostnames over DNS
 > (checked against the same image with the network removed, where the lookup fails as it should).
 >
 > That last part is worth a sentence, because the first objection to any static glibc is "yes, but
