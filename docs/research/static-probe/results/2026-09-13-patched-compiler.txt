@@ -1,0 +1,36 @@
+# A compiler built from the patched source, and what it does.
+#
+# Tree: JetBrains/kotlin master 3dc21510c, plus the patch in
+# docs/research/static-probe/upstream/kotlin-no-dynamic-linker-for-static.patch.
+# Built with :kotlin-native:dist :kotlin-native:distPlatformLibs on a 20-core Linux box.
+# Note: -Djava.net.preferIPv4Stack=true is required — the box has AAAA records and no IPv6 route,
+# and Gradle's HTTP client does not fall back the way curl does.
+
+=== distribution
+info: kotlinc-native 2.5.255-SNAPSHOT (JRE 25.0.4+7-1-24.04-Ubuntu)
+Kotlin/Native: 2.5.255-SNAPSHOT
+patch present in konan/lib jars: 1
+
+=== the probe, -linker-option -static and nothing else (no --no-dynamic-linker)
+  unpatched  PT_INTERP=1  exit=139  size=1620096   timeout: the monitored command dumped core 
+  patched    PT_INTERP=0  exit=0    size=1619960   probe=started hosts-file-lookup=ok dns-lookup=ok read-file
+
+=== the ordinary path, through Gradle, with kotlin.native.home at the patched dist
+  PT_INTERP=1  size=508488
+  NEEDED: libresolv.so.2 libm.so.6 libpthread.so.0 libutil.so.1 libcrypt.so.1 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+  run: probe=started hosts-file-lookup=ok dns-lookup=ok read-file=ok probe=finished 
+
+=== a real project: platform-probe (ktor-network, coroutines, kotlinx-io)
+  BUILD SUCCESSFUL in 46s
+  exit=0
+  linuxX64Test: 5 tests, 0 failures
+
+=== hub-backend:server-native — fails, and not because of the patch
+  with the PATCHED 2.5.255 dist:
+    e: org.jetbrains.kotlin.fir.pipeline.IrGenerationExtensionException: Back-end: Please report this problem https://kotl.in/issue
+    BUILD FAILED in 23s
+  with the UNPATCHED 2.5.255 dist:
+    e: org.jetbrains.kotlin.fir.pipeline.IrGenerationExtensionException: Back-end: Please report this problem https://kotl.in/issue
+    BUILD FAILED in 8s
+  with stock 2.4.10:
+    BUILD SUCCESSFUL in 1m 26s
