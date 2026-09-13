@@ -123,8 +123,20 @@ kotlin {
                         "crtFilesLocation.linux_x64=$crtDir;" +
                         "libGcc.linux_x64=$gccDir;" +
                         "linkerGccFlags=-lgcc -lgcc_eh -lc;" +
-                        "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -lsupc++ " +
-                        "--defsym __cxa_demangle=Konan_cxa_demangle"
+                        // THE STOCK VALUE MINUS ONE FLAG. The first version of this rewrote the key
+                        // from scratch and so silently also dropped `-ldl -lm -lpthread` and
+                        // `--gc-sections` and added `-lsupc++` — none of which was the point, and
+                        // `--gc-sections` earns its place in the output size. `-PfullKonanFlags`
+                        // keeps everything the distribution ships except `-Bdynamic`.
+                        (
+                            if (findProperty("minimalOverride") != null) {
+                                "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -ldl -lm -lpthread " +
+                                    "--defsym __cxa_demangle=Konan_cxa_demangle --gc-sections"
+                            } else {
+                                "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -lsupc++ " +
+                                    "--defsym __cxa_demangle=Konan_cxa_demangle"
+                            }
+                            )
                 }
                 // FOUR PROPERTIES, NOT ONE, and reading them was worth more than the first attempt.
                 //
