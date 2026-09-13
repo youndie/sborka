@@ -427,7 +427,10 @@ for mode in default asneeded recipe musl; do
     b="build/bin/linuxX64/releaseExecutable/probe-$mode.kexe"
     [ -f "$b" ] && cp "$b" "$ctx/probe-$mode"
 done
-printf '%-32s %-9s %10s  %s\n' base variant image result
+# `docker image inspect .Size` is the COMPRESSED size — what a pull downloads, not the bytes on
+# disk. Calibrated: a scratch image holding 10 MB of /dev/urandom reports 10 005 026, one holding
+# 10 MB of zeros reports 11 602. The column is labelled for what it is.
+printf '%-32s %-9s %10s  %s\n' base variant pull-bytes result
 for base in gcr.io/distroless/cc-debian13 gcr.io/distroless/base-debian13 \
             gcr.io/distroless/static-debian13 scratch; do
     for mode in default asneeded recipe musl; do
@@ -453,7 +456,7 @@ for base in gcr.io/distroless/cc-debian13 gcr.io/distroless/base-debian13 \
         printf '%-32s %-9s %10s  %s\n' "$(basename "$base")" "$mode" "$size" "$out"
     done
 done
-echo "--- base images on their own"
+echo "--- base images on their own, pull bytes"
 for base in gcr.io/distroless/cc-debian13 gcr.io/distroless/base-debian13 \
             gcr.io/distroless/static-debian13 debian:13-slim; do
     printf '%-38s %s\n' "$base" "$(docker image inspect "$base" --format '{{.Size}}' < /dev/null 2>/dev/null)"

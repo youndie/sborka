@@ -218,8 +218,8 @@ With that (`-PlinkMode=statichost`):
 |---|---|
 | binary | 1 618 024 bytes, `statically linked`, no `NEEDED`, no `PT_INTERP` |
 | on the host | `hosts-file-lookup=ok dns-lookup=ok read-file=ok` |
-| in `scratch` | **runs**, image **683 745 bytes** |
-| in `distroless/static` | runs, image 1 506 618 bytes |
+| in `scratch` | **runs**; 683 745 bytes to pull, 1 618 024 on disk |
+| in `distroless/static` | runs; 1 506 618 bytes to pull |
 
 **The DNS row is the surprising one and it is controlled.** The brief predicted red here, and the
 prediction was right about the mechanism and out of date about the version: `getaddrinfo` under a
@@ -405,7 +405,8 @@ otherwise — which is also why the musl attempt had to shim `-lgcc_s` before it
 ### D3. No `image { base = scratch }` option in sborka yet, though the binary now exists
 
 **Amended after §1.5a.** The brief's green deliverable *is* earned at the level of a binary: the
-host-glibc static build starts in `scratch`, in a 684 KB image, with name resolution working. What
+host-glibc static build starts in `scratch`, in an image of 684 KB to pull, with name resolution
+working. What
 is not earned is the sborka option, and the reason has changed from "impossible" to "too sharp to
 hand out": the recipe pins five `konan.properties` keys, and JetBrains' own advice on that mechanism
 (KT-38876, 2021-03-05) is that those keys may change in any patch release. An option in a shared

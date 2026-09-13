@@ -166,13 +166,16 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 > |---|---|---|---|
 > | cc-debian13 | libcrypt.so.1 missing | runs, 10.8 MB | runs, 10.8 MB |
 > | base-debian13 | libcrypt.so.1 missing | libgcc_s.so.1 missing | runs, 9.6 MB |
+>
+> (Image figures are what a `pull` downloads — `docker image inspect` reports the compressed size,
+> not the bytes on disk.)
 > | static-debian13 | `exec: no such file` | `exec: no such file` | `exec: no such file` |
 > | scratch | `exec: no such file` | `exec: no such file` | `exec: no such file` |
 >
 > So the half of the recipe that does nothing for `libcrypt` is what gets you one image smaller. The
 > two smallest images are out of reach for a separate reason: the link command always carries
 > `-dynamic-linker`, so a dynamically linked binary is all `--as-needed` can give you. Passing
-> `--no-dynamic-linker` and `-static` by hand does reach them — a 684 KB `scratch` image that still
+> `--no-dynamic-linker` and `-static` by hand does reach them — a `scratch` image of 684 KB to pull, that still
 > resolves hostnames — which is filed separately as KT-XXXXX.
 >
 > Would you consider re-stating this issue as the general case — that a klib manifest's `linkerOpts`
@@ -225,7 +228,7 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 > **What it is worth fixing for.** With both worked around by hand — `--no-dynamic-linker` alongside
 > `-static`, `-Bdynamic` dropped from `linkerKonanFlags`, and the host's glibc 2.39 as the sysroot —
 > the same 2.4.10 compiler produces a **1 618 024-byte static executable, no `PT_INTERP`, no
-> `NEEDED`, that runs in `scratch`**: a 684 KB image, in which it still resolves hostnames over DNS
+> `NEEDED`, that runs in `scratch`**: 684 KB to pull, in which it still resolves hostnames over DNS
 > (checked against the same image with the network removed, where the lookup fails as it should).
 >
 > That last part is worth a sentence, because the first objection to any static glibc is "yes, but
