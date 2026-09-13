@@ -20,7 +20,7 @@ repositories { mavenCentral() }
  *   -PlinkMode=override    only the -Xoverride-konan-properties half of the circulating workaround
  *   -PlinkMode=recipe      the circulating workaround in full: --as-needed AND that override
  *   -PlinkMode=static      -static against the toolchain's own sysroot (RQ2)
- *   -PlinkMode=statichost  -static against the host's newer glibc, by overriding targetSysRoot
+ *   -PlinkMode=statichost  -static against the HOST's glibc 2.39, whose libc.a is complete
  *   -PlinkMode=musl        the same override pointed at a musl sysroot (RQ3, route 1)
  */
 val linkMode = (findProperty("linkMode") as String?) ?: "default"
@@ -62,9 +62,27 @@ kotlin {
                 // `targetSysRoot` cannot even reach the host's own libc, pointing it at a musl one
                 // is not going to be the thing that works, and the failure will be easier to read
                 // with a familiar libc on the other end.
+                // THE LAST ROUTE INTO `scratch`, and the only one left after RQ2 failed: the host's
+                // own glibc, which is 2.39 and ships a complete `libc.a`, instead of the 2.19 sysroot
+                // the compiler brings. It needs five properties rather than one, for the same reason
+                // the musl route did — the crt files, the gcc directory and the two flag lists all
+                // still point into the toolchain, and `-lgcc_s` has no static archive anywhere.
+                //
+                // `--no-dynamic-linker` is not optional here either: `-dynamic-linker` is emitted
+                // unconditionally, so without it this produces a static binary carrying a PT_INTERP.
                 "statichost" -> {
-                    linkerOpts("-static")
-                    freeCompilerArgs += "-Xoverride-konan-properties=targetSysRoot.linux_x64=/"
+                    val gccDir = (findProperty("hostGccDir") as String?)
+                        ?: error("-PhostGccDir= is required, e.g. usr/lib/gcc/x86_64-linux-gnu/13")
+                    val crtDir = (findProperty("hostCrtDir") as String?) ?: "usr/lib/x86_64-linux-gnu"
+                    linkerOpts("-static", "--no-dynamic-linker")
+                    freeCompilerArgs +=
+                        "-Xoverride-konan-properties=" +
+                        "targetSysRoot.linux_x64=/;" +
+                        "crtFilesLocation.linux_x64=$crtDir;" +
+                        "libGcc.linux_x64=$gccDir;" +
+                        "linkerGccFlags=-lgcc -lgcc_eh -lc;" +
+                        "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -lsupc++ " +
+                        "--defsym __cxa_demangle=Konan_cxa_demangle"
                 }
                 // FOUR PROPERTIES, NOT ONE, and reading them was worth more than the first attempt.
                 //
