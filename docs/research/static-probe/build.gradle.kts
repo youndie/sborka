@@ -66,6 +66,21 @@ kotlin {
                     freeCompilerArgs += OVERRIDE_GCC_FLAGS
                 }
                 "static" -> linkerOpts("-static")
+                // ROUTE 1 AGAIN, WITH ONE FLAG TAKEN OUT. The argv of the failing `static` build
+                // shows `-static` at position 23 and `-Bdynamic` at 32, the latter hardcoded in
+                // `linkerKonanFlags.linux_x64` and therefore emitted after the user's flags. It
+                // cancels static mode for everything after it, so `-lc` at 43 resolves to the
+                // sysroot's `usr/lib/libc.so` — a GNU ld script naming the SHARED libc, which does
+                // not export the glibc-internal `_dl_*` symbols that `libpthread.a`, picked up while
+                // `-static` still applied, references. Dropping `-Bdynamic` is the whole experiment.
+                "staticfixed" -> {
+                    linkerOpts("-static", "--no-dynamic-linker")
+                    freeCompilerArgs +=
+                        "-Xoverride-konan-properties=" +
+                        "linkerGccFlags=-lgcc -lgcc_eh -lc;" +
+                        "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -ldl -lm -lpthread " +
+                        "--defsym __cxa_demangle=Konan_cxa_demangle"
+                }
                 // Route 1 of RQ3's two, and the reason it is tried on glibc first: if overriding
                 // `targetSysRoot` cannot even reach the host's own libc, pointing it at a musl one
                 // is not going to be the thing that works, and the failure will be easier to read
@@ -135,7 +150,7 @@ kotlin {
                         "linkerKonanFlags.linux_x64=-Bstatic -lstdc++ -lsupc++ " +
                         "--defsym __cxa_demangle=Konan_cxa_demangle --gc-sections"
                 }
-                else -> error("linkMode: default, asneeded, static, statichost or musl; got $linkMode")
+                else -> error("linkMode: default, asneeded, override, recipe, static, staticfixed, statichost or musl; got $linkMode")
             }
         }
     }
