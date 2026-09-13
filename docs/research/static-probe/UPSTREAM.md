@@ -30,10 +30,9 @@ All three texts cite one run:
 1. **File finding 2 first.** It is the only new ticket, and its number is quoted in the other two —
    `KT-XXXXX` appears in the KT-55643 comment and beside `--no-dynamic-linker` in the KT-85658 one.
    Posting the comments first means editing them afterwards to add a number.
-2. **Then merge `docs/the-ticket-and-its-reproduction`.** All three texts end in a link to the
-   reproduction, and until the branch is merged `main` carries the script *with* the seven defects —
-   a link that reproduces the defects instead of the findings is worse than no link. The clone line
-   in [`TICKET.md`](TICKET.md) drops its `-b` at the same time.
+2. ~~Merge `docs/the-ticket-and-its-reproduction`.~~ **Done** — merged as #57 on 2026-09-13, CI
+   green on `main`, and the clone line in [`TICKET.md`](TICKET.md) no longer carries `-b`. The links
+   below point at `main`, which now has the script with all seven defects fixed.
 3. **Then the two comments**, in either order.
 
 Mentions are written as YouTrack logins (`@di.gerasimov`, `@aleksei.glushko`), because a full name
@@ -66,9 +65,8 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 > The property removes exactly one library — `libgcc_s`, the one `linkerGccFlags` contributes — and
 > leaves `libcrypt` in place. It cannot do otherwise: the six this issue is about
 > (`-lresolv -lm -lpthread -lutil -lcrypt -lrt`) come from `linkerOpts` in the `platform.posix`
-> klib's manifest, as @di.gerasimov pointed at in the first comment on this issue, via `posix.def`,
-> and
-> `-Xoverride-konan-properties` names `konan.properties` keys — there is no key that names that
+> klib's manifest, as @di.gerasimov pointed at in the first comment on this issue, via `posix.def`;
+> and `-Xoverride-konan-properties` names `konan.properties` keys, of which none names that
 > list. So `--as-needed` is not one workaround among several; it is the only lever a user has.
 >
 > How much of that list is real, measured against the toolchain's own link-time sysroot (glibc 2.19)
@@ -105,7 +103,9 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 > are dead on any modern glibc? `libcrypt` is the one that breaks first, because distros dropped it
 > soonest, but a fix aimed only at `libcrypt` leaves the mechanism and the other five.
 >
-> Everything above is one script: <REPO URL>
+> Everything above is one script:
+> https://github.com/youndie/sborka/tree/main/docs/research/static-probe
+> The transcript quoted here is `results/2026-09-13-workaround-halves-and-gc.txt`.
 
 ## 2 → the new ticket
 
@@ -164,9 +164,9 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 > With this fixed the musl route gets as far as the runtime, and stops there for a different reason:
 > see KT-85658.
 >
-> **Reproduction:** <REPO URL> — `./experiments.sh`, sections "musl (properties...)" and
-> "base images". Linux only; it needs a JDK, docker and binutils, and fetches the ~1 GB toolchain on
-> a first run.
+> **Reproduction:** https://github.com/youndie/sborka/tree/main/docs/research/static-probe
+> `./experiments.sh`, sections "musl (properties...)" and "base images". Linux only; it needs a
+> JDK, docker and binutils, and fetches the ~1 GB toolchain on a first run.
 
 ## 3 → comment on KT-85658
 
@@ -203,10 +203,11 @@ to on 2026-09-13: the `posix.def` observation is the first comment on KT-55643 (
 > from one run: the same `-Xbinary=gc=noop` on the ordinary glibc build of the same program exits 0
 > and prints normally.
 >
-> I cannot tell from here whether that second failure is the runtime or the sysroot the script extracts,
-> so please read it as a hint rather than a finding — it is consistent with @aleksei.glushko's
+> I cannot tell from here whether that second failure is the runtime or the sysroot the script
+> extracts, so please read it as a hint rather than a finding — it is consistent with @aleksei.glushko's
 > "a couple more incompatibility problems" above. The deadlock is the solid part: it reproduces on
 > x86_64, on a glibc host, with no gcompat and no libraries, in a program that has not done
 > anything.
 >
-> Reproduction: <REPO URL> — `./experiments.sh`, section "the musl hang against KT-85658".
+> Reproduction: https://github.com/youndie/sborka/tree/main/docs/research/static-probe
+> `./experiments.sh`, section "the musl hang against KT-85658".
