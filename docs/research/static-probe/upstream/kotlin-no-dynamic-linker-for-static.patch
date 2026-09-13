@@ -1,0 +1,148 @@
+From 7759d18b342c40467ad1c8e94b5609bde128b3d3 Mon Sep 17 00:00:00 2001
+From: youndie <panic.xyb@gmail.com>
+Date: Sun, 13 Sep 2026 15:03:37 +0200
+Subject: [PATCH] Do not emit -dynamic-linker for a static executable on
+ linux_x64
+
+GccBasedLinker emitted -dynamic-linker and its value unconditionally, and
+ahead of linkerArgs, so a user asking for a static executable with
+-linker-option -static got one anyway. Neither a linker option nor any
+-Xoverride-konan-properties value could remove it: only the interpreter's
+path is a property, not its emission.
+
+The resulting binary is statically linked and still carries a PT_INTERP, so
+the kernel hands it to the dynamic loader, which relocates it as though it
+were dynamic. It then segfaults with no diagnostic, which reads as a
+Kotlin/Native runtime fault rather than a link-line problem.
+
+With this, -linker-option -static produces an executable that starts: a
+hello-world linked against the host glibc 2.39 runs in a scratch image of
+683 745 bytes and still resolves hostnames.
+---
+ .../jetbrains/kotlin/konan/target/Linker.kt   | 18 ++++-
+ .../target/LinkerStaticExecutableTest.kt      | 77 +++++++++++++++++++
+ 2 files changed, 93 insertions(+), 2 deletions(-)
+ create mode 100644 native/utils/tests/org/jetbrains/kotlin/konan/target/LinkerStaticExecutableTest.kt
+
+diff --git a/native/utils/src/org/jetbrains/kotlin/konan/target/Linker.kt b/native/utils/src/org/jetbrains/kotlin/konan/target/Linker.kt
+index 164e4ddf5..f1b3174b9 100644
+--- a/native/utils/src/org/jetbrains/kotlin/konan/target/Linker.kt
++++ b/native/utils/src/org/jetbrains/kotlin/konan/target/Linker.kt
+@@ -410,6 +410,13 @@ class MacOSBasedLinker(targetProperties: AppleConfigurables)
+             listOf(dsymutil, executable, "-o", outputDsymBundle)
+ }
+ 
++/**
++ * Whether the user asked the linker for a static executable, in which case emitting a dynamic
++ * interpreter for it produces a binary that cannot start.
++ */
++private val List<String>.wantsStaticExecutable: Boolean
++    get() = "-static" in this
++
+ class GccBasedLinker(targetProperties: GccConfigurables)
+     : LinkerFlags(targetProperties), GccConfigurables by targetProperties {
+ 
+@@ -450,8 +457,15 @@ class GccBasedLinker(targetProperties: GccConfigurables)
+             +"relro"
+             +"--build-id"
+             +"--eh-frame-hdr"
+-            +"-dynamic-linker"
+-            +dynamicLinker
++            // A user asking for a static executable with `-linker-option -static` gets a dynamic
++            // interpreter anyway: these two are emitted unconditionally, and ahead of `linkerArgs`,
++            // so nothing the user or `-Xoverride-konan-properties` can set removes them. The kernel
++            // then hands the statically linked program to the dynamic loader, which relocates it as
++            // though it were dynamic, and it segfaults with no diagnostic.
++            if (!linkerArgs.wantsStaticExecutable) {
++                +"-dynamic-linker"
++                +dynamicLinker
++            }
+             linkerHostSpecificFlags.forEach { +it }
+             +"-o"
+             +executable
+diff --git a/native/utils/tests/org/jetbrains/kotlin/konan/target/LinkerStaticExecutableTest.kt b/native/utils/tests/org/jetbrains/kotlin/konan/target/LinkerStaticExecutableTest.kt
+new file mode 100644
+index 000000000..537f35992
+--- /dev/null
++++ b/native/utils/tests/org/jetbrains/kotlin/konan/target/LinkerStaticExecutableTest.kt
+@@ -0,0 +1,77 @@
++/*
++ * Copyright 2010-2025 JetBrains s.r.o. and Kotlin Programming Language contributors.
++ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
++ */
++
++package org.jetbrains.kotlin.konan.target
++
++import org.jetbrains.kotlin.konan.TempFiles
++import org.junit.jupiter.api.Assertions.assertFalse
++import org.junit.jupiter.api.Assertions.assertTrue
++import org.junit.jupiter.api.Test
++import org.junit.jupiter.api.io.TempDir
++import java.util.Properties
++
++/**
++ * `-dynamic-linker` used to be emitted for every linux_x64 executable, including one the user asked
++ * to link statically. It is emitted ahead of `linkerArgs`, so no user flag and no
++ * `-Xoverride-konan-properties` value could remove it, and the resulting binary carried a PT_INTERP
++ * that made the kernel hand it to the dynamic loader.
++ */
++class LinkerStaticExecutableTest {
++
++    @TempDir
++    lateinit var dependenciesRoot: java.io.File
++
++    private fun linkCommandArguments(linkerArgs: List<String>): List<String> {
++        val configurables =
++            loadConfigurables(KonanTarget.LINUX_X64, linuxX64Properties(), dependenciesRoot.path) { _, _, _ -> }
++        return linker(configurables).run {
++            LinkerArguments(
++                tempFiles = TempFiles(),
++                objectFiles = listOf("main.o"),
++                executable = "main.kexe",
++                staticLibraries = emptyList(),
++                dynamicLibraries = emptyList(),
++                linkerArgs = linkerArgs,
++                optimize = false,
++                debug = false,
++                kind = LinkerOutputKind.EXECUTABLE,
++                outputDsymBundle = "",
++            ).finalLinkCommands()
++        }.flatMap { it.argsWithExecutable }
++    }
++
++    @Test
++    fun `an ordinary executable gets a dynamic interpreter`() {
++        val arguments = linkCommandArguments(emptyList())
++        assertTrue("-dynamic-linker" in arguments, "expected a dynamic interpreter, got: $arguments")
++    }
++
++    @Test
++    fun `a static executable does not`() {
++        val arguments = linkCommandArguments(listOf("-static"))
++        assertFalse("-dynamic-linker" in arguments, "PT_INTERP would make it unable to start: $arguments")
++        assertTrue("-static" in arguments, "the user's own flag must survive: $arguments")
++    }
++
++    private fun linuxX64Properties() = Properties().apply {
++        setProperty("dependenciesUrl", "https://example.invalid/dependencies")
++        // Absolute paths on purpose: DependencyProcessor.resolve() returns an absolute path
++        // unchanged, so the test needs no downloaded dependencies. Leaving
++        // predefinedLlvmDistributions and predefinedLibffiVersions unset keeps the dependency list
++        // empty, so nothing is checked for availability either.
++        setProperty("libffiDir.linux_x64", "/libffi")
++        setProperty("llvmHome.linux_x64", "/llvm-home")
++        setProperty("gccToolchain.linux_x64", "/gcc-toolchain")
++        setProperty("targetToolchain.linux_x64-linux_x64", "/target-toolchain")
++        setProperty("targetSysRoot.linux_x64", "/sysroot")
++        setProperty("crtFilesLocation.linux_x64", "usr/lib")
++        setProperty("libGcc.linux_x64", "/lib/gcc")
++        setProperty("dynamicLinker.linux_x64", "/lib64/ld-linux-x86-64.so.2")
++        setProperty("linker.linux_x64", "/ld.lld")
++        setProperty("linkerKonanFlags.linux_x64", "-Bstatic -lstdc++ -Bdynamic -ldl -lm -lpthread")
++        setProperty("linkerGccFlags", "-lgcc -lgcc_eh -lc")
++        setProperty("ar.linux_x64", "/ar")
++    }
++}
+-- 
+2.43.0
+

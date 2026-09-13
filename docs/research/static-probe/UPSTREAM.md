@@ -25,9 +25,43 @@ we dynamically link with libc, as static linking would be waste of space").
 All three texts cite one run:
 [`results/2026-09-13-workaround-halves-and-gc.txt`](results/2026-09-13-workaround-halves-and-gc.txt).
 
+## The patch, and why it does not replace the ticket
+
+`upstream/kotlin-no-dynamic-linker-for-static.patch` is finding 2 fixed against
+`JetBrains/kotlin` master (`3dc21510c`): eight lines in `GccBasedLinker.finalLinkCommands` and a
+`LinkerStaticExecutableTest` beside the module's existing tests.
+
+**It does not replace the ticket.** Their [contribution
+checklist](https://github.com/JetBrains/kotlin/blob/master/docs/contributing.md) opens with "You
+provided the link to the related issue(s) from YouTrack", and their commit rules say significant
+commits must mention the issue. So the ticket comes first either way; the patch is what turns it
+from a report into a pull request.
+
+**What was verified, on the Linux box:**
+
+* `./gradlew :native:kotlin-native-utils:test` — 10 classes, 24 tests, 0 failures, with the patch;
+* the new test **fails without the patch**, printing the argv with `-dynamic-linker` still in it,
+  and its sibling — an ordinary executable *does* get an interpreter — passes either way, so the
+  change is not over-reaching;
+* the behaviour it stands for was measured separately: the same recipe that reaches `scratch`, with
+  `--no-dynamic-linker` removed, goes from `INTERP=0 rc=0` to `INTERP=1 rc=139`.
+
+**What was not:** no Kotlin/Native compiler was built from the patched source, so the end-to-end
+claim rests on passing `--no-dynamic-linker` by hand rather than on a patched `kotlinc`. Building the
+distribution is hours of work on this hardware; say so in the PR rather than implying otherwise.
+
+**What the patch deliberately leaves alone:** the `-Bdynamic` half. It lives in
+`konan.properties`, not in code, a user can already override it, and changing a shipped property
+affects every Linux link — a separate decision for the maintainers, raised in the issue text.
+
+**Still to do, and none of it is mine to do:** fork `JetBrains/kotlin`, apply the patch, push, and
+open the PR against `master` quoting the new issue number. No CLA is mentioned in their contributing
+doc, but a first-time contributor may still be asked for one.
+
 ## The order matters
 
-1. **File finding 2 first.** It is the only new ticket, and its number is quoted in the other two —
+1. **File finding 2 first.** It is the only new ticket, its number is quoted in the other two, and
+   the pull request cannot be opened without it —
    `KT-XXXXX` appears in the KT-55643 comment and beside `--no-dynamic-linker` in the KT-85658 one.
    Posting the comments first means editing them afterwards to add a number.
 2. ~~Merge `docs/the-ticket-and-its-reproduction`.~~ **Done** — merged as #57 on 2026-09-13, CI
