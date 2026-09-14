@@ -474,6 +474,15 @@ convention plugin that breaks on a Kotlin bump, silently, in someone else's serv
 the 9 MB it saves. It becomes a reasonable option when `-static` means static without overrides —
 which is what the ticket in [`UPSTREAM.md`](static-probe/UPSTREAM.md) asks for.
 
+**First consumer, as a proposal rather than a convention:**
+[katcher#55](https://github.com/youndie/katcher/issues/55) carries the recipe into one service's own
+Dockerfile, where a Kotlin bump breaking it is that repository's problem and nobody else's. Checking
+it against a real service turned up two things the research had not: the build image
+(`gradle:9.7.1-jdk25-noble`) ships no static archives at all, so the first stage needs `g++`; and
+`TimeZone.currentSystemDefault()` reads `/usr/share/zoneinfo`, which `scratch` does not have and
+`distroless/cc` does — 71 entries. The probe never touched either, because a hello-world is compiled
+in the same place it runs and does not ask what time it is.
+
 Nor is the red deliverable, quite. The brief's red was "a KT ticket with the symbol list", and §1.6
 shows the symbol list is not what the experiment produces — it produces a segfault with no
 diagnostic and four sources of link flags, three of which are properties anyone can set (§1.6a).
