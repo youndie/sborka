@@ -42,6 +42,21 @@ object NativeImageReference {
         # links Linux executables with `--as-needed`, the declaration goes away, and so does the rule.
         # If this image ever fails with `cannot open shared object file`, the answer is that the
         # convention did not apply — not another COPY line.
+        # THE SECOND ALLOCATOR, one floor below the one `sborka.native-service` caps in the binary.
+        # Underneath Kotlin/Native's allocator sits glibc's malloc, and it hands a thread an arena of
+        # its own whenever the one it wants is busy — up to eight per HOST core. It does not see the
+        # container's quota, so `--cpus=1` on a twenty-core runner still allows 160 arenas, each
+        # returning pages only from its top: resident memory becomes the sum of every arena's
+        # high-water mark. In tracy that was 120 MB of 130, visible in `smaps` as 6-12 MB anonymous
+        # mappings on 64 MB boundaries.
+        #
+        # 2 IS A MEASURED NUMBER AND IT DOES NOT TRANSFER BY ITSELF. On katcher it took the peak from
+        # 65.3 MB to 62.8 MB; on a service without a database it went the other way. Measure on the
+        # service that will ship it — with a positive control, since a harness that cannot detect a
+        # regression reports its absence — and change the line here if the measurement says so. What
+        # is not worth doing is leaving it unset because nobody measured: the default is the number
+        # that gets a service killed under a limit.
+        ENV MALLOC_ARENA_MAX=2
         COPY --from=build /app/$module/build/native-image/$binary /app/$binary
         ENTRYPOINT ["/app/$binary"]
         """.trimIndent() + "\n"
