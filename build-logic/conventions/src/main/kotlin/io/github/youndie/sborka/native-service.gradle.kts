@@ -63,6 +63,12 @@ nativeService.baseName.convention(project.name)
 // and `allocatorPageSize = 0` leaves the compiler's default entirely. What is not on offer is
 // forgetting it exists.
 //
+// AND IF A SERVICE SWITCHES TO `-Xallocator=std`, THE REFERENCE IMAGE'S `MALLOC_ARENA_MAX=2` HAS TO
+// BE RE-MEASURED WITH IT. Each is harmless alone and the pair is not: on a Ktor service with no
+// database, `std` alone peaked at 39.3 MB and survived ten runs of ten, `std` with the arena cap
+// peaked at 413.7 MB and survived seven. That is the one combination this default does not protect
+// anybody from, so it is written where the allocator is chosen rather than only in the image.
+//
 // NOT GATED TO LINUX, unlike `--as-needed` in `sborka.kmp`. This is an allocator option every
 // Kotlin/Native backend accepts, and a macOS development binary that allocates like the one that
 // ships is the point of having the target at all.

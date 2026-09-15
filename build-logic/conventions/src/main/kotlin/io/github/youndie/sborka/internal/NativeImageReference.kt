@@ -50,6 +50,15 @@ object NativeImageReference {
         # high-water mark. In tracy that was 120 MB of 130, visible in `smaps` as 6-12 MB anonymous
         # mappings on 64 MB boundaries.
         #
+        # NOT TOGETHER WITH `-Xallocator=std` WITHOUT A MEASUREMENT, and this pairing is why the line
+        # is a comment rather than a rule. Measured on a Ktor service with no database, ten runs per
+        # arm at 2 000 rps under 512 MiB: the Kotlin allocator with this cap peaked at 62.8 MB and
+        # survived 10/10; `-Xallocator=std` WITH this cap peaked at 413.7 MB and survived 7/10, where
+        # the same allocator uncapped peaked at 39.3 MB and survived every run. Two settings, each
+        # harmless alone, fatal together — because two arenas accumulate between them the churn that
+        # thirty-two spread out. A service that switches allocator re-measures this line or deletes
+        # it.
+        #
         # 2 IS A MEASURED NUMBER AND IT DOES NOT TRANSFER BY ITSELF. On katcher it took the peak from
         # 65.3 MB to 62.8 MB; on a service without a database it went the other way. Measure on the
         # service that will ship it — with a positive control, since a harness that cannot detect a
