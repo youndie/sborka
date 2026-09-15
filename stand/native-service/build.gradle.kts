@@ -31,6 +31,57 @@ kotlin {
     if (mac) macosArm64() else linuxX64()
 }
 
+// THE ALLOCATOR OPTION REACHED THE COMPILER, read off the link task rather than believed.
+//
+// The convention sets `fixedBlockPageSize` on the binary it already configures. Whether that lands
+// in the arguments the compiler is invoked with is the one thing the DSL cannot show: a binary
+// option set on the wrong container, or on a container a later block replaces, leaves a green build
+// and a service that is OOM-killed weeks later under a limit — which is precisely how this option
+// came to be measured in the first place.
+//
+// So the stand asks the link task what it will pass. This is the question the skill used to leave
+// open with "has not been tried on any service".
+val verifyAllocatorPageSize =
+    tasks.register("verifyAllocatorPageSize") {
+        group = "verification"
+        description = "Checks that the convention's fixedBlockPageSize reached the linked binary"
+        outputs.upToDateWhen { false }
+
+        // ON THE BINARY, NOT ON THE TASK'S COMPILER ARGUMENTS — and the difference cost a red run to
+        // find. `binaryOption` does not land in `toolOptions.freeCompilerArgs`; KGP keeps it on the
+        // binary as `binaryOptions` and turns it into `-Xbinary=` when it invokes the compiler. A
+        // check reading the arguments finds an empty list on a build that is perfectly correct, and
+        // reports the convention broken.
+        //
+        // EXECUTABLES ONLY. The convention configures `binaries.executable`, so the test binary link
+        // task has no such option and never should; requiring it there is a guard failing a build for
+        // doing exactly what it was asked.
+        val options =
+            provider {
+                tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinNativeLink::class.java)
+                    .filter { it.binary is org.jetbrains.kotlin.gradle.plugin.mpp.Executable }
+                    .associate { it.name to it.binary.binaryOptions }
+            }
+
+        doLast {
+            val byTask = options.get()
+            check(byTask.isNotEmpty()) {
+                "no executable link task at all — this module links one, so finding none means this " +
+                    "check would have passed by finding nothing"
+            }
+            val without = byTask.filterValues { it["fixedBlockPageSize"] != "16" }
+            check(without.isEmpty()) {
+                "the convention's allocator option did not reach ${without.keys}: " +
+                    without.entries.joinToString("; ") { (task, opts) -> "$task has $opts" }
+            }
+            logger.lifecycle(
+                "verifyAllocatorPageSize: fixedBlockPageSize=16 on ${byTask.keys.joinToString(", ")}",
+            )
+        }
+    }
+
+tasks.named("check") { dependsOn(verifyAllocatorPageSize) }
+
 // WHAT THE PROPERTY ACTUALLY DID, read out of what razves wrote rather than assumed from a green
 // task.
 //
@@ -60,3 +111,4 @@ val verifySizeBudget =
     }
 
 tasks.named("check") { dependsOn(verifySizeBudget) }
+

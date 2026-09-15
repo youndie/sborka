@@ -32,6 +32,12 @@ interface NativeServiceExtension {
 
     /** The file name, without `.kexe`. Defaults to the module name. */
     val baseName: Property<String>
+
+    /**
+     * The allocator's page size in KiB — `-Xbinary=fixedBlockPageSize`. 16 by default, `0` to leave
+     * the compiler's own.
+     */
+    val allocatorPageSize: Property<Int>
 }
 
 private val neededLine = Regex("Shared library: \\[(.+)]")
@@ -39,12 +45,48 @@ private val neededLine = Regex("Shared library: \\[(.+)]")
 val nativeService = extensions.create<NativeServiceExtension>("nativeService")
 nativeService.baseName.convention(project.name)
 
+// THE ALLOCATOR PAGE SIZE, SET BY DEFAULT BECAUSE THE DEFAULT IS THE ONE THAT GETS A SERVICE KILLED.
+//
+// The Kotlin/Native allocator keeps a page per size class PER THREAD — 256 KiB each — and a thread
+// holds its pages for as long as it lives, so resident memory follows the THREAD COUNT rather than
+// the live heap. No GC setting bounds it: these are pages, not objects. `Dispatchers.IO` grows
+// threads under load, and the result is a service that passes every test and is OOM-killed under a
+// container limit.
+//
+// Measured on katcher, same binary and image, `--memory=192m --cpus=1`, 50 concurrent requests:
+//
+//   default                    RSS 56-68 MB at rest, 252-329 MB peak, survived 192Mi 0/8 (exit 137)
+//   fixedBlockPageSize=16      RSS 22-26 MB at rest,  47-62 MB peak, survived 192Mi 8/8
+//
+// 16 KiB is therefore the convention rather than a suggestion in a document somebody may not read.
+// It is a MEASURED value and not a law: a service whose own measurement says otherwise sets its own,
+// and `allocatorPageSize = 0` leaves the compiler's default entirely. What is not on offer is
+// forgetting it exists.
+//
+// AND IF A SERVICE SWITCHES TO `-Xallocator=std`, THE REFERENCE IMAGE'S `MALLOC_ARENA_MAX=2` HAS TO
+// BE RE-MEASURED WITH IT. Each is harmless alone and the pair is not: on a Ktor service with no
+// database, `std` alone peaked at 39.3 MB and survived ten runs of ten, `std` with the arena cap
+// peaked at 413.7 MB and survived seven. That is the one combination this default does not protect
+// anybody from, so it is written where the allocator is chosen rather than only in the image.
+//
+// NOT GATED TO LINUX, unlike `--as-needed` in `sborka.kmp`. This is an allocator option every
+// Kotlin/Native backend accepts, and a macOS development binary that allocates like the one that
+// ships is the point of having the target at all.
+nativeService.allocatorPageSize.convention(16)
+
 plugins.withId("org.jetbrains.kotlin.multiplatform") {
     extensions.configure<KotlinMultiplatformExtension> {
         targets.withType<KotlinNativeTarget>().configureEach {
             binaries.executable {
                 entryPoint = nativeService.entryPoint.get()
                 baseName = nativeService.baseName.get()
+
+                // On the binary the convention already configures, which is the whole reason this
+                // lives here: a service adding `binaryOption` to its own `binaries.executable` block
+                // beside this one is two blocks configuring one container, and which of them wins is
+                // a question nobody should have to answer per repository.
+                val pageSize = nativeService.allocatorPageSize.get()
+                if (pageSize > 0) binaryOption("fixedBlockPageSize", pageSize.toString())
             }
         }
     }
