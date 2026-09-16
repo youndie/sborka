@@ -9,9 +9,16 @@ package io.github.youndie.sborka.internal
  * identical.
  */
 object NativeImageReference {
+    /**
+     * @param stagedPath where `stageNativeImage` put the binary, relative to `build/native-image/`.
+     *   That is the binary's name for a module with one native target and `<konanTarget>/<name>` for
+     *   a module with several (#80) — which is why it is a parameter rather than a third hole
+     *   spelled out in the template.
+     */
     fun dockerfile(
         module: String,
         binary: String,
+        stagedPath: String = binary,
     ): String =
         """
         # Two stages, and the pair is chosen together: a binary linked against the builder's glibc will
@@ -66,7 +73,26 @@ object NativeImageReference {
         # is not worth doing is leaving it unset because nobody measured: the default is the number
         # that gets a service killed under a limit.
         ENV MALLOC_ARENA_MAX=2
-        COPY --from=build /app/$module/build/native-image/$binary /app/$binary
+        ${multiTargetNote(binary, stagedPath)}COPY --from=build /app/$module/build/native-image/$stagedPath /app/$binary
         ENTRYPOINT ["/app/$binary"]
         """.trimIndent() + "\n"
+
+    /**
+     * The line that says which architecture this image took, and only when there was a choice.
+     *
+     * A module with two native targets stages one binary per target, and this file commits to
+     * `linux/amd64` in its builder stage — so the `COPY` below names `linux_x64` and a reader
+     * building for arm64 has to change two lines, not discover one.
+     */
+    private fun multiTargetNote(
+        binary: String,
+        stagedPath: String,
+    ): String =
+        if (stagedPath == binary) {
+            ""
+        } else {
+            "# THIS MODULE STAGES ONE BINARY PER NATIVE TARGET, and the path below names the one\n" +
+                "        # this image is built for. The builder stage above is pinned to `linux/amd64`;\n" +
+                "        # an arm64 image changes both, not just this line.\n        "
+        }
 }

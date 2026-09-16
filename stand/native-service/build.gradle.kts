@@ -125,21 +125,54 @@ val verifySizeBudget =
     tasks.register("verifySizeBudget") {
         group = "verification"
         description = "Checks that sborka.binaryBudget reached the gate"
-        dependsOn("sizeBudgetCheckDebugExecutable")
 
-        val verdict = layout.buildDirectory.file("reports/razves/debugExecutable-budget.txt")
+        // FOUND, NOT SPELLED — and the rename that forced this is the argument for it. This used to
+        // name `sizeBudgetCheckDebugExecutable` and read `reports/razves/debugExecutable-budget.txt`;
+        // razves 0.1.0.31 put the target into both (`sizeBudgetCheckMacosArm64DebugExecutable`,
+        // `reports/razves/<target>/…`) because a task name that assumed one native target was the
+        // same defect this module's sibling carries for the staged path. A guard with a coordinate
+        // written inside it loses its subject at the first rename and then passes for the wrong
+        // reason — or, as here, fails naming a task rather than the change.
+        dependsOn(tasks.matching { it.name.startsWith("sizeBudgetCheck") })
+
+        val reports = layout.buildDirectory.dir("reports/razves")
         val expected = providers.gradleProperty("sborka.binaryBudget")
         outputs.upToDateWhen { false }
 
         doLast {
-            val file = verdict.get().asFile
-            check(file.isFile) { "the gate wrote no verdict at ${file.path}, so it did not run" }
-            val text = file.readText()
-            check("52,428,800" in text) {
-                "the verdict does not carry the budget ${expected.get()} set in gradle.properties, so " +
-                    "the property did not reach razves - a gate with no budget passes every build:\n$text"
+            val verdicts =
+                reports
+                    .get()
+                    .asFile
+                    .walkTopDown()
+                    .filter { it.isFile && it.name.endsWith("-budget.txt") }
+                    .toList()
+            check(verdicts.isNotEmpty()) {
+                "the gate wrote no verdict under ${reports.get().asFile.path}, so it did not run"
             }
-            logger.lifecycle("verifySizeBudget: ${text.trim()}")
+
+            // RELEASE ONLY, because that is what razves 0.1.0.31 budgets: `budget` stopped applying
+            // to the debug binary — `fix(gradle-plugin)!: apply the size budget to what ships, not
+            // to debug` — and a debug verdict now reads "no size rule is set for it", which is
+            // correct and is not this property failing to arrive. Until that release this guard read
+            // the debug file and would now fail for the wrong reason.
+            val shipped = verdicts.filter { "release" in it.name.lowercase() || "release" in it.parentFile.name.lowercase() }
+            check(shipped.isNotEmpty()) {
+                "no release verdict among ${verdicts.map { it.name }} — the budget applies to what " +
+                    "ships, so a run with none proves nothing"
+            }
+            shipped.forEach { file ->
+                val text = file.readText()
+                check("52,428,800" in text) {
+                    "${file.name} does not carry the budget ${expected.get()} set in gradle.properties, " +
+                        "so the property did not reach razves - a gate with no budget passes every " +
+                        "build:\n$text"
+                }
+            }
+            logger.lifecycle(
+                "verifySizeBudget: ${shipped.size} of ${verdicts.size} verdicts are for a shipped " +
+                    "binary, all naming ${expected.get()}",
+            )
         }
     }
 
