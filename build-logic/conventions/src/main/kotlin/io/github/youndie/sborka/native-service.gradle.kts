@@ -126,32 +126,47 @@ if (binaryBudget != null) {
 // Both are reasonable and both are in use here, and a Dockerfile copied between the two repositories
 // fails at image build time with "file not found" — naming the path and not the difference. Everything
 // downstream reads `build/native-image/` instead.
+// Resolved before the task is registered so that the task's own lambdas need nothing from the
+// script: see the comment inside.
+val binDirectory = layout.buildDirectory.dir("bin")
+val releaseLinkTasks = tasks.matching { it.name.startsWith("linkReleaseExecutable") }
+
 val stageNativeImage =
     tasks.register<Sync>("stageNativeImage") {
         group = "distribution"
         description = "Copies the release executable to build/native-image/ under a stable name"
 
-        val binaries =
-            project.provider {
-                tasks
-                    .matching { it.name.matches(Regex("^link(Release|Debug)?Executable.*")) }
-                    .filter { it.name.contains("Release") }
-            }
-        dependsOn(binaries)
-
-        from(
-            project.provider {
-                layout.buildDirectory
-                    .dir("bin")
-                    .get()
-                    .asFile
-                    .walkTopDown()
-                    .filter { it.isFile && it.name.endsWith(".kexe") && it.parentFile.name == "releaseExecutable" }
-                    .toList()
-            },
-        )
+        // NOTHING HERE MAY REACH THE SCRIPT OBJECT, and that is what the two lines above the lambdas
+        // are for. A `provider { }` inside a precompiled script plugin that calls `tasks` or
+        // `layout` captures the script instance itself, which the configuration cache refuses to
+        // serialise — `cannot serialize Gradle script object references`, naming the task and
+        // nothing about which lambda (#76). Pulled out, the values are ordinary Gradle types and
+        // the lambdas below capture only their own parameters.
+        //
+        // The collection is LIVE: `matching` is evaluated as tasks are registered, so the link
+        // tasks the Kotlin plugin adds after this convention is applied are still in it. Taking it
+        // as the source below carries the dependency, so there is no `dependsOn` here to forget.
+        //
+        // THE LINK TASKS' OUTPUTS, AND NOT A SCAN OF `build/bin`.
+        //
+        // The scan is what made this task uncacheable, and making it lazy is not enough: a copy spec
+        // resolves its sources while the configuration cache entry is being written, so a directory
+        // walk is answered from whatever `build/bin` held at that moment. After a `clean` that is
+        // nothing — and the entry stored then reports `NO-SOURCE` on every later run with the binary
+        // sitting right there. A task that quietly stages nothing is worse than the failure it
+        // replaced, and this one was measured here before the shape below was chosen.
+        //
+        // `include("*.kexe")` and not `**/*.kexe`: on Apple targets the same directory holds
+        // `<name>.kexe.dSYM/`, whose `Contents/Resources/DWARF/<name>.kexe` is a file with that
+        // extension several levels down. The greedy pattern stages the debug symbols instead, and
+        // `rename` below gives them the binary's name.
+        from(releaseLinkTasks) { include("*.kexe") }
         into(layout.buildDirectory.dir("native-image"))
-        rename { nativeService.baseName.get() }
+
+        // `rename { nativeService.baseName.get() }` reads the extension through the script and is
+        // the same defect one line further down; the property is captured instead.
+        val stagedName = nativeService.baseName
+        rename { stagedName.get() }
 
         // WHAT THE BINARY DECLARES, IN THE LOG OF THE BUILD THAT CHANGED IT.
         //
@@ -170,8 +185,29 @@ val stageNativeImage =
         // the absence of an answer is reported as an absence rather than as a problem.
         val imageDir = layout.buildDirectory.dir("native-image")
         val binaryName = nativeService.baseName
+        // Copied into a local for the same reason as the two above: reading `neededLine` from
+        // inside the action would be a read of a property of the script.
+        val neededPattern = neededLine
         doLast {
             val binary = imageDir.get().asFile.resolve(binaryName.get())
+
+            // NOTHING STAGED IS ITS OWN ANSWER, not a silent success. Found while fixing #76: a
+            // change to how the binary is selected staged it under `<target>/releaseExecutable/`
+            // instead of flat, and everything downstream carried on — the report below was written
+            // beside a file that was not there and said `readelf is not on PATH`, which is the
+            // message for a completely different situation.
+            //
+            // Not an error, deliberately: a repository whose only native target is `linuxX64` has no
+            // release executable to stage when `assemble` runs on a mac, and that is a legitimate
+            // build rather than a defect.
+            if (!binary.isFile) {
+                logger.lifecycle(
+                    "stageNativeImage: nothing staged — no release executable under " +
+                        "build/bin/*/releaseExecutable/. Is a native target declared for this host?",
+                )
+                return@doLast
+            }
+
             val needed =
                 runCatching {
                     val process =
@@ -182,7 +218,7 @@ val stageNativeImage =
                     process.waitFor()
                     text
                         .lineSequence()
-                        .mapNotNull { neededLine.find(it)?.groupValues?.get(1) }
+                        .mapNotNull { neededPattern.find(it)?.groupValues?.get(1) }
                         .toList()
                 }.getOrNull()
 
