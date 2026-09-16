@@ -36,4 +36,32 @@ class NativeImageReferenceTest {
             "the reference image copies something beside the binary: $copies",
         )
     }
+
+    /**
+     * A module with two native targets stages one binary per target (#80), so the `COPY` has to name
+     * one — and say that it chose. The test is on both halves: the path, and the sentence that stops
+     * a reader building an arm64 image from changing this line alone while the builder stage above
+     * still says `linux/amd64`.
+     */
+    @Test
+    fun `a multi-target module copies from the target's own directory and says so`() {
+        val multi = NativeImageReference.dockerfile(module = "server", binary = "svc", stagedPath = "linux_x64/svc")
+
+        assertTrue(
+            multi.lines().any {
+                it.contains(
+                    "COPY --from=build /app/server/build/native-image/linux_x64/svc /app/svc",
+                )
+            },
+            "the copy does not name the target's directory:\n$multi",
+        )
+        assertTrue(
+            multi.contains("ONE BINARY PER NATIVE TARGET"),
+            "nothing in the file says the architecture was a choice:\n$multi",
+        )
+        assertTrue(
+            dockerfile.lines().none { it.contains("ONE BINARY PER NATIVE TARGET") },
+            "a single-target module gets a note about a choice it did not have:\n$dockerfile",
+        )
+    }
 }

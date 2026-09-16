@@ -4,7 +4,9 @@ import io.github.youndie.sborka.internal.NativeImageReference
 import io.github.youndie.sborka.internal.SborkaSettings
 import io.github.youndie.sborka.internal.SizeGate
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
+import org.jetbrains.kotlin.gradle.plugin.mpp.Executable
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType
 
 // A Kotlin/Native server, from an entry point to a file a Dockerfile can COPY.
 //
@@ -131,6 +133,10 @@ if (binaryBudget != null) {
 val binDirectory = layout.buildDirectory.dir("bin")
 val releaseLinkTasks = tasks.matching { it.name.startsWith("linkReleaseExecutable") }
 
+// WHERE THE BINARY ENDED UP, for the one file that has to name it: the reference Dockerfile's
+// `COPY`. Filled in below, once the target count is known.
+val stagedPath = objects.property<String>().convention(nativeService.baseName)
+
 val stageNativeImage =
     tasks.register<Sync>("stageNativeImage") {
         group = "distribution"
@@ -160,7 +166,9 @@ val stageNativeImage =
         // `<name>.kexe.dSYM/`, whose `Contents/Resources/DWARF/<name>.kexe` is a file with that
         // extension several levels down. The greedy pattern stages the debug symbols instead, and
         // `rename` below gives them the binary's name.
-        from(releaseLinkTasks) { include("*.kexe") }
+        //
+        // The sources themselves are added further down, once the module has finished declaring its
+        // targets: what the layout is depends on how many there are (#80).
         into(layout.buildDirectory.dir("native-image"))
 
         // `rename { nativeService.baseName.get() }` reads the extension through the script and is
@@ -185,11 +193,22 @@ val stageNativeImage =
         // the absence of an answer is reported as an absence rather than as a problem.
         val imageDir = layout.buildDirectory.dir("native-image")
         val binaryName = nativeService.baseName
+        // WALKED RATHER THAN RESOLVED, because the staged path is not one path any more: a module
+        // with two native targets stages `<konanTarget>/<baseName>` (#80), and a report that looked
+        // only where a single-target build puts it would go silent exactly where there is more to
+        // say.
+        val stagedDepth = 2
         // Copied into a local for the same reason as the two above: reading `neededLine` from
         // inside the action would be a read of a property of the script.
         val neededPattern = neededLine
         doLast {
-            val binary = imageDir.get().asFile.resolve(binaryName.get())
+            val root = imageDir.get().asFile
+            val staged =
+                root
+                    .walkTopDown()
+                    .maxDepth(stagedDepth)
+                    .filter { it.isFile && it.name == binaryName.get() }
+                    .toList()
 
             // NOTHING STAGED IS ITS OWN ANSWER, not a silent success. Found while fixing #76: a
             // change to how the binary is selected staged it under `<target>/releaseExecutable/`
@@ -200,7 +219,7 @@ val stageNativeImage =
             // Not an error, deliberately: a repository whose only native target is `linuxX64` has no
             // release executable to stage when `assemble` runs on a mac, and that is a legitimate
             // build rather than a defect.
-            if (!binary.isFile) {
+            if (staged.isEmpty()) {
                 logger.lifecycle(
                     "stageNativeImage: nothing staged — no release executable under " +
                         "build/bin/*/releaseExecutable/. Is a native target declared for this host?",
@@ -208,39 +227,98 @@ val stageNativeImage =
                 return@doLast
             }
 
-            val needed =
-                runCatching {
-                    val process =
-                        ProcessBuilder("readelf", "-d", binary.path)
-                            .redirectErrorStream(true)
-                            .start()
-                    val text = process.inputStream.bufferedReader().readText()
-                    process.waitFor()
-                    text
-                        .lineSequence()
-                        .mapNotNull { neededPattern.find(it)?.groupValues?.get(1) }
-                        .toList()
-                }.getOrNull()
+            staged.forEach { binary ->
+                val needed =
+                    runCatching {
+                        val process =
+                            ProcessBuilder("readelf", "-d", binary.path)
+                                .redirectErrorStream(true)
+                                .start()
+                        val text = process.inputStream.bufferedReader().readText()
+                        process.waitFor()
+                        text
+                            .lineSequence()
+                            .mapNotNull { neededPattern.find(it)?.groupValues?.get(1) }
+                            .toList()
+                    }.getOrNull()
 
-            val line =
-                when {
-                    needed == null -> "${binary.name}: readelf is not on PATH, so this is unchecked"
-                    needed.isEmpty() -> "${binary.name} declares no shared libraries (not an ELF?)"
-                    else -> "${binary.name} declares ${needed.size} — ${needed.joinToString(" ")}"
-                }
-            logger.lifecycle("stageNativeImage: $line")
+                val line =
+                    when {
+                        needed == null -> "${binary.name}: readelf is not on PATH, so this is unchecked"
+                        needed.isEmpty() -> "${binary.name} declares no shared libraries (not an ELF?)"
+                        else -> "${binary.name} declares ${needed.size} — ${needed.joinToString(" ")}"
+                    }
+                logger.lifecycle("stageNativeImage: $line")
 
-            val report = StringBuilder()
-            report.appendLine("# What ${binary.name} asks the loader for. A change here is a change in")
-            report.appendLine("# what the runtime image has to carry.")
-            report.appendLine("#")
-            report.appendLine("# NOT LISTED, AND NEVER WILL BE: ca-certificates. It is not a library, so readelf")
-            report.appendLine("# cannot name it; without it every outbound TLS call fails with a message about a")
-            report.appendLine("# certificate path and nothing about this file.")
-            needed?.forEach(report::appendLine) ?: report.appendLine("# readelf unavailable")
-            binary.resolveSibling(binary.name + ".needed.txt").writeText(report.toString())
+                val report = StringBuilder()
+                report.appendLine("# What ${binary.name} asks the loader for. A change here is a change in")
+                report.appendLine("# what the runtime image has to carry.")
+                report.appendLine("#")
+                report.appendLine("# NOT LISTED, AND NEVER WILL BE: ca-certificates. It is not a library, so readelf")
+                report.appendLine("# cannot name it; without it every outbound TLS call fails with a message about a")
+                report.appendLine("# certificate path and nothing about this file.")
+                needed?.forEach(report::appendLine) ?: report.appendLine("# readelf unavailable")
+                binary.resolveSibling(binary.name + ".needed.txt").writeText(report.toString())
+            }
         }
     }
+
+// THE SOURCES, AND THE LAYOUT THAT DEPENDS ON HOW MANY THERE ARE.
+//
+// One native target stages flat — `build/native-image/<baseName>` — which is the whole point of the
+// task: a Dockerfile's `COPY` does not have to know whether the target was declared `linuxX64()` or
+// `linuxX64("native")`.
+//
+// Two of them cannot both be that file. Until #80 they tried: every release `.kexe` was renamed to
+// the same name in the same directory and Gradle refused with `Entry <name> is a duplicate`. A
+// `duplicatesStrategy` would have been one line and the wrong one — it stages one of the two
+// binaries, chosen arbitrarily, under a name that says nothing about which, and a `COPY` that finds
+// the wrong file is worse than one that fails.
+//
+// So a module with several targets stages `<konanTarget>/<baseName>`, and the segment is the KONAN
+// target (`linux_x64`), never the directory under `bin/` — that one carries the Kotlin target's
+// name, which is the arbitrary thing this task exists to hide.
+//
+// AFTER EVALUATION, because "how many targets" is not answerable before the module has finished
+// declaring them.
+plugins.withId("org.jetbrains.kotlin.multiplatform") {
+    afterEvaluate {
+        val executables =
+            extensions
+                .getByType<KotlinMultiplatformExtension>()
+                .targets
+                .withType<KotlinNativeTarget>()
+                .flatMap { target ->
+                    target.binaries
+                        .withType<Executable>()
+                        .filter { it.buildType == NativeBuildType.RELEASE }
+                        .map { target.konanTarget.name to it.linkTaskProvider }
+                }
+        val nested = executables.size > 1
+
+        // THE PATH THE REFERENCE DOCKERFILE WILL NAME, decided here and not in the template.
+        //
+        // With one target it is the binary. With several, the image has to pick an architecture, and
+        // the reference builder stage is pinned to `linux/amd64` — so `linux_x64` when it is among
+        // the targets, and otherwise the first, which at least names something that exists rather
+        // than a path nothing staged.
+        if (nested) {
+            val targets = executables.map { it.first }
+            stagedPath.set(
+                "${targets.firstOrNull { it == "linux_x64" } ?: targets.first()}/${nativeService.baseName.get()}",
+            )
+        }
+
+        stageNativeImage.configure {
+            executables.forEach { (konanTarget, linkTask) ->
+                from(linkTask) {
+                    include("*.kexe")
+                    if (nested) into(konanTarget)
+                }
+            }
+        }
+    }
+}
 
 tasks.matching { it.name == "assemble" }.configureEach { dependsOn(stageNativeImage) }
 
@@ -255,6 +333,7 @@ tasks.register("writeNativeDockerfile") {
     description = "Writes sborka's reference Dockerfile for a Kotlin/Native service into this module"
     val target = layout.projectDirectory.file("Dockerfile").asFile
     val baseName = nativeService.baseName
+    val staged = stagedPath
     val modulePath = project.path.removePrefix(":").replace(':', '/')
     doLast {
         check(!target.exists()) {
@@ -266,6 +345,7 @@ tasks.register("writeNativeDockerfile") {
             NativeImageReference.dockerfile(
                 module = modulePath,
                 binary = baseName.get(),
+                stagedPath = staged.get(),
             ),
         )
         logger.lifecycle("wrote ${target.path}")
