@@ -82,6 +82,39 @@ val verifyAllocatorPageSize =
 
 tasks.named("check") { dependsOn(verifyAllocatorPageSize) }
 
+// THE BINARY IS ACTUALLY THERE, because the task that stages it can succeed having staged nothing.
+//
+// `Sync` with no source is `NO-SOURCE` and a green build, and that is not hypothetical: while making
+// `stageNativeImage` work with the configuration cache (#76) an intermediate shape resolved its
+// sources when the cache entry was written, so after a `clean` every later run staged nothing and
+// said so only as a four-letter task status. Everything downstream — a Dockerfile's `COPY`, an image
+// build in CI — would have failed a step later, naming a path and not the cause.
+//
+// The size floor is deliberate. A zero-byte file at the right path would satisfy "it exists", and
+// the failure this guards against produces exactly that class of artefact.
+val verifyStagedImage =
+    tasks.register("verifyStagedImage") {
+        group = "verification"
+        description = "Checks that stageNativeImage actually put a binary at build/native-image/<baseName>"
+        dependsOn("stageNativeImage")
+        outputs.upToDateWhen { false }
+
+        val staged = layout.buildDirectory.file(nativeService.baseName.map { "native-image/$it" })
+        doLast {
+            val binary = staged.get().asFile
+            check(binary.isFile) {
+                "stageNativeImage staged nothing: ${binary.path} does not exist. The task is a Sync, " +
+                    "so an empty source set is NO-SOURCE and a green build"
+            }
+            check(binary.length() > 1024) {
+                "${binary.path} is ${binary.length()} bytes, which is not a linked executable"
+            }
+            logger.lifecycle("verifyStagedImage: ${binary.name}, ${binary.length()} bytes")
+        }
+    }
+
+tasks.named("check") { dependsOn(verifyStagedImage) }
+
 // WHAT THE PROPERTY ACTUALLY DID, read out of what razves wrote rather than assumed from a green
 // task.
 //
