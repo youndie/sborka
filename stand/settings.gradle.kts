@@ -52,3 +52,7 @@ include(":kmp-lib")
 include(":platform")
 include(":gradle-plugin")
 include(":native-service")
+
+// The JVM half of a service, the module `application` and zavarnik need because neither applies to
+// a multiplatform one.
+include(":distribution")

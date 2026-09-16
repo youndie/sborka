@@ -37,6 +37,12 @@ dependencies {
     // repository that takes any sborka convention, including the ones that ship no binary at all.
     compileOnly(libs.razves.gradle.plugin)
 
+    // The same trade for zavarnik, which `sborka.jvm-distribution` configures and does not apply:
+    // the extension type on the compile classpath, nothing on anybody's build classpath. A
+    // repository that wants an AOT cache in its distribution applies the plugin itself, at the
+    // version its own catalog names.
+    compileOnly(libs.zavarnik.gradle.plugin)
+
     // NOT applied by sborka, and that is the design. `sborka.kmp` configures Kotlin, it does not
     // choose its version: a module applies `kotlin("multiplatform")` itself, at whatever version its
     // own catalog names, and sborka reacts with `plugins.withId`. Declared `compileOnly` so the types
