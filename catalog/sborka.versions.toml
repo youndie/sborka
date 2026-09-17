@@ -26,8 +26,11 @@ ktor = "3.5.2"
 # message about an internal API.
 ksp = "2.3.12"
 
-# Drifted: 9.3.0 / 9.3.1 / 9.3.2 across three repositories.
-agp = "9.3.2"
+# Drifted: 9.3.0 / 9.3.1 / 9.3.2 across three repositories when this file was written, and 9.4.0
+# in katcher by the time the portfolio started reading the version from here. That is the direction
+# the drift goes on its own: the repository that takes a bump first ends up AHEAD of the shared
+# file, and a catalog that stays behind hands it a downgrade the first time it reads from here.
+agp = "9.4.0"
 
 # Drifted: 1.11.1 in three, 1.12.0 in two.
 composeMultiplatform = "1.12.0"
@@ -58,6 +61,12 @@ koin-test = { module = "io.insert-koin:koin-test" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+
+# Versioned by Compose Multiplatform, and held on that key by two repositories already — appframe
+# and viddik, both spelling the same coordinate against their own `compose-multiplatform`. The
+# admission test is the one at the top of the file: the preview artefact and the Compose plugin
+# going out of step is a defect, not a preference.
+compose-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
 
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
