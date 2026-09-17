@@ -52,3 +52,11 @@ include(":kmp-lib")
 include(":platform")
 include(":gradle-plugin")
 include(":native-service")
+
+// The same convention with two native targets: the layout it produces differs, and both halves
+// have to be exercised (#80).
+include(":native-service-multi")
+
+// The JVM half of a service, the module `application` and zavarnik need because neither applies to
+// a multiplatform one.
+include(":distribution")

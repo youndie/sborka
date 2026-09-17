@@ -34,6 +34,7 @@ plugins {
 | `…sborka.publish` | the publication, a pom derived from one property, a sources jar, the floor attribute, an `.aar` named with its version |
 | `…sborka.mutation` | `mutationTest` on pitest; deliberately not wired into `check` |
 | `…sborka.native-service` | the binary's name, staging under `build/native`, `writeNativeDockerfile` |
+| `…sborka.jvm-distribution` | the module a KMP service needs for `installDist` and an AOT cache, because `application` and zavarnik are `kotlinJvm`-only: the main class, zavarnik's readiness URL, and a refusal of the module name that puts two jars of one name in `lib/` |
 
 Plus what a repository's CI asks for by name rather than by copy:
 

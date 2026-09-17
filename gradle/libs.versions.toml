@@ -11,7 +11,14 @@ ktlintPlugin = "14.2.0"
 # version is what sborka COMPILES against and never what a consumer resolves - the repository
 # applying the gate names its own, the way it does for Kotlin. A snapshot line, because razves
 # publishes one per push; pinning it as a runtime dependency would age by design.
-razves = "0.1.0.7"
+razves = "0.1.0.31"
+
+# zavarnik, whose Gradle plugin trains the AOT cache a JVM distribution ships. Same arrangement as
+# razves: `compileOnly` in the conventions so the extension type is on the compile classpath and no
+# zavarnik reaches a consumer's build classpath, and the repository that wants the cache names its
+# own version. A snapshot line for the same reason razves has one — the released 0.1.0 is on the
+# plugin portal and the implementation jar a `compileOnly` needs is published here.
+zavarnik = "0.1.0.40"
 
 # The plugin that puts a release on Maven Central. Applied by `sborka.publish` only where a
 # repository asks for it (`sborka.central`), and pinned here rather than in each of them: Central
@@ -49,6 +56,7 @@ kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", v
 ktlint-gradle-plugin = { module = "org.jlleitschuh.gradle:ktlint-gradle", version.ref = "ktlintPlugin" }
 maven-publish-gradle-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "mavenPublish" }
 razves-gradle-plugin = { module = "io.github.youndie.razves:gradle-plugin", version.ref = "razves" }
+zavarnik-gradle-plugin = { module = "io.github.youndie:zavarnik-gradle-plugin", version.ref = "zavarnik" }
 
 # THE RULE API kapkan IS WRITTEN AGAINST, at the same version as the tool that loads it. `compileOnly`
 # in `:kapkan`: ktlint puts these on the worker classpath itself, and a ruleset jar carrying a second
@@ -73,3 +81,4 @@ ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintPlugin" }
 kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 razves = { id = "io.github.youndie.razves", version.ref = "razves" }
+zavarnik = { id = "io.github.youndie.zavarnik", version = "0.1.0" }

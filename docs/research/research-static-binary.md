@@ -276,6 +276,72 @@ what collapses is the base image, from 10 643 700 bytes of `distroless/cc` to no
 
 Transcript: [`static-probe/results/2026-09-13-katcher-static-in-scratch.txt`](static-probe/results/2026-09-13-katcher-static-in-scratch.txt).
 
+### 1.5c What `scratch` needs beside the binary — measured on the shipped service
+
+§1.5b ran katcher in `scratch` and recorded a `401`. A `401` is returned by a service that cannot
+render a single page: the answer is produced before any text goes through a charset, and every route
+that would go through one is behind authentication. Taken to a deploy on 2026-09-15, the same image
+answered `500` on the first page behind a login, with
+
+```
+Failed to open iconv for charset UTF-8 with error code 22
+```
+
+**glibc has no converters built in.** Even UTF-8 arrives from a gconv module that `iconv_open` loads
+with `dlopen`, and Ktor's charset layer on Kotlin/Native *is* glibc `iconv` — `encodeURLParameter`
+goes through it, which means every page. A statically linked binary can still `dlopen`, and that is
+the point: static does not mean self-contained, it means the loader is inside the binary rather than
+that nothing is loaded.
+
+Five paths, taken with `strace -e trace=openat` from the running binary rather than derived:
+
+| path | why |
+|---|---|
+| `/etc/ld.so.cache` | what `dlopen` consults first |
+| `/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2` | the loader the `dlopen` path still needs |
+| `/lib/x86_64-linux-gnu/libc.so.6` | the shared glibc the gconv modules link against |
+| `/usr/lib/x86_64-linux-gnu/gconv` | the converters themselves |
+| `/usr/share/zoneinfo` | insurance; see below |
+
+**Copied out of the build stage, not from the host or another image of the same version.** `dlopen`
+from a static binary requires the same glibc *build* as the `libc.a` it was linked against; copies
+from elsewhere reproduce the error above exactly. This is the same pairing §1.4 removed from the
+dynamic image (D1) reappearing inside the static one — and here it cannot be removed, only kept
+inside one `docker build`.
+
+**The whole gconv directory, not the module that appears in the trace.** glibc picked `UTF-16.so` to
+convert UTF-8; the set of reachable modules is not something a `COPY` line should be predicting. The
+price is a number: `UTF-16.so` alone would have made the image **2 811 555 bytes smaller** — roughly
+6.7 MB to pull against 9 570 311. It is paid because an unusual `charset=` in a `Content-Type` is a
+500 in production and no test in the suite would catch it.
+
+**`/usr/share/zoneinfo` is carried and nothing reads it.** `TimeZone.currentSystemDefault()` resolves
+without it: the binary embeds no zones, `strace` opens neither `/usr/share/zoneinfo` nor
+`/etc/localtime`, and both images — `scratch` and the `distroless/cc` it replaced — render UTC and
+ignore `TZ`. Verified by reading the rendered value. tzdata was listed among the task's blockers and
+was not one; the 346 KB stay as insurance for the day a named zone is asked for, which nothing in the
+suite would notice the absence of.
+
+**What `scratch` costs, beyond the payload:** no shell and nothing to `kubectl exec` into, no `/tmp`,
+and no `ca-certificates` — outbound https needs those copied too. The directory holding the database
+file has to exist: `WORKDIR` creates it, and in the cluster a volume is mounted over it.
+
+**The acceptance this section changes.** A smoke test for a static image must reach a **rendered
+page**, not a status code — katcher's `dev/image-smoke.sh` signs in with the two proxy headers,
+creates an app, reveals its key, sends a crash and requires the group page to render
+`YYYY-MM-DD HH:MM`, as its own CI job against the real image. §1.5b's `401` was a true observation
+and a false pass, and the distance between them is this whole section.
+
+**And the error that made the section necessary is worth its own line**, because it is not the
+iconv one. The risk was named correctly in the task — "every call site is behind authentication, the
+`401` never reaches them" — while the paragraph beside it asserted that nothing here calls `dlopen`.
+What had been checked was an outbound `HttpClient`, grepped for, not found, written down as a
+conclusion; `dlopen` is called by Ktor on every string that crosses a charset. The correction then
+nearly closed the option as unviable by adding **uncompressed** gconv bytes to a **compressed** "to
+pull" figure — 17 MB against 15.5, terms in two different units. Both errors are caught by the two
+things above: a smoke test that reaches a rendered page, and the same unit on both sides of a
+comparison.
+
 ### 1.6 musl links, and the binary segfaults — RQ3, route 1
 
 `-Xoverride-konan-properties=targetSysRoot.linux_x64=…`, in four steps, each of which failed
@@ -477,11 +543,17 @@ which is what the ticket in [`UPSTREAM.md`](static-probe/UPSTREAM.md) asks for.
 **First consumer, as a proposal rather than a convention:**
 [katcher#55](https://github.com/youndie/katcher/issues/55) carries the recipe into one service's own
 Dockerfile, where a Kotlin bump breaking it is that repository's problem and nobody else's. Checking
-it against a real service turned up two things the research had not: the build image
-(`gradle:9.7.1-jdk25-noble`) ships no static archives at all, so the first stage needs `g++`; and
-`TimeZone.currentSystemDefault()` reads `/usr/share/zoneinfo`, which `scratch` does not have and
-`distroless/cc` does — 71 entries. The probe never touched either, because a hello-world is compiled
-in the same place it runs and does not ask what time it is.
+it against a real service turned up what the research had not: the build image
+(`gradle:9.7.1-jdk25-noble`) ships no static archives at all, so the first stage needs `g++`; and the
+binary alone does not serve a page, because Ktor's charset layer `dlopen`s a gconv module — §1.5c,
+five paths and the acceptance that finds their absence. The probe never touched either, because a
+hello-world is compiled in the same place it runs and never renders anything.
+
+**`/usr/share/zoneinfo` was named here as the second finding and it was wrong.** The claim was that
+`TimeZone.currentSystemDefault()` reads it and `scratch` does not have it; the deploy shows the call
+resolving with the directory absent, `strace` opening neither it nor `/etc/localtime`, and both
+images rendering UTC (§1.5c). It is carried as insurance, not as a dependency — corrected here rather
+than edited away, because a blocker that dissolves on measurement is the finding.
 
 Nor is the red deliverable, quite. The brief's red was "a KT ticket with the symbol list", and §1.6
 shows the symbol list is not what the experiment produces — it produces a segfault with no
