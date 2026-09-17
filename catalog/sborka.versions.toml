@@ -59,6 +59,19 @@ koin-core = { module = "io.insert-koin:koin-core" }
 koin-test = { module = "io.insert-koin:koin-test" }
 
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+
+# Versioned BY the compiler, not beside it. `kotlin-test` has to be the version that compiled the
+# code under test, and a build plugin compiled against one Kotlin and run by another fails inside
+# the Gradle plugin classpath — so neither of these is a number a repository gets to pick, which is
+# exactly the admission test at the top of this file.
+#
+# They are here because five repositories were already holding them on their own `kotlin` key:
+# telek, razves and s3kn the gradle plugin, shildik and petich kotlin-test. That key is what the
+# `wip` catalog took over, and without these two entries those five would have had to keep it —
+# one number, kept in step by hand, which is the defect this file exists to remove.
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 
@@ -92,3 +105,15 @@ composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMul
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 androidKotlinMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 atomicfu = { id = "org.jetbrains.kotlinx.atomicfu", version.ref = "atomicfu" }
+
+# The rest of the compiler's own plugin set, and the two Android ones beside the library plugin
+# that was already here. Each was found by a repository that could not take its compiler from this
+# catalog without keeping a local version for exactly one line:
+#   allopen  — bochka and booblik
+#   android  — viddik (`org.jetbrains.kotlin.android`, versioned by the compiler like the rest)
+#   the AGP application/library pair — konekt, kvadrant-ui and viddik, which spells the same
+#   version under a third name (`androidGradlePlugin`) and is the drift this fixes
+kotlinAllOpen = { id = "org.jetbrains.kotlin.plugin.allopen", version.ref = "kotlin" }
+kotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+androidApplication = { id = "com.android.application", version.ref = "agp" }
+androidLibrary = { id = "com.android.library", version.ref = "agp" }
