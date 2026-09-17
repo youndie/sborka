@@ -68,6 +68,21 @@ turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 # going out of step is a defect, not a preference.
 compose-ui-tooling-preview = { module = "org.jetbrains.compose.ui:ui-tooling-preview", version.ref = "composeMultiplatform" }
 
+# The four Compose artefacts more than one repository names by coordinate. They are here rather than
+# taken through the plugin's `compose.*` accessors deliberately, and konekt wrote down why: 1.11.1
+# deprecates those accessors in favour of naming the dependency directly, and an accessor carries a
+# version of its own that the build file does not show — which is the shape of the failure it hit,
+# a newer foundation against an older material3, `AbstractMethodError` inside a renderer at RUNTIME
+# with nothing failing to resolve or compile.
+#
+# material3 is NOT here and must not be: it has no stable release in either train, moves on its own
+# line in every repository that carries it, and tying it to this ref would ask for a version that
+# was never published.
+compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }
+compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
+compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeMultiplatform" }
+compose-ui-test = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "composeMultiplatform" }
+
 [plugins]
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
