@@ -4,7 +4,7 @@
 # former a release of the latter.
 
 [versions]
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 ktlintPlugin = "14.2.0"
 
 # razves, whose Gradle plugin carries the size gate. `compileOnly` in the conventions, so this

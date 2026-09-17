@@ -1,4 +1,4 @@
-plugins { kotlin("multiplatform") version "2.4.10" }
+plugins { kotlin("multiplatform") version "2.4.20" }
 repositories { mavenCentral() }
 kotlin {
     jvm()
