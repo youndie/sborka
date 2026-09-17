@@ -56,6 +56,19 @@ koin-core = { module = "io.insert-koin:koin-core" }
 koin-test = { module = "io.insert-koin:koin-test" }
 
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+
+# Versioned BY the compiler, not beside it. `kotlin-test` has to be the version that compiled the
+# code under test, and a build plugin compiled against one Kotlin and run by another fails inside
+# the Gradle plugin classpath — so neither of these is a number a repository gets to pick, which is
+# exactly the admission test at the top of this file.
+#
+# They are here because five repositories were already holding them on their own `kotlin` key:
+# telek, razves and s3kn the gradle plugin, shildik and petich kotlin-test. That key is what the
+# `wip` catalog took over, and without these two entries those five would have had to keep it —
+# one number, kept in step by hand, which is the defect this file exists to remove.
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 
