@@ -81,3 +81,15 @@ composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMul
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 androidKotlinMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 atomicfu = { id = "org.jetbrains.kotlinx.atomicfu", version.ref = "atomicfu" }
+
+# The rest of the compiler's own plugin set, and the two Android ones beside the library plugin
+# that was already here. Each was found by a repository that could not take its compiler from this
+# catalog without keeping a local version for exactly one line:
+#   allopen  — bochka and booblik
+#   android  — viddik (`org.jetbrains.kotlin.android`, versioned by the compiler like the rest)
+#   the AGP application/library pair — konekt, kvadrant-ui and viddik, which spells the same
+#   version under a third name (`androidGradlePlugin`) and is the drift this fixes
+kotlinAllOpen = { id = "org.jetbrains.kotlin.plugin.allopen", version.ref = "kotlin" }
+kotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+androidApplication = { id = "com.android.application", version.ref = "agp" }
+androidLibrary = { id = "com.android.library", version.ref = "agp" }
