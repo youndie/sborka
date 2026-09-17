@@ -18,8 +18,12 @@ coroutines = "1.11.0"
 serialization = "1.11.0"
 datetime = "0.8.0"
 
-# Drifted: 3.5.2 in seven repositories, 3.4.0 in one.
-ktor = "3.5.2"
+# Drifted: 3.5.2 in seven repositories, 3.4.0 in one, when this file was written.
+#
+# A BUMP HERE IS NOT A BUMP EVERYWHERE, and that is worth knowing before reading this number as the
+# portfolio's: six repositories take Ktor from its own `io.ktor:ktor-version-catalog`, named in
+# their settings, and this key does not reach them.
+ktor = "3.6.0"
 
 # Drifted: 2.3.11 in five, 2.3.10 in two. KSP is versioned against the compiler, so the pair moves
 # together — a repository on a different KSP than its Kotlin fails at annotation processing with a
