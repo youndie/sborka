@@ -24,7 +24,7 @@ ktor = "3.5.2"
 # Drifted: 2.3.11 in five, 2.3.10 in two. KSP is versioned against the compiler, so the pair moves
 # together — a repository on a different KSP than its Kotlin fails at annotation processing with a
 # message about an internal API.
-ksp = "2.3.11"
+ksp = "2.3.12"
 
 # Drifted: 9.3.0 / 9.3.1 / 9.3.2 across three repositories.
 agp = "9.3.2"
