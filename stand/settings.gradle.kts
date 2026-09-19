@@ -51,6 +51,17 @@ include(":jvm-lib")
 include(":kmp-lib")
 include(":platform")
 include(":gradle-plugin")
+
+// The KSP pair: a fixture processor, and the multiplatform module `sborka.kmp` wires it into.
+// Split in two because that is the shape a repository has — the processor is a module of its own,
+// and what the convention configures is the consumer.
+include(":ksp-processor")
+include(":kmp-ksp")
+
+// And the negative control: the same KSP plugin with a processor on a platform source set, which
+// the convention has to leave alone. A gate that fires here switches off the task that module
+// depends on and leaves a green build with nothing generated.
+include(":kmp-ksp-platform")
 include(":native-service")
 
 // The same convention with two native targets: the layout it produces differs, and both halves

@@ -5,6 +5,11 @@
 
 [versions]
 kotlin = "2.4.20"
+
+# KSP, for the stand module that proves `sborka.kmp` wires a common-metadata processor. Not in
+# `catalog/sborka.versions.toml`'s company by accident: that file already names a KSP version for
+# the repositories that agree on one, and this line is what sborka itself builds the fixture with.
+ksp = "2.3.11"
 ktlintPlugin = "14.2.0"
 
 # razves, whose Gradle plugin carries the size gate. `compileOnly` in the conventions, so this
@@ -52,6 +57,7 @@ kotlinxIo = "0.9.0"
 slf4j = "2.0.18"
 
 [libraries]
+ksp-symbol-processing-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 ktlint-gradle-plugin = { module = "org.jlleitschuh.gradle:ktlint-gradle", version.ref = "ktlintPlugin" }
 maven-publish-gradle-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "mavenPublish" }
@@ -80,5 +86,6 @@ kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.re
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintPlugin" }
 kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 razves = { id = "io.github.youndie.razves", version.ref = "razves" }
 zavarnik = { id = "io.github.youndie.zavarnik", version = "0.1.0" }
