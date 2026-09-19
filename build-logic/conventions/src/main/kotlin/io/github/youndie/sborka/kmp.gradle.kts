@@ -1,5 +1,6 @@
 package io.github.youndie.sborka
 
+import io.github.youndie.sborka.internal.KspMetadataWiring
 import io.github.youndie.sborka.internal.SborkaSettings
 import org.gradle.api.attributes.Category
 import org.gradle.api.attributes.Usage
@@ -132,5 +133,65 @@ plugins.withId("org.jetbrains.kotlin.multiplatform") {
             }.forEach { configuration ->
                 configuration.attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, floor)
             }
+    }
+}
+
+// A PROCESSOR THAT RUNS ONCE, OVER COMMON METADATA, WIRED IN ONE PLACE.
+//
+// Saying "run KSP over commonMain and let everybody wait for it" takes three paragraphs of build
+// script, and the portfolio had them byte-identical in seven modules of one repository. The cost is
+// on record rather than assumed: a race between KSP and dokka over the same generated directory had
+// to be fixed with one edit in seven files, and missing any one of them would have left the flake
+// alive — the eighth copy, in the module written after the fix, would have missed it by default.
+//
+// WHAT STAYS IN THE MODULE: the processor itself and whatever arguments it takes. Those differ per
+// module and are not a convention.
+//
+// THE GATE IS THE PROCESSOR, NOT THE PLUGIN. A module can apply KSP for something else entirely —
+// one in kompot runs a screenshot processor over `desktopTest` and nothing over commonMain — and for
+// that module every line below is wrong: an empty source directory, and, worse, its per-target task
+// switched off. So the question asked is not "is KSP applied" but "did this module put a processor
+// on `kspCommonMainMetadata`", which is a fact about the module rather than a flag somebody sets.
+//
+// It is asked in `afterEvaluate` because that is when the answer exists: the dependency is declared
+// in the module's own script, below the `plugins` block that applies this one. Late is safe for what
+// is done with it — `configureEach` is lazier still, and a source directory is read when a compile
+// task resolves its inputs — but it is NOT safe for adding dependencies, so nothing here does.
+plugins.withId("org.jetbrains.kotlin.multiplatform") {
+    plugins.withId("com.google.devtools.ksp") {
+        afterEvaluate {
+            val processors = configurations.findByName(KspMetadataWiring.PROCESSOR_CONFIGURATION)
+            if (processors == null || processors.dependencies.isEmpty()) {
+                return@afterEvaluate
+            }
+
+            // LOUD RATHER THAN HALF-WIRED. Switching off the per-target KSP tasks is right exactly
+            // while there is nothing for them to do. A module that processes common metadata AND a
+            // platform source set would lose the second half in silence — no generated code, and
+            // tests that compile against nothing and pass.
+            val elsewhere =
+                KspMetadataWiring.processorsOutsideCommonMetadata(
+                    configurations.filter { it.dependencies.isNotEmpty() }.map { it.name },
+                )
+            require(elsewhere.isEmpty()) {
+                "$path declares KSP processors on $elsewhere beside ${KspMetadataWiring.PROCESSOR_CONFIGURATION}. " +
+                    "sborka.kmp wires the common-metadata case only, and wiring it here would switch off the " +
+                    "per-target tasks those processors need. Wire this module by hand."
+            }
+
+            extensions.configure<KotlinMultiplatformExtension> {
+                sourceSets.named("commonMain") {
+                    kotlin.srcDir(KspMetadataWiring.GENERATED_SOURCES)
+                }
+            }
+
+            tasks.matching { KspMetadataWiring.readsGeneratedSources(it.name) }.configureEach {
+                dependsOn(KspMetadataWiring.GENERATOR)
+            }
+
+            tasks.matching { KspMetadataWiring.disabledAsRedundant(it.name) }.configureEach {
+                enabled = false
+            }
+        }
     }
 }

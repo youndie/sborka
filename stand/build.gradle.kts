@@ -13,6 +13,10 @@ plugins {
     // the root already carries one, Gradle refuses with "already on the classpath with an unknown
     // version" rather than picking either.
     alias(libs.plugins.kotlinJvm) apply false
+    // KSP, for the same scope as the two above: it is a compiler plugin that loads through the
+    // Kotlin plugin, so a version resolved separately in one module is the same classloader
+    // question with a longer message.
+    alias(libs.plugins.ksp) apply false
 }
 
 val publishTasks =
