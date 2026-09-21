@@ -23,7 +23,7 @@ razves = "0.1.0.31"
 # zavarnik reaches a consumer's build classpath, and the repository that wants the cache names its
 # own version. A snapshot line for the same reason razves has one — the released 0.1.0 is on the
 # plugin portal and the implementation jar a `compileOnly` needs is published here.
-zavarnik = "0.1.0.40"
+zavarnik = "0.1.0.44"
 
 # The plugin that puts a release on Maven Central. Applied by `sborka.publish` only where a
 # repository asks for it (`sborka.central`), and pinned here rather than in each of them: Central
