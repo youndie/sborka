@@ -9,7 +9,7 @@ kotlin = "2.4.20"
 # KSP, for the stand module that proves `sborka.kmp` wires a common-metadata processor. Not in
 # `catalog/sborka.versions.toml`'s company by accident: that file already names a KSP version for
 # the repositories that agree on one, and this line is what sborka itself builds the fixture with.
-ksp = "2.3.11"
+ksp = "2.3.12"
 ktlintPlugin = "14.2.0"
 
 # razves, whose Gradle plugin carries the size gate. `compileOnly` in the conventions, so this
