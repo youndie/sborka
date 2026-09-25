@@ -36,8 +36,10 @@ interface NativeServiceExtension {
     val baseName: Property<String>
 
     /**
-     * The allocator's page size in KiB — `-Xbinary=fixedBlockPageSize`. 16 by default, `0` to leave
-     * the compiler's own.
+     * The allocator's page size in KiB — `-Xbinary=fixedBlockPageSize`. 16 by default, which is right
+     * for many threads and a small heap (resident memory); 256, the compiler's own, is right for a
+     * heap of gigabytes and few threads (the collector's pause). `0` leaves the compiler's default.
+     * Both measurements are under `allocatorPageSize.convention` below.
      */
     val allocatorPageSize: Property<Int>
 }
@@ -64,6 +66,37 @@ nativeService.baseName.convention(project.name)
 // It is a MEASURED value and not a law: a service whose own measurement says otherwise sets its own,
 // and `allocatorPageSize = 0` leaves the compiler's default entirely. What is not on offer is
 // forgetting it exists.
+//
+// AND THE PAGE SIZE CUTS THE OTHER WAY TOO: A SMALL PAGE IS MORE PAGES, AND THE COLLECTOR WALKS THEM
+// WITH THE WORLD STOPPED.
+//
+// At the end of marking, before the world resumes, every thread's allocator and the heap run
+// `PageStore::PrepareForGC` for every size class (Kotlin 2.4.20:
+// `kotlin-native/runtime/src/alloc/custom/cpp/PageStore.hpp:24`, called from
+// `gc/common/cpp/MainGCThread.hpp:56-69`). It walks the used-page list to its tail and frees every
+// page the previous sweep emptied, one at a time: linear in the number of pages, inside the pause.
+// The same heap in 16 KiB pages is sixteen times as many.
+//
+// Measured on an in-memory store holding about 2 GB live on three threads, CMS, the two builds
+// interleaved on one host, three runs each (stop-the-world pauses over 60 s of write churn):
+//
+//   fixedBlockPageSize=16      pause p50  8.0-10.0 ms, p99 84-139 ms, RSS peak 4 237-4 244 MB
+//   fixedBlockPageSize=256     pause p50 0.76-0.83 ms, p99  8-18 ms,  RSS peak 4 290-4 304 MB
+//
+// Tenfold on the pause for 1 % of resident memory. Controls moved the objects marked 4.7x and the
+// garbage made during marking 10x, and the pause followed neither: it follows the page count, so it
+// grows with the heap. That measurement's report is not public; the mechanism is the runtime source
+// named above, which is.
+//
+// SO THE RULE HAS TWO SIDES, and the default is the side the services this was written for are on:
+//
+//   many threads, a heap of tens of megabytes    16    what dies is resident memory under a limit
+//   few threads, a heap of gigabytes             256   what hurts is the collector's pause
+//
+// A service in between measures both — peak memory from the cgroup under its limit, and the pause
+// from the GC log — rather than picking a side by analogy. The per-thread cost comes back at 256 KiB
+// with every thread that touches a size class, so a large heap served by a hundred threads pays both
+// and has to choose.
 //
 // AND IF A SERVICE SWITCHES TO `-Xallocator=std`, THE REFERENCE IMAGE'S `MALLOC_ARENA_MAX=2` HAS TO
 // BE RE-MEASURED WITH IT. Each is harmless alone and the pair is not: on a Ktor service with no
