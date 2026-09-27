@@ -50,7 +50,16 @@ Request latency and CPU per request did not get worse at 100 req/s; at 90 % of c
 after resume removed latency spikes of 135–307 ms at p99 and the dropped requests. Up to a live
 heap of about 128 MB none of this matters: the stock pause is a few milliseconds.
 
-## How a service would take it — hypotheses, none tried
+## How a service would take it
+
+Checked on 2026-09-27 on a minimal consumer outside sborka (no conventions, Kotlin 2.4.20, the
+distribution in a local Maven repository): with `kotlin.native.version=2.4.20-yrt.1` and the filter in
+step 2, the plugin resolved the patched distribution, unpacked it to
+`~/.konan/kotlin-native-prebuilt-linux-x86_64-2.4.20-yrt.1`, linked and ran. The binary differed from
+the stock one; the same distribution **without** the patches, packaged the same way as a control
+version, linked to the stock binary byte for byte, so the difference is the runtime and not the
+packaging. Steps 1 and 2 are therefore tried; steps 3 and 4 are not, and nothing has been tried
+through sborka itself.
 
 1. **The version.** One line in the service's `gradle.properties`:
    `kotlin.native.version=2.4.20-yrt.1`. A convention plugin cannot set a Gradle property the Kotlin
@@ -84,9 +93,9 @@ static-linking part is tracked upstream as KT-89362. The allocator patches are n
 
 ## Open questions
 
-1. Does the Kotlin plugin accept a suffixed `kotlin.native.version` next to `compilerVersion=2.4.20`?
-   Nothing else matters until this is answered — the first test is one service linking against a
-   distribution from a local repository.
+1. ~~Does the Kotlin plugin accept a suffixed `kotlin.native.version` next to
+   `compilerVersion=2.4.20`?~~ Yes, on a minimal consumer (above). Through sborka's own settings plugin
+   it has not been tried.
 2. Which service needs it now: a live heap of hundreds of MB **and** many allocating threads is the
    shape where no page size helps. Without one, the page-size rule on the stock toolchain is enough.
 3. Where the publishing runs, given that the publishing secret is meant to stay in CI.
