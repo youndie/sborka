@@ -12,7 +12,7 @@ date: 2026-09-27
 published to our own reposilite **under JetBrains' coordinate**
 (`org.jetbrains.kotlin:kotlin-native-prebuilt`) with a version of its own, and that nothing goes
 upstream. Whether any service takes it is what this document is for. The patch series, its build
-and its controls live in a separate repository (to be named here when it is public).
+and its controls live in [`youndie/kotlin-native-rt`](https://github.com/youndie/kotlin-native-rt).
 
 ## What it would fix
 
@@ -98,4 +98,6 @@ static-linking part is tracked upstream as KT-89362. The allocator patches are n
    it has not been tried.
 2. Which service needs it now: a live heap of hundreds of MB **and** many allocating threads is the
    shape where no page size helps. Without one, the page-size rule on the stock toolchain is enough.
-3. Where the publishing runs, given that the publishing secret is meant to stay in CI.
+3. ~~Where the publishing runs~~: the patch repository is public, and its reposilite token (route
+   `/snapshots/org/jetbrains/kotlin/kotlin-native-prebuilt/`) was issued by the infra workflow into its
+   secrets, so the publishing runs in its CI. The workflow itself is not written yet.
