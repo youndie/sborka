@@ -83,6 +83,7 @@ no file behind it, fails `coverage_map.py`.
 - [x] [research-static-binary](research/research-static-binary.md) — why a Kotlin/Native binary does not start in `scratch`, and the one linker option that removes a hand-written `COPY` line and the glibc pairing hazard with it
 - [x] [source-brief-static-binary](research/source-brief-static-binary.md) — the scratch-image brief as it arrived
 - [x] [source-brief-memory-limit](research/source-brief-memory-limit.md) — the brief after the K/N-under-load post: whether 2 000 rps in 256 MiB is the runtime or Ktor, kept as it arrived while the work is still ahead
+- [ ] [research-custom-runtime](research/research-custom-runtime.md) — draft: a patched Kotlin/Native distribution under JetBrains' coordinate in our reposilite; the large-heap pause it fixes, how a service would take it, and the question that decides whether one can
 
 ### Services (4)
 
