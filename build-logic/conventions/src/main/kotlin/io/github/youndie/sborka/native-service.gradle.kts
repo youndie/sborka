@@ -37,8 +37,8 @@ interface NativeServiceExtension {
 
     /**
      * The allocator's page size in KiB — `-Xbinary=fixedBlockPageSize`. 16 by default, which is right
-     * for many threads and a small heap (resident memory); 256, the compiler's own, is right for a
-     * heap of gigabytes and few threads (the collector's pause). `0` leaves the compiler's default.
+     * for many threads and a small heap (resident memory); 256 is right for a heap of gigabytes and
+     * few threads (the collector's pause). `0` leaves the compiler's default, 128 on Kotlin 2.4.20.
      * Both measurements are under `allocatorPageSize.convention` below.
      */
     val allocatorPageSize: Property<Int>
@@ -51,7 +51,8 @@ nativeService.baseName.convention(project.name)
 
 // THE ALLOCATOR PAGE SIZE, SET BY DEFAULT BECAUSE THE DEFAULT IS THE ONE THAT GETS A SERVICE KILLED.
 //
-// The Kotlin/Native allocator keeps a page per size class PER THREAD — 256 KiB each — and a thread
+// The Kotlin/Native allocator keeps a page per size class PER THREAD — 128 KiB each by the compiler's
+// default on 2.4.20 (`NativeSecondStageCompilationConfig.kt`; 256 before KT-68909) — and a thread
 // holds its pages for as long as it lives, so resident memory follows the THREAD COUNT rather than
 // the live heap. No GC setting bounds it: these are pages, not objects. `Dispatchers.IO` grows
 // threads under load, and the result is a service that passes every test and is OOM-killed under a
@@ -85,8 +86,8 @@ nativeService.baseName.convention(project.name)
 //
 // Tenfold on the pause for 1 % of resident memory. Controls moved the objects marked 4.7x and the
 // garbage made during marking 10x, and the pause followed neither: it follows the page count, so it
-// grows with the heap. That measurement's report is not public; the mechanism is the runtime source
-// named above, which is.
+// grows with the heap. The report, with its controls, is youndie/kesh `bench/reports/b-19`; the
+// mechanism is the runtime source named above.
 //
 // SO THE RULE HAS TWO SIDES, and the default is the side the services this was written for are on:
 //
