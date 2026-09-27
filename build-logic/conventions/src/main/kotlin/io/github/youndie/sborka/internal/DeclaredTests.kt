@@ -27,14 +27,40 @@ object DeclaredTests {
             RegexOption.MULTILINE,
         )
 
-    // Only the classes THIS task compiled. A multiplatform module has one `src` tree and several test
-    // tasks over it, so scanning sources alone would have `jvmTest` demand that an iosTest class
-    // appear in its results — a failure with nothing wrong behind it.
+    // `package` as the file declares it, which is what a class's qualified name is made of. Reading it
+    // off the directory instead only holds where the tree mirrors the packages, and Kotlin does not ask
+    // for that.
+    private val packageHeader = Regex("""^\s*package\s+([\w.]+)""", RegexOption.MULTILINE)
+
+    /**
+     * What a test task's sources declare: `@Test` counts by simple class name, and the names that could
+     * not be given one.
+     *
+     * [ambiguous] is a simple name declared by more than one file among the sources read. The JUnit
+     * report names a multiplatform suite `FooTest[jvm]`, without its package, so such a name cannot be
+     * matched against a result — and picking one of the files is what made this check flip with the
+     * order a runner's filesystem lists directories in.
+     */
+    class Declared(
+        val counts: Map<String, Int>,
+        val ambiguous: Map<String, List<File>>,
+    )
+
+    // Only the sources and the classes THIS task compiled.
+    //
+    // THE SOURCE DIRECTORIES ARE THE COMPILATION'S, not the module's `src`. A multiplatform module has
+    // one `src` tree and several test tasks over it, and filtering that tree by the class names the
+    // task compiled is not enough: `jvmTest` and `nativeTest` may each hold a `CreateFileSystemTest`,
+    // in the same package, with different tests — legal, since no compilation sees both. Read from
+    // `src/`, the two files had one name between them and the map kept whichever the walk reached
+    // last. One repository went red on a runner whose filesystem listed `nativeTest` after `jvmTest`
+    // and green on one that did not, with the same commit on both: 2 tests declared and run, 3
+    // demanded from the native file.
     fun declaredIn(
-        sourceRoot: File,
+        sourceDirs: Iterable<File>,
         testClassesDirs: Iterable<File>,
         excluded: Set<String> = emptySet(),
-    ): Map<String, Int> {
+    ): Declared {
         // MATCHED AGAINST THE FULLY QUALIFIED NAME, because that is what Gradle's patterns are about.
         // Taking the tail after the last dot instead turns `com.example.stand.*` into `*`, which
         // matches every class in the module and silently switches the whole check off — measured, by
@@ -63,34 +89,51 @@ object DeclaredTests {
         // `CrashAssessmentTest` (9), and the check demanded 12 from the class that has 9. Both had
         // run. A guard that fails on correct code is worse than no guard — it gets switched off, and
         // takes the cases it was right about with it.
-        return sourceRoot
-            .walkTopDown()
-            .filter { it.isFile && it.name.endsWith("Test.kt") }
-            .flatMap { file ->
-                // The package from the path: everything under `.../kotlin/`, which is where source
-                // sets root their packages.
-                val packagePath =
-                    file.invariantSeparatorsPath
-                        .substringAfterLast("/kotlin/")
-                        .substringBeforeLast('/', "")
-                        .replace('/', '.')
-                val text = file.readText()
+        val found =
+            sourceDirs
+                .filter { it.isDirectory }
+                .flatMap { dir -> dir.walkTopDown().filter { it.isFile && it.name.endsWith("Test.kt") }.toList() }
+                // Sorted so that whatever is reported about these files reads the same on every runner.
+                .distinctBy { it.absolutePath }
+                .sortedBy { it.invariantSeparatorsPath }
+                .flatMap { file ->
+                    val text = file.readText()
+                    val packageName =
+                        packageHeader
+                            .find(text)
+                            ?.groupValues
+                            ?.get(1)
+                            .orEmpty()
 
-                declarations
-                    .findAll(text)
-                    .map { it.groupValues[1] to it.range.first }
-                    .toList()
-                    .let { found ->
-                        found.mapIndexed { index, (name, start) ->
-                            val end = found.getOrNull(index + 1)?.second ?: text.length
-                            Triple(name, packagePath, annotation.findAll(text.substring(start, end)).count())
+                    declarations
+                        .findAll(text)
+                        .map { it.groupValues[1] to it.range.first }
+                        .toList()
+                        .let { found ->
+                            found.mapIndexed { index, (name, start) ->
+                                val end = found.getOrNull(index + 1)?.second ?: text.length
+                                Found(name, packageName, file, annotation.findAll(text.substring(start, end)).count())
+                            }
                         }
-                    }
-            }.filter { (name, _, count) -> count > 0 && name in compiled }
-            .filterNot { (name, packagePath, _) ->
-                val qualified = if (packagePath.isEmpty()) name else "$packagePath.$name"
-                excludedNames.any { it.matches(qualified) }
-            }.associate { (name, _, count) -> name to count }
+                }.filter { it.count > 0 && it.name in compiled }
+                .filterNot { found -> excludedNames.any { it.matches(found.qualifiedName) } }
+                .groupBy { it.name }
+
+        // NEVER ONE FILE QUIETLY STANDING FOR ANOTHER. A name two files declare is set aside and handed
+        // back, for the caller to say so, rather than resolved by which of them came last.
+        return Declared(
+            counts = found.filterValues { it.size == 1 }.mapValues { (_, files) -> files.single().count },
+            ambiguous = found.filterValues { it.size > 1 }.mapValues { (_, files) -> files.map { it.file } },
+        )
+    }
+
+    private class Found(
+        val name: String,
+        packageName: String,
+        val file: File,
+        val count: Int,
+    ) {
+        val qualifiedName = if (packageName.isEmpty()) name else "$packageName.$name"
     }
 
     // `--tests` ON THE COMMAND LINE, WHICH IS A DIFFERENT FILTER FROM THE BUILD SCRIPT'S.
