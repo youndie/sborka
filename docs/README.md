@@ -75,7 +75,7 @@ documentation gate into it is a decision the next person to touch CI should take
 The list below is **checked** against the files on disk: a document missing here, or an entry with
 no file behind it, fails `coverage_map.py`.
 
-### Research (6)
+### Research (7)
 
 - [x] [research-perf-lint](research/research-perf-lint.md) — the three rules, their profiles, how often each fires, and what none of them claims
 - [x] [research-parity](research/research-parity.md) — 129 probes on two runtimes, the 17 that disagree, and why the gate belongs at the platform layer instead: none of the seventeen has ever cost anything, and the three that did are sockets, TLS and a plugin
@@ -83,6 +83,7 @@ no file behind it, fails `coverage_map.py`.
 - [x] [research-static-binary](research/research-static-binary.md) — why a Kotlin/Native binary does not start in `scratch`, and the one linker option that removes a hand-written `COPY` line and the glibc pairing hazard with it
 - [x] [source-brief-static-binary](research/source-brief-static-binary.md) — the scratch-image brief as it arrived
 - [x] [source-brief-memory-limit](research/source-brief-memory-limit.md) — the brief after the K/N-under-load post: whether 2 000 rps in 256 MiB is the runtime or Ktor, kept as it arrived while the work is still ahead
+- [x] [research-native-image](research/research-native-image.md) — a daemonless image for a native service and a check that fails the build when the base cannot load the binary: 15 of 15 against docker run, and the one blind spot measured
 - [x] [source-brief-native-image](research/source-brief-native-image.md) — the brief for a daemonless image with a load check before push: whether Jib already does it, and whether a base that cannot load the binary is caught before push; kept as it arrived while the spike is ahead
 
 ### Services (4)
