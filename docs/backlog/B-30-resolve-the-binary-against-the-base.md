@@ -31,7 +31,7 @@ prints `NEEDED` and deliberately stops there — it compares with nothing, and o
 
 ## Done, 2026-09-30 — 15 of 15 against docker run, and the one blind spot where it was declared
 
-The prototype is `docs/research/image-probe/check/` (≈450 lines of Kotlin/JVM: ELF, layers, registry,
+The prototype is `docs/research/image-probe/check/` (635 lines of Kotlin/JVM with comments, 499 without: ELF, layers, registry,
 resolution); the scorer is `image-probe/score.sh`; the run is
 [results/2026-09-30-score.txt](../research/image-probe/results/2026-09-30-score.txt).
 
