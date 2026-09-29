@@ -1,0 +1,84 @@
+# B-27 corpus, 2026-09-29. Linux x86_64 host with Docker; produced by corpus.sh at the `sborka:` commit
+# below, bases from bases.lock. keel at f79f22d, linked by its own build (sborka.kmp, --as-needed).
+#
+# Reading it: `exit` is the foreground `docker run` under `timeout 30`. r1 reads 124 because it is a
+# server and was still serving when the timeout fired; its verdict is the `serve:` line — /health/ready
+# answered 200, and SIGTERM ended it with 0. Every other row exited on its own.
+
+===== r1-keel-cc13 (expected: starts)
+from:    gcr.io/distroless/cc-debian13@sha256:4594d59540d1948417f6ca2829ddd9294493a7c68b7528f4dd459de7f203a750 
+binary:  keel sha256=27da9c24f73eb8174e9a8a0155737e05d086db63991e830f42d83cecf9c4d59d
+NEEDED:  libm.so.6 libpthread.so.0 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+exit:    124
+first:   configured: port=8080 db=keel.db observability=off
+serve:   /health/ready=200, exit after SIGTERM=0
+log:     EXIT COMPLETED in 158ns
+
+===== r2-keel-base13 (expected: fails: libgcc_s.so.1)
+from:    gcr.io/distroless/base-debian13@sha256:0ebad3510af52aefe45045cc01b07564570be4feecf8d9f93d3a05d1b5f2f93b 
+binary:  keel sha256=27da9c24f73eb8174e9a8a0155737e05d086db63991e830f42d83cecf9c4d59d
+NEEDED:  libm.so.6 libpthread.so.0 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+exit:    127
+first:   /app/keel: error while loading shared libraries: libgcc_s.so.1: cannot open shared object file: No such file or directory
+
+===== r3-curl-cc12 (expected: fails: libz.so.1)
+from:    gcr.io/distroless/cc-debian12@sha256:e5d81ddde149641e2a9ba55be4545bc125c67de07508b03ba4c22e6eb0ded5aa 
+binary:  curl-asneeded.kexe sha256=a2594cc6219117a5b20aaf5579f9427ab50a78d36775e6effacc40041d59dab8
+NEEDED:  libm.so.6 libpthread.so.0 librt.so.1 libz.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+exit:    127
+first:   /app/curl: error while loading shared libraries: libz.so.1: cannot open shared object file: No such file or directory
+
+===== r4-default-cc13 (expected: fails: libcrypt.so.1)
+from:    gcr.io/distroless/cc-debian13@sha256:4594d59540d1948417f6ca2829ddd9294493a7c68b7528f4dd459de7f203a750 
+binary:  probe-default.kexe sha256=bb7b7841ce950212f97a1ce75349a29e12ff8548504a1cfe658e7bcc3806ec1f
+NEEDED:  libresolv.so.2 libm.so.6 libpthread.so.0 libutil.so.1 libcrypt.so.1 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+exit:    127
+first:   /app/probe: error while loading shared libraries: libcrypt.so.1: cannot open shared object file: No such file or directory
+
+===== r5a-copied-libcrypt-2604 (expected: fails: GLIBC_2.3x required by libcrypt.so.1 (cc-debian12 has 2.36))
+from:    ubuntu@sha256:da6fc2be547864451aa253836dd926da33623312df4a9a243e35dc877c378a78 gcr.io/distroless/cc-debian12@sha256:e5d81ddde149641e2a9ba55be4545bc125c67de07508b03ba4c22e6eb0ded5aa 
+binary:  probe-default.kexe sha256=bb7b7841ce950212f97a1ce75349a29e12ff8548504a1cfe658e7bcc3806ec1f
+NEEDED:  libresolv.so.2 libm.so.6 libpthread.so.0 libutil.so.1 libcrypt.so.1 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+exit:    1
+first:   /app/probe: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.38' not found (required by /usr/lib/x86_64-linux-gnu/libcrypt.so.1)
+
+===== r5b-copied-libcrypt-2404 (expected: fails: GLIBC_2.3x required by libcrypt.so.1 (cc-debian12 has 2.36))
+from:    ubuntu@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3 gcr.io/distroless/cc-debian12@sha256:e5d81ddde149641e2a9ba55be4545bc125c67de07508b03ba4c22e6eb0ded5aa 
+binary:  probe-default.kexe sha256=bb7b7841ce950212f97a1ce75349a29e12ff8548504a1cfe658e7bcc3806ec1f
+NEEDED:  libresolv.so.2 libm.so.6 libpthread.so.0 libutil.so.1 libcrypt.so.1 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+exit:    1
+first:   /app/probe: /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.38' not found (required by /usr/lib/x86_64-linux-gnu/libcrypt.so.1)
+
+===== r6-keel-scratch (expected: fails: no loader)
+from:    scratch 
+binary:  keel sha256=27da9c24f73eb8174e9a8a0155737e05d086db63991e830f42d83cecf9c4d59d
+NEEDED:  libm.so.6 libpthread.so.0 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+exit:    255
+first:   exec /app/keel: no such file or directory
+
+===== r7a-blind-scratch-loads (expected: starts: probe: loaded)
+from:    gcr.io/distroless/cc-debian13@sha256:4594d59540d1948417f6ca2829ddd9294493a7c68b7528f4dd459de7f203a750 scratch 
+binary:  probe-asneeded.kexe sha256=ca44b56eacbe8be51c41327d8b4dbe6f36e5b4b763f724635ad614a7a93546f4
+NEEDED:  libm.so.6 libpthread.so.0 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+exit:    0
+first:   probe: loaded
+
+===== r7b-blind-scratch-iconv (expected: fails at run time: iconv refused)
+from:    gcr.io/distroless/cc-debian13@sha256:4594d59540d1948417f6ca2829ddd9294493a7c68b7528f4dd459de7f203a750 scratch 
+binary:  probe-asneeded.kexe sha256=ca44b56eacbe8be51c41327d8b4dbe6f36e5b4b763f724635ad614a7a93546f4
+NEEDED:  libm.so.6 libpthread.so.0 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+exit:    3
+first:   probe: iconv UTF-8 -> UTF-16LE refused, errno=22
+
+===== r7c-control-cc13-iconv (expected: starts: iconv ok)
+from:    gcr.io/distroless/cc-debian13@sha256:4594d59540d1948417f6ca2829ddd9294493a7c68b7528f4dd459de7f203a750 
+binary:  probe-asneeded.kexe sha256=ca44b56eacbe8be51c41327d8b4dbe6f36e5b4b763f724635ad614a7a93546f4
+NEEDED:  libm.so.6 libpthread.so.0 librt.so.1 libdl.so.2 libgcc_s.so.1 libc.so.6 ld-linux-x86-64.so.2 
+exit:    0
+first:   probe: iconv UTF-8 -> UTF-16LE ok
+
+===== host
+docker:  29.1.3
+kernel:  6.6.87.2
+keel:    f79f22d09bc117629612932783796a184a6fb898
+sborka:  92a05f61d09edfdb7eccb8a45b422fab4405986c
