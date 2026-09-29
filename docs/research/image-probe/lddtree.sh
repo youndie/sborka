@@ -26,5 +26,5 @@ for row in r1-keel-cc13:/app/keel r2-keel-base13:/app/keel r3-curl-cc12:/app/cur
     cid="$(docker create "image-probe/$id")"; docker export "$cid" | tar -x -C "$root" 2> /dev/null; docker rm "$cid" > /dev/null
     printf '\n===== %s\n' "$id"
     docker run --rm -v "$root:/r:ro" "$ALPINE_DIGEST" sh -c \
-        "apk add -q pax-utils lddtree > /dev/null 2>&1 && lddtree -R /r $at; echo \"lddtree exit=\$?\"" 2>&1
+        "apk add -q pax-utils lddtree > /dev/null 2>&1 && lddtree -R /r/ $at; echo \"lddtree exit=\$?\"" 2>&1
 done
