@@ -40,9 +40,16 @@ class LoadCheck(private val fs: ImageFs, private val env: Map<String, String>) {
         val binary = Elf.parse(binFile.bytes)
         if (!binary.dynamic) return Result(emptyList(), listOf("$binPath: static, nothing for a loader to do"), warnings)
 
+        // NO LOADER, NOTHING ELSE HAPPENS. The kernel hands the binary to its interpreter; without
+        // one there is no library search to report on. The first scoring run listed every NEEDED
+        // entry as missing on `scratch` as well — true of the files, and nothing the loader would
+        // ever have got to.
         binary.interpreter?.let { interp ->
             val hit = fs.resolveFile(interp)
-            if (hit == null) problems += MissingInterpreter(interp) else resolved += "interpreter $interp -> /${hit.first}"
+            if (hit == null) {
+                return Result(listOf(MissingInterpreter(interp)), resolved, listOf("libraries not looked up: there is no loader to look them up"))
+            }
+            resolved += "interpreter $interp -> /${hit.first}"
         }
 
         val cache = LdSoCache.read(fs)

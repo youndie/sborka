@@ -25,9 +25,9 @@ base() { awk -v t="$1" '$1 == t { print $2 }' bases.lock; }
 # row | what Docker did (from the corpus) | what the check must say to agree | image-mode path | base for base-mode
 rows="
 r1-keel-cc13|serves|loads|/app/keel|$(base gcr.io/distroless/cc-debian13)
-r2-keel-base13|127 libgcc_s.so.1|missing-library libgcc_s.so.1|/app/keel|$(base gcr.io/distroless/base-debian13)
-r3-curl-cc12|127 libz.so.1|missing-library libz.so.1|/app/curl|$(base gcr.io/distroless/cc-debian12)
-r4-default-cc13|127 libcrypt.so.1|missing-library libcrypt.so.1|/app/probe|$(base gcr.io/distroless/cc-debian13)
+r2-keel-base13|127 libgcc_s.so.1|missing-library libgcc_s.so.1 needed by /app/keel|/app/keel|$(base gcr.io/distroless/base-debian13)
+r3-curl-cc12|127 libz.so.1|missing-library libz.so.1 needed by /app/curl|/app/curl|$(base gcr.io/distroless/cc-debian12)
+r4-default-cc13|127 libcrypt.so.1|missing-library libcrypt.so.1 needed by /app/probe|/app/probe|$(base gcr.io/distroless/cc-debian13)
 r5a-copied-libcrypt-2604|1 GLIBC_2.38 by libcrypt.so.1|missing-version GLIBC_2.38 from libc.so.6 needed by /usr/lib/x86_64-linux-gnu/libcrypt.so.1|/app/probe|-
 r5b-copied-libcrypt-2404|1 GLIBC_2.38 by libcrypt.so.1|missing-version GLIBC_2.38 from libc.so.6 needed by /usr/lib/x86_64-linux-gnu/libcrypt.so.1|/app/probe|-
 r6-keel-scratch|255 exec /app/keel: no such file|missing-interpreter /lib64/ld-linux-x86-64.so.2|/app/keel|scratch
