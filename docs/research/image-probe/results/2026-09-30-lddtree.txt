@@ -1,0 +1,142 @@
+# B-31, 2026-09-30: lddtree (pax-utils, Alpine packages `pax-utils` and `lddtree`) over B-27's corpus,
+# each image unpacked with `docker export`. Produced by lddtree.sh on a Linux x86_64 host with Docker.
+# The three earlier runs of the script did not reach a verdict (wrong package; root prefixed twice;
+# root without a trailing slash) and are in its git history, not here.
+#
+# Read with: in cc-debian12, /lib64/ld-linux-x86-64.so.2 is an ABSOLUTE link to
+# /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2; in cc-debian13 it is relative (../lib/…). lddtree fails
+# every library on the cc-debian12 rows (r3, r5a, r5b) — which fits that link being followed outside
+# the root. Every run exits 0.
+lddtree from pax-utils in alpine@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
+
+===== r1-keel-cc13
+keel => /r/app/keel (interpreter => /r/lib64/ld-linux-x86-64.so.2)
+    libm.so.6 => /r/lib/x86_64-linux-gnu/libm.so.6
+    libpthread.so.0 => /r/lib/x86_64-linux-gnu/libpthread.so.0
+    librt.so.1 => /r/lib/x86_64-linux-gnu/librt.so.1
+    libdl.so.2 => /r/lib/x86_64-linux-gnu/libdl.so.2
+    libgcc_s.so.1 => /r/lib/x86_64-linux-gnu/libgcc_s.so.1
+    libc.so.6 => /r/lib/x86_64-linux-gnu/libc.so.6
+    ld-linux-x86-64.so.2 => /r/lib64/ld-linux-x86-64.so.2
+lddtree exit=0
+
+===== r2-keel-base13
+keel => /r/app/keel (interpreter => /r/lib64/ld-linux-x86-64.so.2)
+    libm.so.6 => /r/lib/x86_64-linux-gnu/libm.so.6
+    libpthread.so.0 => /r/lib/x86_64-linux-gnu/libpthread.so.0
+    librt.so.1 => /r/lib/x86_64-linux-gnu/librt.so.1
+    libdl.so.2 => /r/lib/x86_64-linux-gnu/libdl.so.2
+    libgcc_s.so.1 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libgcc_s.so.1: No such file or directory
+    libc.so.6 => /r/lib/x86_64-linux-gnu/libc.so.6
+    ld-linux-x86-64.so.2 => /r/lib64/ld-linux-x86-64.so.2
+lddtree exit=0
+
+===== r3-curl-cc12
+curl => /r/app/curl (interpreter => /r/lib64/ld-linux-x86-64.so.2)
+    libm.so.6 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libm.so.6: No such file or directory
+/usr/bin/lddtree: cd: line 201: can't cd to libpthread.so.0: No such file or directory
+    libpthread.so.0 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to librt.so.1: No such file or directory
+    librt.so.1 => not found
+    libz.so.1 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libz.so.1: No such file or directory
+/usr/bin/lddtree: cd: line 201: can't cd to libdl.so.2: No such file or directory
+    libdl.so.2 => not found
+    libgcc_s.so.1 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libgcc_s.so.1: No such file or directory
+    libc.so.6 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libc.so.6: No such file or directory
+    ld-linux-x86-64.so.2 => not found
+lddtree exit=0
+
+===== r4-default-cc13
+probe => /r/app/probe (interpreter => /r/lib64/ld-linux-x86-64.so.2)
+    libresolv.so.2 => /r/lib/x86_64-linux-gnu/libresolv.so.2
+    libm.so.6 => /r/lib/x86_64-linux-gnu/libm.so.6
+    libpthread.so.0 => /r/lib/x86_64-linux-gnu/libpthread.so.0
+    libutil.so.1 => /r/lib/x86_64-linux-gnu/libutil.so.1
+/usr/bin/lddtree: cd: line 201: can't cd to libcrypt.so.1: No such file or directory
+    libcrypt.so.1 => not found
+    librt.so.1 => /r/lib/x86_64-linux-gnu/librt.so.1
+    libdl.so.2 => /r/lib/x86_64-linux-gnu/libdl.so.2
+    libgcc_s.so.1 => /r/lib/x86_64-linux-gnu/libgcc_s.so.1
+    libc.so.6 => /r/lib/x86_64-linux-gnu/libc.so.6
+    ld-linux-x86-64.so.2 => /r/lib64/ld-linux-x86-64.so.2
+lddtree exit=0
+
+===== r5a-copied-libcrypt-2604
+probe => /r/app/probe (interpreter => /r/lib64/ld-linux-x86-64.so.2)
+/usr/bin/lddtree: cd: line 201: can't cd to libresolv.so.2: No such file or directory
+    libresolv.so.2 => not found
+    libm.so.6 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libm.so.6: No such file or directory
+    libpthread.so.0 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libpthread.so.0: No such file or directory
+    libutil.so.1 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libutil.so.1: No such file or directory
+/usr/bin/lddtree: cd: line 201: can't cd to libcrypt.so.1: No such file or directory
+    libcrypt.so.1 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to librt.so.1: No such file or directory
+    librt.so.1 => not found
+    libdl.so.2 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libdl.so.2: No such file or directory
+    libgcc_s.so.1 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libgcc_s.so.1: No such file or directory
+/usr/bin/lddtree: cd: line 201: can't cd to libc.so.6: No such file or directory
+    libc.so.6 => not found
+    ld-linux-x86-64.so.2 => not found
+lddtree exit=0
+
+===== r5b-copied-libcrypt-2404
+probe => /r/app/probe (interpreter => /r/lib64/ld-linux-x86-64.so.2)
+    libresolv.so.2 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libresolv.so.2: No such file or directory
+    libm.so.6 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libm.so.6: No such file or directory
+    libpthread.so.0 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libpthread.so.0: No such file or directory
+    libutil.so.1 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libutil.so.1: No such file or directory
+/usr/bin/lddtree: cd: line 201: can't cd to libcrypt.so.1: No such file or directory
+    libcrypt.so.1 => not found
+    librt.so.1 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to librt.so.1: No such file or directory
+/usr/bin/lddtree: cd: line 201: can't cd to libdl.so.2: No such file or directory
+    libdl.so.2 => not found
+    libgcc_s.so.1 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libgcc_s.so.1: No such file or directory
+    libc.so.6 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libc.so.6: No such file or directory
+    ld-linux-x86-64.so.2 => not found
+lddtree exit=0
+
+===== r6-keel-scratch
+keel => /r/app/keel (interpreter => /r/lib64/ld-linux-x86-64.so.2)
+/usr/bin/lddtree: cd: line 201: can't cd to libm.so.6: No such file or directory
+    libm.so.6 => not found
+    libpthread.so.0 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libpthread.so.0: No such file or directory
+/usr/bin/lddtree: cd: line 201: can't cd to librt.so.1: No such file or directory
+    librt.so.1 => not found
+    libdl.so.2 => /usr/bin/lddtree: cd: line 201: can't cd to libdl.so.2: No such file or directory
+not found
+    libgcc_s.so.1 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libgcc_s.so.1: No such file or directory
+    libc.so.6 => not found
+/usr/bin/lddtree: cd: line 201: can't cd to libc.so.6: No such file or directory
+/usr/bin/lddtree: cd: line 201: can't cd to /r/lib64: No such file or directory
+    ld-linux-x86-64.so.2 => not found
+lddtree exit=0
+
+===== r7a-blind-scratch-loads
+probe => /r/app/probe (interpreter => /r/lib64/ld-linux-x86-64.so.2)
+    libm.so.6 => /r/lib/x86_64-linux-gnu/libm.so.6
+    libpthread.so.0 => /r/lib/x86_64-linux-gnu/libpthread.so.0
+    librt.so.1 => /r/lib/x86_64-linux-gnu/librt.so.1
+    libdl.so.2 => /r/lib/x86_64-linux-gnu/libdl.so.2
+    libgcc_s.so.1 => /r/lib/x86_64-linux-gnu/libgcc_s.so.1
+    libc.so.6 => /r/lib/x86_64-linux-gnu/libc.so.6
+    ld-linux-x86-64.so.2 => /r/lib64/ld-linux-x86-64.so.2
+lddtree exit=0
