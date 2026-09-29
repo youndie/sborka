@@ -1,7 +1,7 @@
 ---
 id: B-32
 title: "Write the verdict: which of RQ0–RQ2 held, and where the check lives"
-status: wip
+status: done
 priority: P1
 size: S
 stage: stage-8-image-spike
@@ -25,3 +25,12 @@ static-binary research, with the numbers from B-27…B-31 and a home for what sh
 - AC: `docs/research/research-native-image.md` with RQ0, RQ1, RQ2 each GREEN or RED and the table
   behind it; the home named; B-33 and B-34 rewritten to match, left as `question` for the owner.
 - Anchors: `docs/research/research-native-image.md`
+
+## Done, 2026-09-30
+
+[research-native-image](../research/research-native-image.md): RQ0 RED as asked and explained to the
+byte (kore-build's `builtAt`, and the linker's `.comment` across hosts); RQ1 GREEN once asked as "with
+no daemon" rather than "without Java"; RQ2 GREEN, 15 of 15 against `docker run`, with the `dlopen`
+blind spot as a corpus row. The home it recommends — one `jib-core` task in `sborka.native-service`,
+published later — and the two sborka decisions it revisits are the owner's; B-33 and B-34 were
+rewritten to say what each answer would make them, and stay `question`.
