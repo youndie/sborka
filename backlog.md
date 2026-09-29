@@ -87,7 +87,7 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (9)
+## Open (10)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
@@ -100,6 +100,7 @@ feature document, so re-prioritising must never move a file.
 | [B-24](docs/backlog/B-24-file-what-the-musl-route-found.md) `[ ]` | File the two hardcoded sources upstream, with a reproduction that reaches main | P2 | XS | B-19 |
 | [B-31](docs/backlog/B-31-read-the-prior-art.md) `[ ]` | Read melange's SCA and container-structure-test against the corpus: does anything already fail this build? | P2 | S | - |
 | [B-34](docs/backlog/B-34-build-keels-image-without-docker-build.md) `[?]` | Build keel's image without docker build: a Jib recipe, or a publishImage task if Jib cannot | P2 | M | B-32 |
+| [B-35](docs/backlog/B-35-the-brief-the-readme-lists-is-not-in-the-tree.md) `[?]` | The README lists a memory-limit brief the tree does not have, and the documentation gate is red on main | P2 | XS | - |
 
 ## Closed (25)
 
