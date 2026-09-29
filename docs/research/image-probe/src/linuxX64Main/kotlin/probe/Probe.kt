@@ -2,10 +2,10 @@ package probe
 
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.toLong
+import platform.iconv.iconv_close
+import platform.iconv.iconv_open
 import platform.posix.errno
 import platform.posix.exit
-import platform.posix.iconv_close
-import platform.posix.iconv_open
 
 @OptIn(ExperimentalForeignApi::class)
 fun main(args: Array<String>) {
