@@ -1,7 +1,7 @@
 ---
 id: B-31
 title: "Read melange's SCA and container-structure-test against the corpus: does anything already fail this build?"
-status: open
+status: wip
 priority: P2
 size: S
 stage: stage-8-image-spike
