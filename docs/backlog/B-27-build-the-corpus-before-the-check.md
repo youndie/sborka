@@ -1,7 +1,7 @@
 ---
 id: B-27
 title: "Build the corpus of images that do and do not start, before a line of the check exists"
-status: open
+status: wip
 priority: P1
 size: M
 stage: stage-7-image-ground-truth

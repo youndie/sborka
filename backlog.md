@@ -91,7 +91,7 @@ feature document, so re-prioritising must never move a file.
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-27](docs/backlog/B-27-build-the-corpus-before-the-check.md) `[ ]` | Build the corpus of images that do and do not start, before a line of the check exists | P1 | M | - |
+| [B-27](docs/backlog/B-27-build-the-corpus-before-the-check.md) `[~]` | Build the corpus of images that do and do not start, before a line of the check exists | P1 | M | - |
 | [B-28](docs/backlog/B-28-ask-whether-the-binary-is-reproducible.md) `[ ]` | Find out whether the same commit links to the same bytes, on one host and across two | P1 | S | - |
 | [B-29](docs/backlog/B-29-put-keel-into-an-image-with-jib.md) `[ ]` | Put keel's native binary into an image with Jib, with no Docker daemon, and see what else comes along | P1 | M | - |
 | [B-30](docs/backlog/B-30-resolve-the-binary-against-the-base.md) `[ ]` | Resolve the binary's loader, libraries and symbol versions against the base's layers, and score it on the corpus | P1 | M | B-27 |
