@@ -87,11 +87,10 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (9)
+## Open (8)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-28](docs/backlog/B-28-ask-whether-the-binary-is-reproducible.md) `[~]` | Find out whether the same commit links to the same bytes, on one host and across two | P1 | S | - |
 | [B-29](docs/backlog/B-29-put-keel-into-an-image-with-jib.md) `[ ]` | Put keel's native binary into an image with Jib, with no Docker daemon, and see what else comes along | P1 | M | - |
 | [B-30](docs/backlog/B-30-resolve-the-binary-against-the-base.md) `[ ]` | Resolve the binary's loader, libraries and symbol versions against the base's layers, and score it on the corpus | P1 | M | B-27 |
 | [B-32](docs/backlog/B-32-write-the-verdict-and-name-the-home.md) `[ ]` | Write the verdict: which of RQ0–RQ2 held, and where the check lives | P1 | S | B-28, B-29, B-30, B-31 |
@@ -101,7 +100,7 @@ feature document, so re-prioritising must never move a file.
 | [B-34](docs/backlog/B-34-build-keels-image-without-docker-build.md) `[?]` | Build keel's image without docker build: a Jib recipe, or a publishImage task if Jib cannot | P2 | M | B-32 |
 | [B-35](docs/backlog/B-35-the-brief-the-readme-lists-is-not-in-the-tree.md) `[?]` | The README lists a memory-limit brief the tree does not have, and the documentation gate is red on main | P2 | XS | - |
 
-## Closed (26)
+## Closed (27)
 
 **The detectors match what was measured**
 
@@ -149,6 +148,10 @@ feature document, so re-prioritising must never move a file.
 **Seven images, each with a `docker run` verdict**
 
 - [B-27](docs/backlog/B-27-build-the-corpus-before-the-check.md) `[x]` - Build the corpus of images that do and do not start, before a line of the check exists
+
+**RQ0–RQ2 answered, verdict written**
+
+- [B-28](docs/backlog/B-28-ask-whether-the-binary-is-reproducible.md) `[x]` - Find out whether the same commit links to the same bytes, on one host and across two
 
 <!-- END INDEX -->
 
