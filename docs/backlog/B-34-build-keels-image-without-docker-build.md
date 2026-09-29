@@ -1,6 +1,6 @@
 ---
 id: B-34
-title: "Build keel's image without docker build: a Jib recipe, or a publishImage task if Jib cannot"
+title: "Build keel's image without docker build: a jib-core task, and the Dockerfile's prose moved where it still means something"
 status: question
 priority: P2
 size: M
