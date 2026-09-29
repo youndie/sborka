@@ -5,6 +5,9 @@
 #
 #   ./lddtree.sh | tee results/<date>-lddtree.txt
 #
+# `lddtree` is its own Alpine package, not part of `pax-utils` there — the first run of this script
+# asked for pax-utils alone and every row answered "lddtree: not found", exit 127.
+#
 # pax-utils runs inside an Alpine container (pinned by digest below) so that nothing is installed
 # on the host. Each image is unpacked with `docker export`, i.e. with its layers already flattened
 # by the daemon — the part of the job lddtree does not do.
@@ -23,5 +26,5 @@ for row in r1-keel-cc13:/app/keel r2-keel-base13:/app/keel r3-curl-cc12:/app/cur
     cid="$(docker create "image-probe/$id")"; docker export "$cid" | tar -x -C "$root" 2> /dev/null; docker rm "$cid" > /dev/null
     printf '\n===== %s\n' "$id"
     docker run --rm -v "$root:/r:ro" "$ALPINE_DIGEST" sh -c \
-        "apk add -q pax-utils > /dev/null 2>&1 && lddtree -R /r /r$at; echo \"lddtree exit=\$?\"" 2>&1
+        "apk add -q pax-utils lddtree > /dev/null 2>&1 && lddtree -R /r /r$at; echo \"lddtree exit=\$?\"" 2>&1
 done
