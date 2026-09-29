@@ -1,7 +1,7 @@
 ---
 id: B-32
 title: "Write the verdict: which of RQ0–RQ2 held, and where the check lives"
-status: open
+status: wip
 priority: P1
 size: S
 stage: stage-8-image-spike
