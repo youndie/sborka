@@ -1,7 +1,7 @@
 ---
 id: B-30
 title: "Resolve the binary's loader, libraries and symbol versions against the base's layers, and score it on the corpus"
-status: open
+status: wip
 priority: P1
 size: M
 stage: stage-8-image-spike

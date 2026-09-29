@@ -91,7 +91,7 @@ feature document, so re-prioritising must never move a file.
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-30](docs/backlog/B-30-resolve-the-binary-against-the-base.md) `[ ]` | Resolve the binary's loader, libraries and symbol versions against the base's layers, and score it on the corpus | P1 | M | B-27 |
+| [B-30](docs/backlog/B-30-resolve-the-binary-against-the-base.md) `[~]` | Resolve the binary's loader, libraries and symbol versions against the base's layers, and score it on the corpus | P1 | M | B-27 |
 | [B-32](docs/backlog/B-32-write-the-verdict-and-name-the-home.md) `[ ]` | Write the verdict: which of RQ0–RQ2 held, and where the check lives | P1 | S | B-28, B-29, B-30, B-31 |
 | [B-33](docs/backlog/B-33-make-the-load-check-a-gate.md) `[?]` | Make the load check a gate in the home B-32 names, with keel's corpus rows in CI | P1 | M | B-32 |
 | [B-24](docs/backlog/B-24-file-what-the-musl-route-found.md) `[ ]` | File the two hardcoded sources upstream, with a reproduction that reaches main | P2 | XS | B-19 |
