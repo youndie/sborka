@@ -1,7 +1,7 @@
 ---
 id: B-28
 title: "Find out whether the same commit links to the same bytes, on one host and across two"
-status: open
+status: wip
 priority: P1
 size: S
 stage: stage-8-image-spike
