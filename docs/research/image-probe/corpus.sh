@@ -188,6 +188,6 @@ EOF
 
 printf '\n===== host\n'
 printf 'docker:  %s\n' "$(docker version --format '{{.Server.Version}}')"
-printf 'kernel:  %s\n' "$(uname -r)"
+printf 'kernel:  %s\n' "$(uname -r | cut -d- -f1)"
 printf 'keel:    %s\n' "$(git -C "$KEEL_DIR" rev-parse HEAD 2>/dev/null || echo 'not a git checkout')"
 printf 'sborka:  %s\n' "$(git -C "$here" rev-parse HEAD 2>/dev/null)"
