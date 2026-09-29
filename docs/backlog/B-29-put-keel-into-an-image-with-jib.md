@@ -1,7 +1,7 @@
 ---
 id: B-29
 title: "Put keel's native binary into an image with Jib, with no Docker daemon, and see what else comes along"
-status: open
+status: wip
 priority: P1
 size: M
 stage: stage-8-image-spike
