@@ -45,7 +45,7 @@ application {
 // `java`: the first corpus run of the moved check failed every row with
 // `NoClassDefFoundError: kotlin/jvm/internal/Intrinsics`. Added to the distribution and its start
 // script, not to the published module's dependencies, so a consumer's POM does not change.
-val cliRuntime by configurations.creating
+val cliRuntime = configurations.create("cliRuntime")
 dependencies { cliRuntime(embeddedKotlin("stdlib")) }
 tasks.named<CreateStartScripts>("startScripts") { classpath = classpath!! + cliRuntime }
 distributions.named("main") { contents { from(cliRuntime) { into("lib") } } }
