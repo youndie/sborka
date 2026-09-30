@@ -2,6 +2,7 @@ package io.github.youndie.sborka
 
 import io.github.youndie.sborka.internal.NativeImageReference
 import io.github.youndie.sborka.internal.SborkaSettings
+import io.github.youndie.sborka.internal.SborkaVersion
 import io.github.youndie.sborka.internal.SizeGate
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.plugin.mpp.Executable
@@ -355,6 +356,67 @@ plugins.withId("org.jetbrains.kotlin.multiplatform") {
 }
 
 tasks.matching { it.name == "assemble" }.configureEach { dependsOn(stageNativeImage) }
+
+// THE IMAGE, BUILT BY GRADLE, AND REFUSED BEFORE IT IS WRITTEN WHEN THE BASE CANNOT LOAD THE BINARY.
+//
+// B-33, on the owner's yes to research-native-image D2: `NEEDED` becomes a gate — against the base's
+// files, never against a list — and the image is described here rather than in a Dockerfile. The load
+// check is `:image` (B-37), scored 23 of 23 against `docker run`; the image is written by jib-core,
+// with no Docker daemon, because the Jib Gradle plugin needs a Java source set, ships two JVM files in
+// a native image and fails under the configuration cache (B-29).
+//
+// Not attached to `assemble` or `check`: it pulls a base from a registry, and a build that reaches
+// the network because somebody ran `check` is a build that fails on a train.
+val nativeImage = extensions.create<NativeImageExtension>("nativeImage")
+nativeImage.imageName.convention("${project.name}:${project.version}")
+nativeImage.environment.convention(mapOf("MALLOC_ARENA_MAX" to "2"))
+nativeImage.ports.convention(emptyList())
+nativeImage.labels.put("org.opencontainers.image.version", project.version.toString())
+// The commit, when there is one: a clone without git gets no revision label rather than a failure.
+nativeImage.labels.putAll(
+    providers
+        .exec {
+            commandLine("git", "rev-parse", "HEAD")
+            isIgnoreExitValue = true
+        }.standardOutput.asText
+        .map { out -> out.trim().takeIf { it.length == 40 }?.let { mapOf("org.opencontainers.image.revision" to it) } ?: emptyMap() },
+)
+
+// THE WORKER'S CLASSPATH, resolved when the task runs. jib-core brings Guava, an HTTP client and
+// Jackson; on the buildscript classpath they would sit beside every other plugin the consumer
+// applies. The check is sborka's own `image` module at this release's version, and the Kotlin
+// standard library is named because an isolated classloader is not promised Gradle's.
+val nativeImageRuntime =
+    configurations.create("sborkaNativeImageRuntime") {
+        description = "What sborka.native-service's image task runs with, in a worker of its own"
+        isCanBeConsumed = false
+        isCanBeResolved = true
+    }
+dependencies {
+    add(nativeImageRuntime.name, "io.github.youndie.sborka:image:${SborkaVersion.CURRENT}")
+    add(nativeImageRuntime.name, "com.google.cloud.tools:jib-core:${SborkaVersion.JIB_CORE}")
+    add(nativeImageRuntime.name, "org.jetbrains.kotlin:kotlin-stdlib:$embeddedKotlinVersion")
+}
+
+tasks.register<NativeImage>("nativeImageTar") {
+    group = "distribution"
+    description = "Checks that the base can load the staged binary, then writes the image as an OCI tarball"
+    dependsOn(stageNativeImage)
+    // The staged path, not a scan: with two native targets it is `linux_x64/<baseName>`, and the
+    // image wants that one.
+    binary.set(layout.buildDirectory.file(stagedPath.map { "native-image/$it" }))
+    base.set(nativeImage.base)
+    binaryPath.set(nativeService.baseName.map { "/app/$it" })
+    imageName.set(nativeImage.imageName)
+    environment.set(nativeImage.environment)
+    ports.set(nativeImage.ports)
+    labels.set(nativeImage.labels)
+    // Beside `native-image/`, not in it: that directory is a Sync's destination and loses anything
+    // it did not put there.
+    tarball.set(layout.buildDirectory.file(nativeService.baseName.map { "native-image-oci/$it.tar" }))
+    report.set(layout.buildDirectory.file(nativeService.baseName.map { "native-image-oci/$it.load-check.txt" }))
+    workerClasspath.from(nativeImageRuntime)
+}
 
 // The reference two-stage Dockerfile, written out rather than generated on every build. What it
 // carries that a fresh one would not: `ca-certificates` as its own line, because `ldd` cannot find it —
