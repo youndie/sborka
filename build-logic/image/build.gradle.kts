@@ -39,3 +39,13 @@ application {
     mainClass.set("io.github.youndie.sborka.image.LoadCheckCliKt")
     applicationName = "load-check"
 }
+
+// THE KOTLIN STANDARD LIBRARY, FOR THE COMMAND ONLY. `embedded-kotlin` makes it `compileOnly`, which is
+// right for everything a build loads — Gradle brings its own — and wrong for a `main` started by
+// `java`: the first corpus run of the moved check failed every row with
+// `NoClassDefFoundError: kotlin/jvm/internal/Intrinsics`. Added to the distribution and its start
+// script, not to the published module's dependencies, so a consumer's POM does not change.
+val cliRuntime by configurations.creating
+dependencies { cliRuntime(embeddedKotlin("stdlib")) }
+tasks.named<CreateStartScripts>("startScripts") { classpath = classpath!! + cliRuntime }
+distributions.named("main") { contents { from(cliRuntime) { into("lib") } } }
