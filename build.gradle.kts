@@ -127,7 +127,7 @@ val verifyBuildLogicPublications =
             // fails to resolve while the root module sits on the server looking complete. That is the
             // 0.1.0.3 shape again, one level down.
             val libraries =
-                listOf("core", "conventions", "settings", "kapkan", "catalog", "platform-probe", "platform-probe-jvm") +
+                listOf("core", "conventions", "settings", "kapkan", "image", "catalog", "platform-probe", "platform-probe-jvm") +
                     nativeVariants
             val absent = libraries.filter { versionsOf(it).isEmpty() }
             check(absent.isEmpty()) {

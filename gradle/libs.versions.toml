@@ -56,7 +56,19 @@ kotlinxIo = "0.9.0"
 # `NoClassDefFoundError: org/slf4j/LoggerFactory`, which names the class and not the missing artefact.
 slf4j = "2.0.18"
 
+# WHAT `:image` READS IMAGES WITH — the two libraries jib-core brings, so the image task (B-33), built
+# on jib-core, adds nothing to a consumer's classpath the check had not brought already.
+#
+# commons-compress is NEWER than jib-core's 1.26.0, and that is not taste: 1.26.0's tar writer needs
+# commons-codec and does not declare it (`NoClassDefFoundError: org/apache/commons/codec/Charsets`,
+# the first run of `:image`'s tests). jib-core only works on it because google-http-client happens to
+# bring codec along. Gradle resolves the higher version for both.
+commonsCompress = "1.28.0"
+jackson = "2.21.1"
+
 [libraries]
+commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
 ksp-symbol-processing-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 ktlint-gradle-plugin = { module = "org.jlleitschuh.gradle:ktlint-gradle", version.ref = "ktlintPlugin" }

@@ -61,6 +61,7 @@ jobs:
             io.github.youndie.sborka:core:${{ steps.published.outputs.version }}
             io.github.youndie.sborka:conventions:${{ steps.published.outputs.version }}
             io.github.youndie.sborka:settings:${{ steps.published.outputs.version }}
+            io.github.youndie.sborka:image:${{ steps.published.outputs.version }}
           repository: file://${{ github.workspace }}/build/local-repo-plugins
 
       # THE REPORT TASKS, RUN ONCE SO THAT THEY ARE RUN AT ALL.
