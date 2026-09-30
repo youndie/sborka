@@ -379,7 +379,10 @@ nativeImage.labels.putAll(
             commandLine("git", "rev-parse", "HEAD")
             isIgnoreExitValue = true
         }.standardOutput.asText
-        .map { out -> out.trim().takeIf { it.length == 40 }?.let { mapOf("org.opencontainers.image.revision" to it) } ?: emptyMap() },
+        .map { out ->
+            out.trim().takeIf { it.length == 40 }?.let { mapOf("org.opencontainers.image.revision" to it) }
+                ?: emptyMap()
+        },
 )
 
 // THE WORKER'S CLASSPATH, resolved when the task runs. jib-core brings Guava, an HTTP client and

@@ -1,5 +1,15 @@
 package io.github.youndie.sborka
 
+import com.google.cloud.tools.jib.api.Containerizer
+import com.google.cloud.tools.jib.api.Jib
+import com.google.cloud.tools.jib.api.TarImage
+import com.google.cloud.tools.jib.api.buildplan.AbsoluteUnixPath
+import com.google.cloud.tools.jib.api.buildplan.FileEntriesLayer
+import com.google.cloud.tools.jib.api.buildplan.FilePermissions
+import com.google.cloud.tools.jib.api.buildplan.Port
+import io.github.youndie.sborka.image.ImageFs
+import io.github.youndie.sborka.image.LoadCheck
+import io.github.youndie.sborka.image.Registry
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.ConfigurableFileCollection
@@ -14,10 +24,15 @@ import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
+import org.gradle.work.DisableCachingByDefault
 import org.gradle.workers.WorkAction
 import org.gradle.workers.WorkParameters
 import org.gradle.workers.WorkerExecutor
 import javax.inject.Inject
+
+private const val NOT_CACHED =
+    "It reaches a registry, and its output is an image tens of megabytes large that jib-core rebuilds in " +
+        "seconds from the base layers it caches already — a build-cache entry would cost more than it saves."
 
 /** What `sborka.native-service` builds an image from: `nativeImage { base = "…@sha256:…" }`. */
 public interface NativeImageExtension {
@@ -55,6 +70,7 @@ public interface NativeImageExtension {
  * The work runs in a worker with a classloader of its own ([workerClasspath]): jib-core and the check
  * are not on the buildscript classpath this task is loaded from.
  */
+@DisableCachingByDefault(because = NOT_CACHED)
 public abstract class NativeImage : DefaultTask() {
     /** The staged ELF binary. */
     @get:InputFile
@@ -148,8 +164,8 @@ public interface NativeImageParameters : WorkParameters {
 }
 
 /**
- * The work, loaded in the isolated classloader. It is the only class here that names jib-core or the
- * check, so loading [NativeImage] on a buildscript classpath never needs either.
+ * The work, loaded in the isolated classloader. It is the only class here whose code touches jib-core or
+ * the check, so loading [NativeImage] on a buildscript classpath never needs either.
  */
 public abstract class NativeImageWork : WorkAction<NativeImageParameters> {
     override fun execute() {
@@ -160,12 +176,12 @@ public abstract class NativeImageWork : WorkAction<NativeImageParameters> {
         val tarFile = p.tarball.get().asFile
         reportFile.parentFile.mkdirs()
 
-        val base = io.github.youndie.sborka.image.Registry.pull(p.base.get())
-        val fs = io.github.youndie.sborka.image.ImageFs()
+        val base = Registry.pull(p.base.get())
+        val fs = ImageFs()
         base.layers.forEach(fs::apply)
         fs.put(at, binaryFile.readBytes())
         val environment = base.environment + p.environment.get()
-        val result = io.github.youndie.sborka.image.LoadCheck(fs, environment).run(at)
+        val result = LoadCheck(fs, environment).run(at)
 
         val report =
             buildString {
@@ -174,7 +190,7 @@ public abstract class NativeImageWork : WorkAction<NativeImageParameters> {
                 result.notes.forEach { appendLine("  note    $it") }
                 result.problems.forEach { appendLine("  FAIL    ${it.line}") }
                 appendLine("VERDICT ${result.verdict}")
-                appendLine(io.github.youndie.sborka.image.LoadCheck.NOT_CHECKED)
+                appendLine(LoadCheck.NOT_CHECKED)
             }
         reportFile.writeText(report)
 
@@ -186,7 +202,7 @@ public abstract class NativeImageWork : WorkAction<NativeImageParameters> {
                 throw GradleException(
                     "${p.taskPath.get()}: the base cannot load $at — ${result.verdict}\n" +
                         "base ${p.base.get()}\n" +
-                        "${io.github.youndie.sborka.image.LoadCheck.NOT_CHECKED}\nreport: $reportFile",
+                        "${LoadCheck.NOT_CHECKED}\nreport: $reportFile",
                 )
             }
             return
@@ -197,30 +213,30 @@ public abstract class NativeImageWork : WorkAction<NativeImageParameters> {
         }
 
         val layer =
-            com.google.cloud.tools.jib.api.buildplan.FileEntriesLayer
+            FileEntriesLayer
                 .builder()
                 .setName("binary")
                 .addEntry(
                     binaryFile.toPath(),
-                    com.google.cloud.tools.jib.api.buildplan.AbsoluteUnixPath
+                    AbsoluteUnixPath
                         .get(at),
-                    com.google.cloud.tools.jib.api.buildplan.FilePermissions
+                    FilePermissions
                         .fromOctalString("755"),
                 ).build()
         var container =
-            com.google.cloud.tools.jib.api.Jib
+            Jib
                 .from(p.base.get())
                 .addFileEntriesLayer(layer)
                 .setEntrypoint(at)
         p.environment.get().forEach { (k, v) -> container = container.addEnvironmentVariable(k, v) }
-        p.ports.get().forEach { container = container.addExposedPort(com.google.cloud.tools.jib.api.buildplan.Port.tcp(it)) }
+        p.ports.get().forEach { container = container.addExposedPort(Port.tcp(it)) }
         p.labels.get().forEach { (k, v) -> container = container.addLabel(k, v) }
         tarFile.parentFile.mkdirs()
         val written =
             container.containerize(
-                com.google.cloud.tools.jib.api.Containerizer
+                Containerizer
                     .to(
-                        com.google.cloud.tools.jib.api.TarImage
+                        TarImage
                             .at(tarFile.toPath())
                             .named(p.imageName.get()),
                     ).setToolName("sborka"),
