@@ -122,9 +122,11 @@ Jib already builds a daemonless, reproducible image of a native binary. What not
 Rejected: a recipe on the Jib Gradle plugin. It works, and it costs a `java` module, two JVM files in
 every native image, and the configuration cache, which sborka's conventions keep on.
 
-### D2. The two sborka decisions the brief revisits — the case, not the verdict
+### D2. The two sborka decisions the brief revisits
 
-These are the owner's; the spike states what the numbers say.
+**Decided by the owner, 2026-09-30: yes to both, and the gate lives in sborka.** B-33 and B-34 carry
+the answers; B-36 and B-37 come first, because the case below made rows before the gate its condition.
+What follows is the case as it was put.
 
 - **"NEEDED is a log line, not a gate"** ([B-21](../backlog/B-21-print-what-the-binary-declares.md)).
   Its reason was that a gate against an *expected list* becomes a rubber stamp. This check has no
@@ -187,5 +189,7 @@ OS — or dropping `.comment` and the build-id, which is a choice about debuggab
 
 ## 7. What happens next
 
-B-33 and B-34 are `question`: each needs the owner's answer to D2. kore#102 is the one upstream item
-that decides whether "same commit, same digest" can be claimed at all.
+D2 is answered (2026-09-30). The order is B-36 (the four unexercised paths as rows), B-37 (the check
+into build-logic, the corpus in CI), B-33 (the image task and the gate in `sborka.native-service`),
+B-34 (keel without its Dockerfile). kore#102 is the one upstream item that decides whether "same
+commit, same digest" can be claimed at all.
