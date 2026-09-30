@@ -85,7 +85,7 @@ public class LoadCheck(
                     listOf("libraries not looked up: there is no loader to look them up"),
                 )
             }
-            resolved += "interpreter $interp -> /${hit.first}"
+            resolved += "interpreter $interp -> /${hit.path}"
         }
 
         val cache = LdSoCache.read(fs)
@@ -107,16 +107,16 @@ public class LoadCheck(
                 }
                 val lib =
                     try {
-                        Elf.parse(hit.second.bytes)
+                        Elf.parse(hit.file.bytes)
                     } catch (e: Elf.NotElf) {
-                        problems += MissingLibrary("$name (found /${hit.first}, but ${e.message})", who.path)
+                        problems += MissingLibrary("$name (found /${hit.path}, but ${e.message})", who.path)
                         continue
                     }
                 loaded[name] = lib
-                val next = Loaded("/${hit.first}", lib)
+                val next = Loaded("/${hit.path}", lib)
                 all += next
                 queue += next
-                resolved += "$name -> /${hit.first} (needed by ${who.path})"
+                resolved += "$name -> /${hit.path} (needed by ${who.path})"
             }
         }
 
@@ -183,7 +183,7 @@ internal object LdSoCache {
     private const val ENTRY = 24
 
     fun read(fs: ImageFs): Map<String, String>? {
-        val bytes = fs.resolveFile("etc/ld.so.cache")?.second?.bytes ?: return null
+        val bytes = fs.resolveFile("etc/ld.so.cache")?.file?.bytes ?: return null
         val start = String(bytes, Charsets.ISO_8859_1).indexOf(MAGIC)
         require(start >= 0) { "/etc/ld.so.cache is in a format this check does not read" }
         val b = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)

@@ -27,6 +27,16 @@ public class ImageFs {
 
     public object Dir : Node
 
+    /**
+     * A regular file and its canonical path, without a leading slash. A type of its own rather than a
+     * `Pair`: the Kotlin standard library is not on a consumer's compile classpath here, and proba
+     * failed the first publish of this module on `kotlin.Pair` in exactly this signature.
+     */
+    public data class Resolved(
+        val path: String,
+        val file: File,
+    )
+
     private val nodes = linkedMapOf<String, Node>()
 
     /** Applies one layer blob: gzip or plain tar. zstd is refused by name rather than misread. */
@@ -104,7 +114,7 @@ public class ImageFs {
      * since `/lib` → `usr/lib` is how a merged-/usr base answers for everything under it. Returns the
      * canonical path of a regular file, without a leading slash, or null when there is none.
      */
-    public fun resolveFile(path: String): Pair<String, File>? {
+    public fun resolveFile(path: String): Resolved? {
         var hops = 0
         var pending = ArrayDeque(normalize(path).split('/').filter(String::isNotEmpty))
         val done = ArrayList<String>()
@@ -126,7 +136,7 @@ public class ImageFs {
                 is File -> {
                     // a file used as a directory
                     if (pending.isNotEmpty()) return null
-                    return here to n
+                    return Resolved(here, n)
                 }
 
                 // A directory need not have an entry of its own: tar streams often leave parents
