@@ -38,6 +38,7 @@ build_probe() { # build_probe <linkMode> <task>
 build_probe default :linkReleaseExecutableLinuxX64
 build_probe asneeded :linkReleaseExecutableLinuxX64
 build_probe asneeded :curl:linkReleaseExecutableLinuxX64
+build_probe runpath :linkReleaseExecutableLinuxX64
 
 "$KEEL_DIR/gradlew" -p "$KEEL_DIR" :server:stageNativeImage --console=plain --no-daemon > "$work/build-keel.log" 2>&1 ||
     { echo "ABORT: keel build failed, log:" >&2; tail -30 "$work/build-keel.log" >&2; exit 1; }
@@ -45,8 +46,9 @@ build_probe asneeded :curl:linkReleaseExecutableLinuxX64
 PROBE_DEFAULT="$here/build/bin/linuxX64/releaseExecutable/probe-default.kexe"
 PROBE_ASNEEDED="$here/build/bin/linuxX64/releaseExecutable/probe-asneeded.kexe"
 CURL_ASNEEDED="$here/curl/build/bin/linuxX64/releaseExecutable/curl-asneeded.kexe"
+PROBE_RUNPATH="$here/build/bin/linuxX64/releaseExecutable/probe-runpath.kexe"
 KEEL="$KEEL_DIR/server/build/native-image/keel"
-for b in "$PROBE_DEFAULT" "$PROBE_ASNEEDED" "$CURL_ASNEEDED" "$KEEL"; do
+for b in "$PROBE_DEFAULT" "$PROBE_ASNEEDED" "$CURL_ASNEEDED" "$PROBE_RUNPATH" "$KEEL"; do
     [ -f "$b" ] || { echo "ABORT: not built: $b" >&2; exit 1; }
 done
 
@@ -54,20 +56,23 @@ done
 
 # The tags are where the digests came from, not what the rows use. A row that named a tag would be a
 # different row the day the tag moved.
-TAGS="gcr.io/distroless/cc-debian13 gcr.io/distroless/cc-debian12 gcr.io/distroless/base-debian13 ubuntu:26.04 ubuntu:24.04"
-if [ ! -f bases.lock ]; then
-    for t in $TAGS; do
-        docker pull -q "$t" > /dev/null || { echo "ABORT: cannot pull $t" >&2; exit 1; }
-        printf '%s %s\n' "$t" "$(docker image inspect --format '{{index .RepoDigests 0}}' "$t")"
-    done > bases.lock
-fi
+TAGS="gcr.io/distroless/cc-debian13 gcr.io/distroless/cc-debian12 gcr.io/distroless/base-debian13 ubuntu:26.04 ubuntu:24.04 debian:13"
+# A tag already in the lock keeps its digest; a tag added later is resolved once and appended, so the
+# rows that existed before it are not moved by adding it (B-36 added debian:13).
+touch bases.lock
+for t in $TAGS; do
+    awk -v t="$t" '$1 == t { found = 1 } END { exit !found }' bases.lock && continue
+    docker pull -q "$t" > /dev/null || { echo "ABORT: cannot pull $t" >&2; exit 1; }
+    printf '%s %s\n' "$t" "$(docker image inspect --format '{{index .RepoDigests 0}}' "$t")" >> bases.lock
+done
 base() { awk -v t="$1" '$1 == t { print $2 }' bases.lock; }
 CC13="$(base gcr.io/distroless/cc-debian13)"
 CC12="$(base gcr.io/distroless/cc-debian12)"
 BASE13="$(base gcr.io/distroless/base-debian13)"
 U2604="$(base ubuntu:26.04)"
 U2404="$(base ubuntu:24.04)"
-for d in "$CC13" "$CC12" "$BASE13" "$U2604" "$U2404"; do
+DEB13="$(base debian:13)"
+for d in "$CC13" "$CC12" "$BASE13" "$U2604" "$U2404" "$DEB13"; do
     [ -n "$d" ] || { echo "ABORT: bases.lock is missing a base" >&2; exit 1; }
 done
 
@@ -182,6 +187,75 @@ row r7a-blind-scratch-loads "starts: probe: loaded" "$PROBE_ASNEEDED" <<< "$blin
 row r7b-blind-scratch-iconv "fails at run time: iconv refused" "$PROBE_ASNEEDED" iconv <<< "$blind"
 row r7c-control-cc13-iconv "starts: iconv ok" "$PROBE_ASNEEDED" iconv <<EOF
 FROM $CC13
+COPY bin /app/probe
+ENTRYPOINT ["/app/probe"]
+EOF
+
+# ---------------------------------------------------------------- B-36: the paths B-27 never reached
+#
+# Each path the load check implements and no row above exercises, as a pair: the image where the path
+# is what makes it load, and its twin where the same path is missing. libcrypt.so.1 is the library
+# moved around, because the default-linked probe needs it and nothing else in these images does.
+
+# ld.so.cache: Ubuntu's loader reads a real cache. The library is moved out of every default
+# directory, so only the cache can place it (r8a); the twin moves it and does not re-run ldconfig, so
+# the cache still names the old path (r8b). Moving it also leaves a whiteout in the layer.
+row r8a-cache-places-it "starts: probe: loaded" "$PROBE_DEFAULT" <<EOF
+FROM $U2404
+RUN mkdir -p /opt/crypt && mv /usr/lib/x86_64-linux-gnu/libcrypt.so.1* /opt/crypt/ \
+    && echo /opt/crypt > /etc/ld.so.conf.d/crypt.conf && ldconfig
+COPY bin /app/probe
+ENTRYPOINT ["/app/probe"]
+EOF
+row r8b-cache-is-stale "fails: libcrypt.so.1" "$PROBE_DEFAULT" <<EOF
+FROM $U2404
+RUN mkdir -p /opt/crypt && mv /usr/lib/x86_64-linux-gnu/libcrypt.so.1* /opt/crypt/
+COPY bin /app/probe
+ENTRYPOINT ["/app/probe"]
+EOF
+
+# A whiteout: a library the base layer carries, deleted by a later layer (r9a); the twin is the base
+# untouched (r9b).
+row r9a-whiteout-removes-it "fails: libgcc_s.so.1" "$PROBE_ASNEEDED" <<EOF
+FROM $U2404
+RUN rm /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
+COPY bin /app/probe
+ENTRYPOINT ["/app/probe"]
+EOF
+row r9b-no-whiteout "starts: probe: loaded" "$PROBE_ASNEEDED" <<EOF
+FROM $U2404
+COPY bin /app/probe
+ENTRYPOINT ["/app/probe"]
+EOF
+
+# RUNPATH with $ORIGIN: libcrypt.so.1 from Debian 13 (the glibc cc-debian13 carries) beside the binary
+# in /app/lib. The binary that names $ORIGIN/lib finds it (r10a); the same image with the binary that
+# does not, does not (r10b).
+beside="FROM $DEB13 AS donor
+RUN mkdir /out && cp -L /usr/lib/x86_64-linux-gnu/libcrypt.so.1 /out/
+FROM $CC13
+COPY --from=donor /out/libcrypt.so.1 /app/lib/libcrypt.so.1
+COPY bin /app/probe
+ENTRYPOINT [\"/app/probe\"]"
+row r10a-runpath-finds-it "starts: probe: loaded" "$PROBE_RUNPATH" <<< "$beside"
+row r10b-no-runpath "fails: libcrypt.so.1" "$PROBE_DEFAULT" <<< "$beside"
+
+# LD_LIBRARY_PATH from the image's config: the same library in /opt/crypt, found through ENV (r11a),
+# and not without it (r11b).
+row r11a-ld-library-path "starts: probe: loaded" "$PROBE_DEFAULT" <<EOF
+FROM $DEB13 AS donor
+RUN mkdir /out && cp -L /usr/lib/x86_64-linux-gnu/libcrypt.so.1 /out/
+FROM $CC13
+COPY --from=donor /out/libcrypt.so.1 /opt/crypt/libcrypt.so.1
+ENV LD_LIBRARY_PATH=/opt/crypt
+COPY bin /app/probe
+ENTRYPOINT ["/app/probe"]
+EOF
+row r11b-no-ld-library-path "fails: libcrypt.so.1" "$PROBE_DEFAULT" <<EOF
+FROM $DEB13 AS donor
+RUN mkdir /out && cp -L /usr/lib/x86_64-linux-gnu/libcrypt.so.1 /out/
+FROM $CC13
+COPY --from=donor /out/libcrypt.so.1 /opt/crypt/libcrypt.so.1
 COPY bin /app/probe
 ENTRYPOINT ["/app/probe"]
 EOF

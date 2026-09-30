@@ -159,10 +159,9 @@ OS — or dropping `.comment` and the build-id, which is a choice about debuggab
 
 ## 4. Hypotheses, each with what settles it
 
-- The `ld.so.cache` reader has never read a real cache: no base in the corpus carries one. Settled
-  by an Ubuntu-based row (B-33).
-- Whiteouts, `DT_RUNPATH`/`$ORIGIN` and `LD_LIBRARY_PATH` from the image config are implemented and
-  unexercised. Settled by a row each (B-33).
+- ~~The `ld.so.cache` reader has never read a real cache; whiteouts, `DT_RUNPATH`/`$ORIGIN` and
+  `LD_LIBRARY_PATH` are unexercised.~~ **Settled by B-36 (2026-09-30):** a pair of rows each, 23 of 23
+  against `docker run`, each path killed by its own mutant.
 - The default search directories are Debian's and Ubuntu's x86_64. A base from another family may
   search elsewhere; settled by a row on one, or by declaring the check Debian-family only.
 - zstd layers and authenticated registries are refused or unsupported; settled when a consumer needs
