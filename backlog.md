@@ -87,17 +87,16 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (5)
+## Open (4)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
 | [B-33](docs/backlog/B-33-make-the-load-check-a-gate.md) `[ ]` | Give sborka.native-service an image task on jib-core that fails before push when the base cannot load the binary | P1 | M | B-37 |
-| [B-37](docs/backlog/B-37-move-the-check-into-build-logic.md) `[ ]` | Move the load check out of docs/research into build-logic, with the corpus as its test suite | P1 | M | B-36 |
 | [B-24](docs/backlog/B-24-file-what-the-musl-route-found.md) `[ ]` | File the two hardcoded sources upstream, with a reproduction that reaches main | P2 | XS | B-19 |
 | [B-34](docs/backlog/B-34-build-keels-image-without-docker-build.md) `[ ]` | Build keel's image without docker build: a jib-core task, and the Dockerfile's prose moved where it still means something | P2 | M | B-33 |
 | [B-35](docs/backlog/B-35-the-brief-the-readme-lists-is-not-in-the-tree.md) `[?]` | The README lists a memory-limit brief the tree does not have, and the documentation gate is red on main | P2 | XS | - |
 
-## Closed (32)
+## Closed (33)
 
 **The detectors match what was measured**
 
@@ -157,6 +156,7 @@ feature document, so re-prioritising must never move a file.
 **Ship what the verdict chose**
 
 - [B-36](docs/backlog/B-36-exercise-the-paths-the-corpus-never-reached.md) `[x]` - Add the four corpus rows that exercise what the check implements and the corpus never reached
+- [B-37](docs/backlog/B-37-move-the-check-into-build-logic.md) `[x]` - Move the load check out of docs/research into build-logic, with the corpus as its test suite
 
 <!-- END INDEX -->
 

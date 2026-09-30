@@ -1,4 +1,4 @@
-package check
+package io.github.youndie.sborka.image
 
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import java.io.ByteArrayInputStream
@@ -7,29 +7,53 @@ import java.util.zip.GZIPInputStream
 
 /**
  * The root filesystem a container would see: layers applied in order, whiteouts honoured, symlinks
- * followed INSIDE the image and never on the host.
+ * followed INSIDE the image and never on the host — the one thing `lddtree -R` gets wrong on a base
+ * whose interpreter is an absolute link (B-31).
  *
- * Every regular file's bytes are kept. A distroless base plus a service binary is tens of
- * megabytes, and reading only "library-looking" paths would be a guess about where the loader looks
- * — the one thing this class must not guess.
+ * Every regular file's bytes are kept. A distroless base plus a service binary is tens of megabytes,
+ * and keeping only "library-looking" paths would be a guess about where the loader looks — the one
+ * thing this class must not guess.
  */
-class ImageFs {
-    sealed interface Node
-    class File(val bytes: ByteArray, val mode: Int) : Node
-    class Symlink(val target: String) : Node
-    object Dir : Node
+public class ImageFs {
+    public sealed interface Node
+
+    public class File(
+        public val bytes: ByteArray,
+    ) : Node
+
+    public class Symlink(
+        public val target: String,
+    ) : Node
+
+    public object Dir : Node
+
+    /**
+     * A regular file and its canonical path, without a leading slash. A type of its own rather than a
+     * `Pair`: the Kotlin standard library is not on a consumer's compile classpath here, and proba
+     * failed the first publish of this module on `kotlin.Pair` in exactly this signature.
+     */
+    public data class Resolved(
+        val path: String,
+        val file: File,
+    )
 
     private val nodes = linkedMapOf<String, Node>()
 
     /** Applies one layer blob: gzip or plain tar. zstd is refused by name rather than misread. */
-    fun apply(layer: ByteArray) {
+    public fun apply(layer: ByteArray) {
         val input: InputStream =
             when {
-                layer.size > 2 && layer[0] == 0x1f.toByte() && layer[1] == 0x8b.toByte() ->
+                layer.size > 2 && layer[0] == 0x1f.toByte() && layer[1] == 0x8b.toByte() -> {
                     GZIPInputStream(ByteArrayInputStream(layer))
-                layer.size > 4 && layer[0] == 0x28.toByte() && layer[1] == 0xb5.toByte() ->
-                    throw IllegalArgumentException("zstd layer: not supported by this prototype")
-                else -> ByteArrayInputStream(layer)
+                }
+
+                layer.size > 4 && layer[0] == 0x28.toByte() && layer[1] == 0xb5.toByte() -> {
+                    throw IllegalArgumentException("zstd layer: not supported")
+                }
+
+                else -> {
+                    ByteArrayInputStream(layer)
+                }
             }
         val hardlinks = mutableListOf<Pair<String, String>>()
         TarArchiveInputStream(input).use { tar ->
@@ -46,25 +70,29 @@ class ImageFs {
                     continue
                 }
                 if (base.startsWith(".wh.")) {
-                    val gone = (if (parent.isEmpty()) "" else "$parent/") + base.removePrefix(".wh.")
-                    remove(gone)
+                    remove((if (parent.isEmpty()) "" else "$parent/") + base.removePrefix(".wh."))
                     continue
                 }
                 when {
                     e.isDirectory -> {
-                        // A directory replacing a file or link replaces it; one over a directory
-                        // keeps what is inside.
+                        // A directory replacing a file or link replaces it; one over a directory keeps
+                        // what is inside.
                         if (nodes[path] !is Dir) remove(path)
                         nodes[path] = Dir
                     }
+
                     e.isSymbolicLink -> {
                         remove(path)
                         nodes[path] = Symlink(e.linkName)
                     }
-                    e.isLink -> hardlinks += path to normalize(e.linkName)
+
+                    e.isLink -> {
+                        hardlinks += path to normalize(e.linkName)
+                    }
+
                     e.isFile -> {
                         remove(path)
-                        nodes[path] = File(tar.readAllBytes(), e.mode)
+                        nodes[path] = File(tar.readAllBytes())
                     }
                 }
             }
@@ -74,8 +102,51 @@ class ImageFs {
     }
 
     /** Adds one file directly — the service binary a build is about to put on top of the base. */
-    fun put(path: String, bytes: ByteArray, mode: Int = 0x1ed) {
-        nodes[normalize(path)] = File(bytes, mode)
+    public fun put(
+        path: String,
+        bytes: ByteArray,
+    ) {
+        nodes[normalize(path)] = File(bytes)
+    }
+
+    /**
+     * Resolves [path] component by component, following symlinks — in the middle of the path too,
+     * since `/lib` → `usr/lib` is how a merged-/usr base answers for everything under it. Returns the
+     * canonical path of a regular file, without a leading slash, or null when there is none.
+     */
+    public fun resolveFile(path: String): Resolved? {
+        var hops = 0
+        var pending = ArrayDeque(normalize(path).split('/').filter(String::isNotEmpty))
+        val done = ArrayList<String>()
+        while (pending.isNotEmpty()) {
+            val part = pending.removeFirst()
+            if (part == ".") continue
+            if (part == "..") {
+                if (done.isNotEmpty()) done.removeAt(done.size - 1)
+                continue
+            }
+            val here = (done + part).joinToString("/")
+            when (val n = nodes[here]) {
+                is Symlink -> {
+                    if (++hops > MAX_SYMLINKS) return null
+                    if (n.target.startsWith("/")) done.clear()
+                    pending = ArrayDeque(n.target.split('/').filter(String::isNotEmpty) + pending)
+                }
+
+                is File -> {
+                    // a file used as a directory
+                    if (pending.isNotEmpty()) return null
+                    return Resolved(here, n)
+                }
+
+                // A directory need not have an entry of its own: tar streams often leave parents
+                // implicit. Anything missing turns up as a missing final file.
+                Dir, null -> {
+                    done += part
+                }
+            }
+        }
+        return null
     }
 
     private fun remove(path: String) {
@@ -84,48 +155,11 @@ class ImageFs {
         nodes.keys.filter { it.startsWith(prefix) }.forEach(nodes::remove)
     }
 
-    fun has(path: String) = nodes.containsKey(normalize(path))
-
-    /**
-     * Resolves [path] component by component, following symlinks — in the middle of the path too,
-     * since `/lib` → `usr/lib` is how a merged-/usr base answers for everything under it. Returns the
-     * canonical path of a regular file, or null when there is none.
-     */
-    fun resolveFile(path: String): Pair<String, File>? {
-        var hops = 0
-        var pending = ArrayDeque(normalize(path).split('/').filter(String::isNotEmpty))
-        val done = ArrayList<String>()
-        while (pending.isNotEmpty()) {
-            val part = pending.removeFirst()
-            when (part) {
-                "." -> continue
-                ".." -> {
-                    if (done.isNotEmpty()) done.removeAt(done.size - 1)
-                    continue
-                }
-            }
-            val here = (done + part).joinToString("/")
-            when (val n = nodes[here]) {
-                is Symlink -> {
-                    if (++hops > 40) return null
-                    val target = n.target.split('/').filter(String::isNotEmpty)
-                    if (n.target.startsWith("/")) done.clear()
-                    pending = ArrayDeque(target + pending)
-                }
-                is File -> {
-                    if (pending.isNotEmpty()) return null // a file used as a directory
-                    return here to n
-                }
-                Dir, null -> {
-                    // A directory need not have an entry of its own: tar streams often leave the
-                    // parents implicit. Anything missing turns up as a missing final file.
-                    done += part
-                }
-            }
-        }
-        return null
-    }
-
     private fun normalize(name: String): String =
         name.split('/').filter { it.isNotEmpty() && it != "." }.joinToString("/")
+
+    private companion object {
+        /** The loader's own limit on a chain of links. */
+        const val MAX_SYMLINKS = 40
+    }
 }

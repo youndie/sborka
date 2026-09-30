@@ -1,0 +1,53 @@
+name: image corpus
+
+# THE LOAD CHECK AGAINST `docker run`, IN THE SAME RUN (B-37).
+#
+# `:image`'s unit tests pin its rules down on synthetic ELF files; this job asks the same questions of
+# real binaries on real bases and takes Docker's answer as the truth. It builds the corpus in
+# `docs/research/image-probe/` — every base pinned by digest in `bases.lock` — runs each image, and
+# fails when the check and Docker disagree on any row, or when Docker itself stops doing what a row
+# says (a base that changed under its digest cannot, but a corpus row that stopped exercising its path
+# can). The one row where the check says "loads" and the container fails, r7b, is the declared limit
+# and passes as such.
+#
+# A GATE, unlike `parity-probe.yaml`, and PATH-FILTERED like it: the corpus takes minutes of
+# Kotlin/Native linking, and its answer moves only when the check, the corpus or the toolchain does.
+# keel is not built here: the `--as-needed` probe stands in for it, with the same NEEDED list.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'build-logic/image/**'
+      - 'docs/research/image-probe/**'
+      - 'gradle/libs.versions.toml'
+      - '.github/actions/setup-kotlin/**'
+      - '.github/workflows/image-corpus.yaml'
+  pull_request:
+    paths:
+      - 'build-logic/image/**'
+      - 'docs/research/image-probe/**'
+      - 'gradle/libs.versions.toml'
+      - '.github/actions/setup-kotlin/**'
+      - '.github/workflows/image-corpus.yaml'
+
+permissions:
+  contents: read
+
+jobs:
+  corpus:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-kotlin
+        with:
+          konan-cache: "true"
+
+      - name: Build and run the corpus
+        working-directory: docs/research/image-probe
+        run: ./corpus.sh
+
+      - name: Score the load check against it
+        working-directory: docs/research/image-probe
+        run: ./score.sh

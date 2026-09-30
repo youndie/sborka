@@ -1,4 +1,4 @@
-package check
+package io.github.youndie.sborka.image
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -8,26 +8,31 @@ import java.nio.ByteOrder
  * is handed to, the libraries it asks for, where it says to look, and the symbol versions it needs
  * and defines.
  *
- * 64-bit little-endian only — the one layout `linuxX64` produces. Anything else is reported as
- * [NotElf] rather than half-read: a check that guessed at a layout it does not parse would print a
- * clean verdict for a file it never understood.
+ * 64-bit little-endian only — the one layout `linuxX64` produces. Anything else is [NotElf] rather
+ * than half-read: a check that guessed at a layout it does not parse would print a clean verdict for
+ * a file it never understood.
  */
-class Elf private constructor(
-    val interpreter: String?,
-    val needed: List<String>,
-    val soname: String?,
-    val runpath: List<String>,
-    /** file name (as written in NEEDED) → the versions this object needs from it */
-    val versionNeeds: Map<String, List<VersionNeed>>,
-    val versionsDefined: Set<String>,
+public class Elf private constructor(
+    public val interpreter: String?,
+    public val needed: List<String>,
+    public val soname: String?,
+    public val runpath: List<String>,
+    /** file name, as written in NEEDED → the versions this object needs from it */
+    public val versionNeeds: Map<String, List<VersionNeed>>,
+    public val versionsDefined: Set<String>,
     /** false for a static executable: no PT_DYNAMIC, nothing for the loader to do */
-    val dynamic: Boolean,
+    public val dynamic: Boolean,
 ) {
-    data class VersionNeed(val name: String, val weak: Boolean)
+    public data class VersionNeed(
+        val name: String,
+        val weak: Boolean,
+    )
 
-    class NotElf(reason: String) : Exception(reason)
+    public class NotElf(
+        reason: String,
+    ) : Exception(reason)
 
-    companion object {
+    public companion object {
         private const val PT_LOAD = 1
         private const val PT_DYNAMIC = 2
         private const val PT_INTERP = 3
@@ -43,9 +48,12 @@ class Elf private constructor(
         private const val DT_VERNEEDNUM = 0x6fffffffL
         private const val VER_FLG_WEAK = 0x2
 
-        fun parse(bytes: ByteArray): Elf {
-            if (bytes.size < 64 || bytes[0] != 0x7f.toByte() || bytes[1] != 'E'.code.toByte() ||
-                bytes[2] != 'L'.code.toByte() || bytes[3] != 'F'.code.toByte()
+        public fun parse(bytes: ByteArray): Elf {
+            if (bytes.size < 64 ||
+                bytes[0] != 0x7f.toByte() ||
+                bytes[1] != 'E'.code.toByte() ||
+                bytes[2] != 'L'.code.toByte() ||
+                bytes[3] != 'F'.code.toByte()
             ) {
                 throw NotElf("no ELF magic")
             }
@@ -57,24 +65,27 @@ class Elf private constructor(
             val phentsize = b.getShort(0x36).toInt() and 0xffff
             val phnum = b.getShort(0x38).toInt() and 0xffff
 
-            data class Load(val vaddr: Long, val offset: Long, val filesz: Long)
             val loads = mutableListOf<Load>()
             var interp: String? = null
             var dynOffset = -1L
             var dynSize = 0L
             for (i in 0 until phnum) {
                 val p = (phoff + i.toLong() * phentsize).toInt()
-                val type = b.getInt(p)
                 val offset = b.getLong(p + 8)
-                val vaddr = b.getLong(p + 16)
                 val filesz = b.getLong(p + 32)
-                when (type) {
-                    PT_LOAD -> loads += Load(vaddr, offset, filesz)
+                when (b.getInt(p)) {
+                    PT_LOAD -> {
+                        loads += Load(b.getLong(p + 16), offset, filesz)
+                    }
+
                     PT_DYNAMIC -> {
                         dynOffset = offset
                         dynSize = filesz
                     }
-                    PT_INTERP -> interp = cString(bytes, offset.toInt())
+
+                    PT_INTERP -> {
+                        interp = cString(bytes, offset.toInt())
+                    }
                 }
             }
             if (dynOffset < 0) return Elf(interp, emptyList(), null, emptyList(), emptyMap(), emptySet(), false)
@@ -82,8 +93,9 @@ class Elf private constructor(
             // Dynamic entries hold VIRTUAL addresses; the file offset is found through the PT_LOAD
             // segment that maps them.
             fun fileOffset(vaddr: Long): Int {
-                val l = loads.firstOrNull { vaddr >= it.vaddr && vaddr < it.vaddr + it.filesz }
-                    ?: throw NotElf("address 0x${vaddr.toString(16)} is in no PT_LOAD segment")
+                val l =
+                    loads.firstOrNull { vaddr >= it.vaddr && vaddr < it.vaddr + it.filesz }
+                        ?: throw NotElf("address 0x${vaddr.toString(16)} is in no PT_LOAD segment")
                 return (vaddr - l.vaddr + l.offset).toInt()
             }
 
@@ -91,21 +103,24 @@ class Elf private constructor(
             var p = dynOffset.toInt()
             while (p + 16 <= dynOffset + dynSize) {
                 val tag = b.getLong(p)
-                val value = b.getLong(p + 8)
                 if (tag == DT_NULL) break
-                entries += tag to value
+                entries += tag to b.getLong(p + 8)
                 p += 16
             }
-            val strtab = entries.firstOrNull { it.first == DT_STRTAB }?.second
-                ?: throw NotElf("dynamic section without DT_STRTAB")
+            val strtab =
+                entries.firstOrNull { it.first == DT_STRTAB }?.second
+                    ?: throw NotElf("dynamic section without DT_STRTAB")
             val str = fileOffset(strtab)
+
             fun string(off: Long) = cString(bytes, str + off.toInt())
 
             val needed = entries.filter { it.first == DT_NEEDED }.map { string(it.second) }
             val soname = entries.firstOrNull { it.first == DT_SONAME }?.let { string(it.second) }
             // DT_RUNPATH wins over DT_RPATH when both are present, as in the loader.
-            val runpath = (entries.firstOrNull { it.first == DT_RUNPATH } ?: entries.firstOrNull { it.first == DT_RPATH })
-                ?.let { string(it.second).split(':').filter(String::isNotEmpty) } ?: emptyList()
+            val runpath =
+                (entries.firstOrNull { it.first == DT_RUNPATH } ?: entries.firstOrNull { it.first == DT_RPATH })
+                    ?.let { string(it.second).split(':').filter(String::isNotEmpty) }
+                    ?: emptyList()
 
             val needs = linkedMapOf<String, MutableList<VersionNeed>>()
             entries.firstOrNull { it.first == DT_VERNEED }?.let { (_, addr) ->
@@ -141,10 +156,19 @@ class Elf private constructor(
             return Elf(interp, needed, soname, runpath, needs, defined, true)
         }
 
-        private fun cString(bytes: ByteArray, start: Int): String {
+        private fun cString(
+            bytes: ByteArray,
+            start: Int,
+        ): String {
             var end = start
             while (end < bytes.size && bytes[end] != 0.toByte()) end++
             return String(bytes, start, end - start, Charsets.UTF_8)
         }
     }
+
+    private class Load(
+        val vaddr: Long,
+        val offset: Long,
+        val filesz: Long,
+    )
 }

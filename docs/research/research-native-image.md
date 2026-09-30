@@ -83,7 +83,8 @@ Jib fixes every timestamp it writes: `created` 1970-01-01, entries at mtime 1, P
 
 ### 1.4 RQ2: the load check — B-30
 
-`image-probe/check/`, Kotlin/JVM, 499 lines without comments. Its own ELF reader (`PT_INTERP`,
+`image-probe/check/` at the time, Kotlin/JVM, 499 lines without comments — moved by B-37 into
+`build-logic/image/`, where builds call it and the corpus runs against it in CI. Its own ELF reader (`PT_INTERP`,
 `NEEDED`, `RUNPATH`, `VERNEED`/`VERDEF`); layers applied with whiteouts; symlinks resolved inside the
 image root; the base pulled from its registry by digest with no daemon, or a `docker save` image.
 Scored by `image-probe/score.sh` ([results](image-probe/results/2026-09-30-score.txt)):
@@ -180,8 +181,8 @@ OS — or dropping `.comment` and the build-id, which is a choice about debuggab
 ## 6. Code anchors
 
 - `docs/research/image-probe/corpus.sh`, `bases.lock` — the corpus and its bases
-- `docs/research/image-probe/check/src/main/kotlin/check/LoadCheck.kt` — the resolution order and the verdicts
-- `docs/research/image-probe/check/src/main/kotlin/check/Elf.kt`, `ImageFs.kt`, `Sources.kt`
+- `build-logic/image/src/main/kotlin/io/github/youndie/sborka/image/LoadCheck.kt` — the resolution order and the verdicts (moved from `docs/research/image-probe/check/` by B-37)
+- `build-logic/image/src/main/kotlin/io/github/youndie/sborka/image/Elf.kt`, `ImageFs.kt`, `Sources.kt`
 - `docs/research/image-probe/score.sh`, `lddtree.sh`
 - `docs/research/image-probe/jib/core-image.gradle.kts`, `jib/arm.sh`
 - `build-logic/conventions/src/main/kotlin/io/github/youndie/sborka/native-service.gradle.kts` — `stageNativeImage`, where D1 would land

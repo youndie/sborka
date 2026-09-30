@@ -1,0 +1,352 @@
+# B-37, 2026-09-30: score.sh with the check moved into build-logic/image, against build/corpus.tsv from
+# the corpus.sh run just before it — both halves in one run, keel absent (CI mode: the --as-needed
+# probe stands in for it). Linux x86_64 host with Docker.
+#
+# The first run of this pair scored 0 of 23 with Docker right on all 18 rows: the moved CLI had no
+# Kotlin standard library at run time (embedded-kotlin leaves it compileOnly). Fixed in the same item.
+#
+row                        mode   docker                       check
+r1-keel-cc13               image  starts                       loads — agree
+r1-keel-cc13               base   starts                       loads — agree
+r2-keel-base13             image  fails: libgcc_s.so.1         missing-library libgcc_s.so.1 needed by /app/keel — agree
+r2-keel-base13             base   fails: libgcc_s.so.1         missing-library libgcc_s.so.1 needed by /app/keel — agree
+r3-curl-cc12               image  fails: libz.so.1             missing-library libz.so.1 needed by /app/curl — agree
+r3-curl-cc12               base   fails: libz.so.1             missing-library libz.so.1 needed by /app/curl — agree
+r4-default-cc13            image  fails: libcrypt.so.1         missing-library libcrypt.so.1 needed by /app/probe — agree
+r4-default-cc13            base   fails: libcrypt.so.1         missing-library libcrypt.so.1 needed by /app/probe — agree
+r5a-copied-libcrypt-2604   image  fails: GLIBC_2.38            missing-version GLIBC_2.38 from libc.so.6 needed by /usr/lib/x86_64-linux-gnu/libcrypt.so.1 — agree
+r5b-copied-libcrypt-2404   image  fails: GLIBC_2.38            missing-version GLIBC_2.38 from libc.so.6 needed by /usr/lib/x86_64-linux-gnu/libcrypt.so.1 — agree
+r6-keel-scratch            image  fails: no such file          missing-interpreter /lib64/ld-linux-x86-64.so.2 — agree
+r6-keel-scratch            base   fails: no such file          missing-interpreter /lib64/ld-linux-x86-64.so.2 — agree
+r7a-blind-scratch-loads    image  starts                       loads — agree
+r7b-blind-scratch-iconv    image  fails: iconv                 loads — agree
+r7c-control-cc13-iconv     image  starts                       loads — agree
+r8a-cache-places-it        image  starts                       loads — agree
+r8b-cache-is-stale         image  fails: libcrypt.so.1         missing-library libcrypt.so.1 needed by /app/probe — agree
+r9a-whiteout-removes-it    image  fails: libgcc_s.so.1         missing-library libgcc_s.so.1 needed by /app/probe — agree
+r9b-no-whiteout            image  starts                       loads — agree
+r10a-runpath-finds-it      image  starts                       loads — agree
+r10b-no-runpath            image  fails: libcrypt.so.1         missing-library libcrypt.so.1 needed by /app/probe — agree
+r11a-ld-library-path       image  starts                       loads — agree
+r11b-no-ld-library-path    image  fails: libcrypt.so.1         missing-library libcrypt.so.1 needed by /app/probe — agree
+
+23 of 23 verdicts as wanted. r7b "agrees" by saying loads while Docker fails: that is the limit, measured.
+
+===== detail
+        | load-check: /app/keel in r1-keel-cc13.tar (22 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/keel)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/keel)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/keel)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/keel)
+        |   ok      libgcc_s.so.1 -> /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/keel)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/keel)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/keel)
+        |   ok      38 symbol-version requirements checked across 8 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        | VERDICT loads
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/keel in gcr.io/distroless/cc-debian13@sha256:4594d59540d1948417f6ca2829ddd9294493a7c68b7528f4dd459de7f203a750 (21 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/keel)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/keel)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/keel)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/keel)
+        |   ok      libgcc_s.so.1 -> /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/keel)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/keel)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/keel)
+        |   ok      38 symbol-version requirements checked across 8 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        | VERDICT loads
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/keel in r2-keel-base13.tar (18 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/keel)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/keel)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/keel)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/keel)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/keel)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/keel)
+        |   ok      29 symbol-version requirements checked across 7 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        |   FAIL    missing-library libgcc_s.so.1 needed by /app/keel
+        | VERDICT missing-library libgcc_s.so.1 needed by /app/keel
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/keel in gcr.io/distroless/base-debian13@sha256:0ebad3510af52aefe45045cc01b07564570be4feecf8d9f93d3a05d1b5f2f93b (17 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/keel)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/keel)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/keel)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/keel)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/keel)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/keel)
+        |   ok      29 symbol-version requirements checked across 7 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        |   FAIL    missing-library libgcc_s.so.1 needed by /app/keel
+        | VERDICT missing-library libgcc_s.so.1 needed by /app/keel
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/curl in r3-curl-cc12.tar (19 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libm.so.6 -> /lib/x86_64-linux-gnu/libm.so.6 (needed by /app/curl)
+        |   ok      libpthread.so.0 -> /lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/curl)
+        |   ok      librt.so.1 -> /lib/x86_64-linux-gnu/librt.so.1 (needed by /app/curl)
+        |   ok      libdl.so.2 -> /lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/curl)
+        |   ok      libgcc_s.so.1 -> /lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/curl)
+        |   ok      libc.so.6 -> /lib/x86_64-linux-gnu/libc.so.6 (needed by /app/curl)
+        |   ok      ld-linux-x86-64.so.2 -> /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/curl)
+        |   ok      38 symbol-version requirements checked across 8 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        |   FAIL    missing-library libz.so.1 needed by /app/curl
+        | VERDICT missing-library libz.so.1 needed by /app/curl
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/curl in gcr.io/distroless/cc-debian12@sha256:e5d81ddde149641e2a9ba55be4545bc125c67de07508b03ba4c22e6eb0ded5aa (18 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libm.so.6 -> /lib/x86_64-linux-gnu/libm.so.6 (needed by /app/curl)
+        |   ok      libpthread.so.0 -> /lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/curl)
+        |   ok      librt.so.1 -> /lib/x86_64-linux-gnu/librt.so.1 (needed by /app/curl)
+        |   ok      libdl.so.2 -> /lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/curl)
+        |   ok      libgcc_s.so.1 -> /lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/curl)
+        |   ok      libc.so.6 -> /lib/x86_64-linux-gnu/libc.so.6 (needed by /app/curl)
+        |   ok      ld-linux-x86-64.so.2 -> /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/curl)
+        |   ok      38 symbol-version requirements checked across 8 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        |   FAIL    missing-library libz.so.1 needed by /app/curl
+        | VERDICT missing-library libz.so.1 needed by /app/curl
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in r4-default-cc13.tar (22 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libresolv.so.2 -> /usr/lib/x86_64-linux-gnu/libresolv.so.2 (needed by /app/probe)
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      libutil.so.1 -> /usr/lib/x86_64-linux-gnu/libutil.so.1 (needed by /app/probe)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libgcc_s.so.1 -> /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/probe)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      50 symbol-version requirements checked across 10 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        |   FAIL    missing-library libcrypt.so.1 needed by /app/probe
+        | VERDICT missing-library libcrypt.so.1 needed by /app/probe
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in gcr.io/distroless/cc-debian13@sha256:4594d59540d1948417f6ca2829ddd9294493a7c68b7528f4dd459de7f203a750 (21 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libresolv.so.2 -> /usr/lib/x86_64-linux-gnu/libresolv.so.2 (needed by /app/probe)
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      libutil.so.1 -> /usr/lib/x86_64-linux-gnu/libutil.so.1 (needed by /app/probe)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libgcc_s.so.1 -> /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/probe)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      50 symbol-version requirements checked across 10 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        |   FAIL    missing-library libcrypt.so.1 needed by /app/probe
+        | VERDICT missing-library libcrypt.so.1 needed by /app/probe
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in r5a-copied-libcrypt-2604.tar (20 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libresolv.so.2 -> /lib/x86_64-linux-gnu/libresolv.so.2 (needed by /app/probe)
+        |   ok      libm.so.6 -> /lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      libutil.so.1 -> /lib/x86_64-linux-gnu/libutil.so.1 (needed by /app/probe)
+        |   ok      libcrypt.so.1 -> /usr/lib/x86_64-linux-gnu/libcrypt.so.1 (needed by /app/probe)
+        |   ok      librt.so.1 -> /lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libgcc_s.so.1 -> /lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/probe)
+        |   ok      libc.so.6 -> /lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      48 symbol-version requirements checked across 11 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        |   FAIL    missing-version GLIBC_2.38 from libc.so.6 needed by /usr/lib/x86_64-linux-gnu/libcrypt.so.1 — it defines up to GLIBC_2.36
+        | VERDICT missing-version GLIBC_2.38 from libc.so.6 needed by /usr/lib/x86_64-linux-gnu/libcrypt.so.1
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in r5b-copied-libcrypt-2404.tar (20 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libresolv.so.2 -> /lib/x86_64-linux-gnu/libresolv.so.2 (needed by /app/probe)
+        |   ok      libm.so.6 -> /lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      libutil.so.1 -> /lib/x86_64-linux-gnu/libutil.so.1 (needed by /app/probe)
+        |   ok      libcrypt.so.1 -> /usr/lib/x86_64-linux-gnu/libcrypt.so.1 (needed by /app/probe)
+        |   ok      librt.so.1 -> /lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libgcc_s.so.1 -> /lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/probe)
+        |   ok      libc.so.6 -> /lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      48 symbol-version requirements checked across 11 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        |   FAIL    missing-version GLIBC_2.38 from libc.so.6 needed by /usr/lib/x86_64-linux-gnu/libcrypt.so.1 — it defines up to GLIBC_2.36
+        | VERDICT missing-version GLIBC_2.38 from libc.so.6 needed by /usr/lib/x86_64-linux-gnu/libcrypt.so.1
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/keel in r6-keel-scratch.tar (1 layers)
+        |   note    libraries not looked up: there is no loader to look them up
+        |   FAIL    missing-interpreter /lib64/ld-linux-x86-64.so.2 — the kernel cannot start the binary; Docker reports the BINARY as not found
+        | VERDICT missing-interpreter /lib64/ld-linux-x86-64.so.2
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/keel in scratch (0 layers)
+        |   note    libraries not looked up: there is no loader to look them up
+        |   FAIL    missing-interpreter /lib64/ld-linux-x86-64.so.2 — the kernel cannot start the binary; Docker reports the BINARY as not found
+        | VERDICT missing-interpreter /lib64/ld-linux-x86-64.so.2
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in r7a-blind-scratch-loads.tar (9 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /lib64/ld-linux-x86-64.so.2
+        |   ok      libm.so.6 -> /lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      librt.so.1 -> /lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libgcc_s.so.1 -> /lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/probe)
+        |   ok      libc.so.6 -> /lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      38 symbol-version requirements checked across 8 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        | VERDICT loads
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in r7b-blind-scratch-iconv.tar (9 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /lib64/ld-linux-x86-64.so.2
+        |   ok      libm.so.6 -> /lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      librt.so.1 -> /lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libgcc_s.so.1 -> /lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/probe)
+        |   ok      libc.so.6 -> /lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      38 symbol-version requirements checked across 8 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        | VERDICT loads
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in r7c-control-cc13-iconv.tar (22 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libgcc_s.so.1 -> /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/probe)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      38 symbol-version requirements checked across 8 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        | VERDICT loads
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in r8a-cache-places-it.tar (3 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libresolv.so.2 -> /usr/lib/x86_64-linux-gnu/libresolv.so.2 (needed by /app/probe)
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      libutil.so.1 -> /usr/lib/x86_64-linux-gnu/libutil.so.1 (needed by /app/probe)
+        |   ok      libcrypt.so.1 -> /opt/crypt/libcrypt.so.1.1.0 (needed by /app/probe)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libgcc_s.so.1 -> /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/probe)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      57 symbol-version requirements checked across 11 objects
+        |   note    ld.so.cache: 81 entries read
+        | VERDICT loads
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in r8b-cache-is-stale.tar (3 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libresolv.so.2 -> /usr/lib/x86_64-linux-gnu/libresolv.so.2 (needed by /app/probe)
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      libutil.so.1 -> /usr/lib/x86_64-linux-gnu/libutil.so.1 (needed by /app/probe)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libgcc_s.so.1 -> /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/probe)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      50 symbol-version requirements checked across 10 objects
+        |   note    ld.so.cache: 81 entries read
+        |   FAIL    missing-library libcrypt.so.1 needed by /app/probe
+        | VERDICT missing-library libcrypt.so.1 needed by /app/probe
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in r9a-whiteout-removes-it.tar (3 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      28 symbol-version requirements checked across 7 objects
+        |   note    ld.so.cache: 81 entries read
+        |   FAIL    missing-library libgcc_s.so.1 needed by /app/probe
+        | VERDICT missing-library libgcc_s.so.1 needed by /app/probe
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in r9b-no-whiteout.tar (2 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libgcc_s.so.1 -> /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/probe)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      38 symbol-version requirements checked across 8 objects
+        |   note    ld.so.cache: 81 entries read
+        | VERDICT loads
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in r10a-runpath-finds-it.tar (23 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libresolv.so.2 -> /usr/lib/x86_64-linux-gnu/libresolv.so.2 (needed by /app/probe)
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      libutil.so.1 -> /usr/lib/x86_64-linux-gnu/libutil.so.1 (needed by /app/probe)
+        |   ok      libcrypt.so.1 -> /app/lib/libcrypt.so.1 (needed by /app/probe)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libgcc_s.so.1 -> /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/probe)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      57 symbol-version requirements checked across 11 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        | VERDICT loads
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in r10b-no-runpath.tar (23 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libresolv.so.2 -> /usr/lib/x86_64-linux-gnu/libresolv.so.2 (needed by /app/probe)
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      libutil.so.1 -> /usr/lib/x86_64-linux-gnu/libutil.so.1 (needed by /app/probe)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libgcc_s.so.1 -> /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/probe)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      50 symbol-version requirements checked across 10 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        |   FAIL    missing-library libcrypt.so.1 needed by /app/probe
+        | VERDICT missing-library libcrypt.so.1 needed by /app/probe
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in r11a-ld-library-path.tar (23 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libresolv.so.2 -> /usr/lib/x86_64-linux-gnu/libresolv.so.2 (needed by /app/probe)
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      libutil.so.1 -> /usr/lib/x86_64-linux-gnu/libutil.so.1 (needed by /app/probe)
+        |   ok      libcrypt.so.1 -> /opt/crypt/libcrypt.so.1 (needed by /app/probe)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libgcc_s.so.1 -> /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/probe)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      57 symbol-version requirements checked across 11 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        | VERDICT loads
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them
+        | load-check: /app/probe in r11b-no-ld-library-path.tar (23 layers)
+        |   ok      interpreter /lib64/ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+        |   ok      libresolv.so.2 -> /usr/lib/x86_64-linux-gnu/libresolv.so.2 (needed by /app/probe)
+        |   ok      libm.so.6 -> /usr/lib/x86_64-linux-gnu/libm.so.6 (needed by /app/probe)
+        |   ok      libpthread.so.0 -> /usr/lib/x86_64-linux-gnu/libpthread.so.0 (needed by /app/probe)
+        |   ok      libutil.so.1 -> /usr/lib/x86_64-linux-gnu/libutil.so.1 (needed by /app/probe)
+        |   ok      librt.so.1 -> /usr/lib/x86_64-linux-gnu/librt.so.1 (needed by /app/probe)
+        |   ok      libdl.so.2 -> /usr/lib/x86_64-linux-gnu/libdl.so.2 (needed by /app/probe)
+        |   ok      libgcc_s.so.1 -> /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 (needed by /app/probe)
+        |   ok      libc.so.6 -> /usr/lib/x86_64-linux-gnu/libc.so.6 (needed by /app/probe)
+        |   ok      ld-linux-x86-64.so.2 -> /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 (needed by /app/probe)
+        |   ok      50 symbol-version requirements checked across 10 objects
+        |   note    no /etc/ld.so.cache: default directories only
+        |   FAIL    missing-library libcrypt.so.1 needed by /app/probe
+        | VERDICT missing-library libcrypt.so.1 needed by /app/probe
+        | not checked: dlopen targets (gconv, NSS), CA certificates, time zones — no ELF entry names them

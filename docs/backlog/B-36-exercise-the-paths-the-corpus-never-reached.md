@@ -27,7 +27,7 @@ condition for that yes was rows before the gate, so these come first.
   dated results file, and `score.sh` agrees with every one of them — or the disagreement is written
   down as a defect of the prototype and fixed here.
 - Anchors: `docs/research/image-probe/corpus.sh`, `docs/research/image-probe/score.sh`,
-  `docs/research/image-probe/check/src/main/kotlin/check/LoadCheck.kt`
+  `build-logic/image/src/main/kotlin/io/github/youndie/sborka/image/LoadCheck.kt` (moved there by B-37)
 
 ## Iteration 1, 2026-09-30 — rows written, not yet run
 
