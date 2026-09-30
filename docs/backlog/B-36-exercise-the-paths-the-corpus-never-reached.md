@@ -28,3 +28,11 @@ condition for that yes was rows before the gate, so these come first.
   down as a defect of the prototype and fixed here.
 - Anchors: `docs/research/image-probe/corpus.sh`, `docs/research/image-probe/score.sh`,
   `docs/research/image-probe/check/src/main/kotlin/check/LoadCheck.kt`
+
+## Iteration 1, 2026-09-30 — rows written, not yet run
+
+The four pairs are in `corpus.sh` (r8a/b ld.so.cache, r9a/b whiteout, r10a/b RUNPATH, r11a/b
+LD_LIBRARY_PATH), with a `runpath` link mode for the probe and `debian:13` added to the bases, and
+their expected verdicts in `score.sh`. The run did not happen: the Linux host with Docker stopped
+answering mid-iteration. Nothing has been measured; the next iteration runs `corpus.sh`, then fills
+`score.sh`'s Docker column from its results and scores.
