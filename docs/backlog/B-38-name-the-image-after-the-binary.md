@@ -1,7 +1,7 @@
 ---
 id: B-38
 title: "Default the image's name to the binary's, not the module's"
-status: wip
+status: done
 priority: P2
 size: XS
 stage: stage-9-image-ship
@@ -33,3 +33,9 @@ rather than at script level, so the provider does not capture the script object 
 
 Left for the next step: keel on the snapshot that carries this, loading as `keel:<version>` with no
 `imageName` line.
+
+## Done, 2026-09-30
+
+keel on sborka 0.4.0.108 ([youndie/keel#54](https://github.com/youndie/keel/pull/54)), with no `imageName` line:
+`./gradlew build :server:nativeImageTar` green on a Linux host, the report reads `image: keel:0.1.0`,
+and `docker load` answers `Loaded image: keel:0.1.0` — it was `server:0.1.0` on 0.4.0.106.
