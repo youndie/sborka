@@ -368,7 +368,14 @@ tasks.matching { it.name == "assemble" }.configureEach { dependsOn(stageNativeIm
 // Not attached to `assemble` or `check`: it pulls a base from a registry, and a build that reaches
 // the network because somebody ran `check` is a build that fails on a train.
 val nativeImage = extensions.create<NativeImageExtension>("nativeImage")
-nativeImage.imageName.convention("${project.name}:${project.version}")
+// Named after the BINARY, not the module (B-38): keel's module is `:server`, and its image loaded as
+// `server:0.1.0`. Lazy, so a `baseName` set after the convention is applied still names the image.
+// The version is a local of `run`, not of the script: a script-level value read inside `map` would
+// capture the script object, which the configuration cache refuses (#76).
+run {
+    val version = project.version.toString()
+    nativeImage.imageName.convention(nativeService.baseName.map { "$it:$version" })
+}
 nativeImage.environment.convention(mapOf("MALLOC_ARENA_MAX" to "2"))
 nativeImage.ports.convention(emptyList())
 nativeImage.labels.put("org.opencontainers.image.version", project.version.toString())
