@@ -79,7 +79,7 @@ feature document, so re-prioritising must never move a file.
 | `stage-6-static-binary` | Take the win that does not depend on `scratch`, then decide about `scratch` | One item ships a smaller, safer image today and is independent of the rest; one decides whether the brief ends in a recipe or an upstream ticket; two are things the measurements turned up on the way. |
 | `stage-7-image-ground-truth` | Seven images, each with a `docker run` verdict | Nothing that checks images is written until the images it will be judged on exist and have been run. |
 | `stage-8-image-spike` | RQ0–RQ2 answered, verdict written | Reproducibility, Jib without a daemon, and the load check scored on the corpus; the research names where the check lives. |
-| `stage-9-image-ship` | Ship what the verdict chose | Waits on the owner's answer to the two sborka decisions the brief revisits. |
+| `stage-9-image-ship` | Ship what the verdict chose | Answered 2026-09-30: the gate goes into `sborka.native-service` and keel loses its Dockerfile. Rows before the gate (B-36), the check into build-logic (B-37), the task (B-33), keel (B-34). |
 
 ## Marks
 
@@ -87,13 +87,15 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (4)
+## Open (6)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
-| [B-33](docs/backlog/B-33-make-the-load-check-a-gate.md) `[?]` | Make the load check a gate in the home B-32 names, with keel's corpus rows in CI | P1 | M | B-32 |
+| [B-33](docs/backlog/B-33-make-the-load-check-a-gate.md) `[ ]` | Give sborka.native-service an image task on jib-core that fails before push when the base cannot load the binary | P1 | M | B-37 |
+| [B-36](docs/backlog/B-36-exercise-the-paths-the-corpus-never-reached.md) `[ ]` | Add the four corpus rows that exercise what the check implements and the corpus never reached | P1 | S | - |
+| [B-37](docs/backlog/B-37-move-the-check-into-build-logic.md) `[ ]` | Move the load check out of docs/research into build-logic, with the corpus as its test suite | P1 | M | B-36 |
 | [B-24](docs/backlog/B-24-file-what-the-musl-route-found.md) `[ ]` | File the two hardcoded sources upstream, with a reproduction that reaches main | P2 | XS | B-19 |
-| [B-34](docs/backlog/B-34-build-keels-image-without-docker-build.md) `[?]` | Build keel's image without docker build: a jib-core task, and the Dockerfile's prose moved where it still means something | P2 | M | B-32 |
+| [B-34](docs/backlog/B-34-build-keels-image-without-docker-build.md) `[ ]` | Build keel's image without docker build: a jib-core task, and the Dockerfile's prose moved where it still means something | P2 | M | B-33 |
 | [B-35](docs/backlog/B-35-the-brief-the-readme-lists-is-not-in-the-tree.md) `[?]` | The README lists a memory-limit brief the tree does not have, and the documentation gate is red on main | P2 | XS | - |
 
 ## Closed (31)
@@ -156,6 +158,12 @@ feature document, so re-prioritising must never move a file.
 <!-- END INDEX -->
 
 ## Decisions that are not items
+
+- **NEEDED becomes a gate — against the base's files, never against a list** (owner, 2026-09-30).
+  [B-21](docs/backlog/B-21-print-what-the-binary-declares.md) kept it a log line because a gate on an
+  expected list becomes a rubber stamp; the load check has no list, and scored 15 of 15 against
+  `docker run` ([research-native-image](docs/research/research-native-image.md)). B-21's log line
+  stays; B-33 adds the gate beside it.
 
 - **The 2 % line.** A shape becomes a rule only where a profile charged it more than 2 % of
   something. Boxing (1.26 %) and lazy logging (≤ 1.57 %) were dropped by this line and are in every
