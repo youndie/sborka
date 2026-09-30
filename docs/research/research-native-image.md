@@ -145,6 +145,15 @@ What follows is the case as it was put.
 The image layer gives "same binary, same digest" today (§1.3). The rest is kore#102 plus one build-host
 OS — or dropping `.comment` and the build-id, which is a choice about debuggability, not taken here.
 
+**Measured after kore#102, 2026-09-30.** kore 0.1.13 reads `builtAt` from `SOURCE_DATE_EPOCH`
+([kore#103](https://github.com/youndie/kore/pull/103)); keel takes it
+([keel#55](https://github.com/youndie/keel/pull/55)). Four clean builds of one keel commit on a Linux
+host: the two told the commit time gave one binary (`2dc11ee5…`) and one image
+(`sha256:5d97b415…`); the two left on the wall clock gave two binaries and two images. So "same
+commit, same digest" now holds per build-host OS; across macOS and Linux the linkers' `.comment` still
+differs. One trap on the way: the Kotlin/Native compiler reads `SOURCE_DATE_EPOCH` as well, and an
+*empty* value fails compilation with `NumberFormatException` — unset, never empty.
+
 ## 3. Deviations from the brief
 
 - **RQ1 asked the wrong question.** "Jib without the `java` plugin" fails for a reason one line fixes;
