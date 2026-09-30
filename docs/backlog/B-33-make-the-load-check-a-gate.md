@@ -1,7 +1,7 @@
 ---
 id: B-33
 title: "Give sborka.native-service an image task on jib-core that fails before push when the base cannot load the binary"
-status: open
+status: wip
 priority: P1
 size: M
 stage: stage-9-image-ship

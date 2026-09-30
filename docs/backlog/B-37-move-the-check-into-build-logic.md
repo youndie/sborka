@@ -53,3 +53,10 @@ tests in `./gradlew check`), and it needs the corpus to run where every pull req
 - **Published and judged like the others**: `:image` is in the root build's completeness check and in
   proba's list. Its POM carries commons-compress and jackson-databind only — the Kotlin standard
   library the command needs ships in the command's distribution, not in the module's dependencies.
+
+**What CI caught after the item closed, both fixed in its pull request (#107).** The root build's
+ktlint: the published-module list, one entry longer, passed 120 characters — a check the module's own
+`:image:check` does not run. And proba, which exists for exactly this: `ImageFs.resolveFile` returned
+`kotlin.Pair`, and under `embedded-kotlin` the standard library is not on a consumer's compile
+classpath, so code calling it would not compile while the build, its tests and its publish stayed
+green. It is the defect sborka's own `#30` shipped once; `ImageFs.Resolved` replaces the pair.
