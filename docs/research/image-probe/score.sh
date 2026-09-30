@@ -34,14 +34,14 @@ r6-keel-scratch|255 exec /app/keel: no such file|missing-interpreter /lib64/ld-l
 r7a-blind-scratch-loads|0 loaded|loads|/app/probe|-
 r7b-blind-scratch-iconv|3 iconv refused (dlopen)|loads|/app/probe|-
 r7c-control-cc13-iconv|0 iconv ok|loads|/app/probe|-
-r8a-cache-places-it|(B-36: see results)|loads|/app/probe|-
-r8b-cache-is-stale|(B-36: see results)|missing-library libcrypt.so.1 needed by /app/probe|/app/probe|-
-r9a-whiteout-removes-it|(B-36: see results)|missing-library libgcc_s.so.1 needed by /app/probe|/app/probe|-
-r9b-no-whiteout|(B-36: see results)|loads|/app/probe|-
-r10a-runpath-finds-it|(B-36: see results)|loads|/app/probe|-
-r10b-no-runpath|(B-36: see results)|missing-library libcrypt.so.1 needed by /app/probe|/app/probe|-
-r11a-ld-library-path|(B-36: see results)|loads|/app/probe|-
-r11b-no-ld-library-path|(B-36: see results)|missing-library libcrypt.so.1 needed by /app/probe|/app/probe|-
+r8a-cache-places-it|0 loaded (cache: /opt/crypt)|loads|/app/probe|-
+r8b-cache-is-stale|127 libcrypt.so.1 (stale cache)|missing-library libcrypt.so.1 needed by /app/probe|/app/probe|-
+r9a-whiteout-removes-it|127 libgcc_s.so.1 (whiteout)|missing-library libgcc_s.so.1 needed by /app/probe|/app/probe|-
+r9b-no-whiteout|0 loaded|loads|/app/probe|-
+r10a-runpath-finds-it|0 loaded (RUNPATH $ORIGIN/lib)|loads|/app/probe|-
+r10b-no-runpath|127 libcrypt.so.1|missing-library libcrypt.so.1 needed by /app/probe|/app/probe|-
+r11a-ld-library-path|0 loaded (LD_LIBRARY_PATH)|loads|/app/probe|-
+r11b-no-ld-library-path|127 libcrypt.so.1|missing-library libcrypt.so.1 needed by /app/probe|/app/probe|-
 "
 agree=0; total=0
 printf '%-26s %-6s %-34s %s\n' row mode docker check
