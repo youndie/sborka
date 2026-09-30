@@ -15,6 +15,12 @@ ktlint {
 
 dependencies {
     api(projects.core)
+    // COMPILED AGAINST, NOT CARRIED. The native image task (B-33) runs its work in a worker with a
+    // classloader of its own, resolved from a configuration when the task runs: jib-core brings Guava,
+    // an HTTP client and Jackson, and a consumer's buildscript classpath is shared with every other
+    // plugin it applies.
+    compileOnly(projects.image)
+    compileOnly(libs.jib.core)
 
     // APPLIED BY SBORKA, so it travels with it. Which ktlint runs is exactly the portfolio-wide
     // decision this repository exists to hold: the same catalog key `ktlint` means the TOOL version

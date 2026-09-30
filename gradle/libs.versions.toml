@@ -66,9 +66,16 @@ slf4j = "2.0.18"
 commonsCompress = "1.28.0"
 jackson = "2.21.1"
 
+# THE LIBRARY UNDER JIB, and not the Jib Gradle plugin: B-29 measured the plugin needing a `main`
+# source set, shipping two JVM files in a native image and failing under the configuration cache.
+# `sborka.native-service` loads it in an isolated worker, so it is generated into `:core` as a number
+# the convention resolves at run time rather than a jar on every consumer's buildscript classpath.
+jibCore = "0.28.2"
+
 [libraries]
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+jib-core = { module = "com.google.cloud.tools:jib-core", version.ref = "jibCore" }
 ksp-symbol-processing-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 ktlint-gradle-plugin = { module = "org.jlleitschuh.gradle:ktlint-gradle", version.ref = "ktlintPlugin" }

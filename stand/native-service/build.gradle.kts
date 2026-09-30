@@ -178,3 +178,72 @@ val verifySizeBudget =
 
 tasks.named("check") { dependsOn(verifySizeBudget) }
 
+
+// THE IMAGE GATE, ASKED BOTH WAYS ON THE REAL TASK (B-33).
+//
+// `nativeImageTar` against cc-debian13 must write an image; the same task class against
+// base-debian13, where `libgcc_s.so.1` is missing, must refuse and name it. The bases are the corpus's
+// digests (`docs/research/image-probe/bases.lock`), so this is the corpus's r1/r2 pair on the binary
+// the stand links.
+//
+// `--as-needed` here because the stand does not apply `sborka.kmp`, which is where that flag lives:
+// without it the binary declares `libcrypt.so.1`, and cc-debian13 is right to refuse it.
+//
+// LINUX ONLY: on a Mac this module links a Mach-O, and the check reads ELF.
+val linux = !System.getProperty("os.name").startsWith("Mac")
+if (linux) {
+    kotlin.targets
+        .withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget>()
+        .configureEach {
+            binaries
+                .withType<org.jetbrains.kotlin.gradle.plugin.mpp.Executable>()
+                .configureEach { linkerOpts("-Wl,--as-needed") }
+        }
+}
+
+nativeImage {
+    base = "gcr.io/distroless/cc-debian13@sha256:4594d59540d1948417f6ca2829ddd9294493a7c68b7528f4dd459de7f203a750"
+    ports = listOf(8080)
+}
+
+val gateOnBase13 =
+    tasks.register<io.github.youndie.sborka.NativeImage>("nativeImageOnBase13") {
+        description = "The image task against a base without libgcc_s: must refuse, and record why"
+        val real = tasks.named<io.github.youndie.sborka.NativeImage>("nativeImageTar")
+        dependsOn("stageNativeImage")
+        binary.set(real.flatMap { it.binary })
+        binaryPath.set(real.flatMap { it.binaryPath })
+        imageName.set(real.flatMap { it.imageName })
+        environment.set(real.flatMap { it.environment })
+        ports.set(real.flatMap { it.ports })
+        labels.set(real.flatMap { it.labels })
+        workerClasspath.from(configurations.named("sborkaNativeImageRuntime"))
+        base.set("gcr.io/distroless/base-debian13@sha256:0ebad3510af52aefe45045cc01b07564570be4feecf8d9f93d3a05d1b5f2f93b")
+        failOnLoadProblem.set(false)
+        tarball.set(layout.buildDirectory.file("native-image-oci/on-base13.tar"))
+        report.set(layout.buildDirectory.file("native-image-oci/on-base13.load-check.txt"))
+    }
+
+val verifyNativeImage =
+    tasks.register("verifyNativeImage") {
+        group = "verification"
+        description = "Checks that the image gate writes on cc-debian13 and refuses on base-debian13, naming libgcc_s"
+        val real = tasks.named<io.github.youndie.sborka.NativeImage>("nativeImageTar")
+        dependsOn(real, gateOnBase13)
+        val tarball = real.flatMap { it.tarball }
+        val passed = real.flatMap { it.report }
+        val refused = gateOnBase13.flatMap { it.report }
+        val refusedTarball = gateOnBase13.flatMap { it.tarball }
+        doLast {
+            val ok = passed.get().asFile.readText()
+            check("VERDICT loads" in ok && "image: sha256:" in ok) { "cc-debian13 should load and write an image:\n$ok" }
+            check(tarball.get().asFile.length() > 1_000_000) { "no image at ${tarball.get().asFile}" }
+            val no = refused.get().asFile.readText()
+            check("VERDICT missing-library libgcc_s.so.1 needed by /app/stand-service" in no) {
+                "base-debian13 should be refused for libgcc_s.so.1:\n$no"
+            }
+            check(!refusedTarball.get().asFile.exists()) { "an image was written for a base that cannot load the binary" }
+            check("not checked: dlopen" in ok && "not checked: dlopen" in no) { "the report must say what it did not check" }
+        }
+    }
+if (linux) tasks.named("check") { dependsOn(verifyNativeImage) }
