@@ -4,6 +4,10 @@
 # that nothing here was decided by the code under test.
 #
 #   KEEL_DIR=<a keel checkout> ./corpus.sh | tee results/<date>-corpus.txt
+#   ./corpus.sh                        # CI: no keel, the probe stands in for it (below)
+#
+# Besides the report on stdout, every run writes build/corpus.tsv — row, exit code, first line — so
+# that score.sh compares the check with THIS run of `docker run`, not with a table typed earlier.
 #
 # Every row is an image built from a base pinned by digest (bases.lock; written on the first run
 # from the tags below, then read), and run. Each row prints: the base digest, the binary's sha256,
@@ -17,7 +21,10 @@ set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 cd "$here"
 GRADLE="${GRADLE:-$here/../../../gradlew}"
-KEEL_DIR="${KEEL_DIR:?KEEL_DIR must point at a keel checkout}"
+# OPTIONAL. Without it the rows that name keel run the --as-needed probe instead: its NEEDED list is
+# keel's, entry for entry (both linked by sborka.kmp's rule), so every loader question those rows ask
+# is asked the same way. What is lost is r1's /health answer — a probe does not serve.
+KEEL_DIR="${KEEL_DIR:-}"
 
 missing=""
 for t in docker readelf sha256sum curl timeout; do command -v "$t" > /dev/null || missing="$missing $t"; done
@@ -40,14 +47,19 @@ build_probe asneeded :linkReleaseExecutableLinuxX64
 build_probe asneeded :curl:linkReleaseExecutableLinuxX64
 build_probe runpath :linkReleaseExecutableLinuxX64
 
-"$KEEL_DIR/gradlew" -p "$KEEL_DIR" :server:stageNativeImage --console=plain --no-daemon > "$work/build-keel.log" 2>&1 ||
-    { echo "ABORT: keel build failed, log:" >&2; tail -30 "$work/build-keel.log" >&2; exit 1; }
+if [ -n "$KEEL_DIR" ]; then
+    "$KEEL_DIR/gradlew" -p "$KEEL_DIR" :server:stageNativeImage --console=plain --no-daemon > "$work/build-keel.log" 2>&1 ||
+        { echo "ABORT: keel build failed, log:" >&2; tail -30 "$work/build-keel.log" >&2; exit 1; }
+fi
 
 PROBE_DEFAULT="$here/build/bin/linuxX64/releaseExecutable/probe-default.kexe"
 PROBE_ASNEEDED="$here/build/bin/linuxX64/releaseExecutable/probe-asneeded.kexe"
 CURL_ASNEEDED="$here/curl/build/bin/linuxX64/releaseExecutable/curl-asneeded.kexe"
 PROBE_RUNPATH="$here/build/bin/linuxX64/releaseExecutable/probe-runpath.kexe"
-KEEL="$KEEL_DIR/server/build/native-image/keel"
+if [ -n "$KEEL_DIR" ]; then KEEL="$KEEL_DIR/server/build/native-image/keel"; else KEEL="$PROBE_ASNEEDED"; fi
+mkdir -p "$here/build"
+TSV="$here/build/corpus.tsv"
+: > "$TSV"
 for b in "$PROBE_DEFAULT" "$PROBE_ASNEEDED" "$CURL_ASNEEDED" "$PROBE_RUNPATH" "$KEEL"; do
     [ -f "$b" ] || { echo "ABORT: not built: $b" >&2; exit 1; }
 done
@@ -101,6 +113,7 @@ row() {
     rc=$?
     printf 'exit:    %s\n' "$rc"
     printf 'first:   %s\n' "$(printf '%s\n' "$out" | head -1)"
+    printf '%s\t%s\t%s\n' "$id" "$rc" "$(printf '%s\n' "$out" | head -1 | tr '\t' ' ')" >> "$TSV"
 }
 
 # serve <id> — the rows that have to start: run detached, ask /health/ready, then SIGTERM and read the
@@ -119,6 +132,7 @@ serve() {
     docker stop -t 20 "$cid" > /dev/null
     rc="$(docker inspect --format '{{.State.ExitCode}}' "$cid")"
     printf 'serve:   /health/ready=%s, exit after SIGTERM=%s\n' "$code" "$rc"
+    printf '%s\tserve\t%s %s\n' "$id" "$code" "$rc" >> "$TSV"
     printf 'log:     %s\n' "$(docker logs "$cid" 2>&1 | tail -1)"
     docker rm "$cid" > /dev/null
 }
@@ -129,7 +143,7 @@ COPY bin /app/keel
 ENV MALLOC_ARENA_MAX=2
 ENTRYPOINT ["/app/keel"]
 EOF
-serve r1-keel-cc13
+[ -n "$KEEL_DIR" ] && serve r1-keel-cc13
 
 row r2-keel-base13 "fails: libgcc_s.so.1" "$KEEL" <<EOF
 FROM $BASE13
@@ -263,5 +277,5 @@ EOF
 printf '\n===== host\n'
 printf 'docker:  %s\n' "$(docker version --format '{{.Server.Version}}')"
 printf 'kernel:  %s\n' "$(uname -r | cut -d- -f1)"
-printf 'keel:    %s\n' "$(git -C "$KEEL_DIR" rev-parse HEAD 2>/dev/null || echo 'not a git checkout')"
+printf 'keel:    %s\n' "$([ -n "$KEEL_DIR" ] && { git -C "$KEEL_DIR" rev-parse HEAD 2>/dev/null || echo 'not a git checkout'; } || echo 'none: the --as-needed probe stood in')"
 printf 'sborka:  %s\n' "$(git -C "$here" rev-parse HEAD 2>/dev/null)"

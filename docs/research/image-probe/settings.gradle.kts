@@ -3,5 +3,3 @@
 // would be standing between the question and the answer. The link mode is chosen here instead.
 rootProject.name = "image-probe"
 include(":curl")
-// B-30's prototype: the load check, a JVM program, so that it answers on a Mac too.
-include(":check")
