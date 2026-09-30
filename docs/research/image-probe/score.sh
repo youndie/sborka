@@ -38,7 +38,7 @@ r8a-cache-places-it|0 loaded (cache: /opt/crypt)|loads|/app/probe|-
 r8b-cache-is-stale|127 libcrypt.so.1 (stale cache)|missing-library libcrypt.so.1 needed by /app/probe|/app/probe|-
 r9a-whiteout-removes-it|127 libgcc_s.so.1 (whiteout)|missing-library libgcc_s.so.1 needed by /app/probe|/app/probe|-
 r9b-no-whiteout|0 loaded|loads|/app/probe|-
-r10a-runpath-finds-it|0 loaded (RUNPATH $ORIGIN/lib)|loads|/app/probe|-
+r10a-runpath-finds-it|0 loaded (RUNPATH beside the binary)|loads|/app/probe|-
 r10b-no-runpath|127 libcrypt.so.1|missing-library libcrypt.so.1 needed by /app/probe|/app/probe|-
 r11a-ld-library-path|0 loaded (LD_LIBRARY_PATH)|loads|/app/probe|-
 r11b-no-ld-library-path|127 libcrypt.so.1|missing-library libcrypt.so.1 needed by /app/probe|/app/probe|-
