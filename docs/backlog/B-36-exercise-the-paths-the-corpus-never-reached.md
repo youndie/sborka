@@ -1,7 +1,7 @@
 ---
 id: B-36
 title: "Add the four corpus rows that exercise what the check implements and the corpus never reached"
-status: open
+status: wip
 priority: P1
 size: S
 stage: stage-9-image-ship
