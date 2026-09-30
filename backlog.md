@@ -93,7 +93,7 @@ feature document, so re-prioritising must never move a file.
 |---|---|---|---|---|
 | [B-24](docs/backlog/B-24-file-what-the-musl-route-found.md) `[ ]` | File the two hardcoded sources upstream, with a reproduction that reaches main | P2 | XS | B-19 |
 | [B-35](docs/backlog/B-35-the-brief-the-readme-lists-is-not-in-the-tree.md) `[?]` | The README lists a memory-limit brief the tree does not have, and the documentation gate is red on main | P2 | XS | - |
-| [B-38](docs/backlog/B-38-name-the-image-after-the-binary.md) `[ ]` | Default the image's name to the binary's, not the module's | P2 | XS | - |
+| [B-38](docs/backlog/B-38-name-the-image-after-the-binary.md) `[~]` | Default the image's name to the binary's, not the module's | P2 | XS | - |
 
 ## Closed (35)
 

@@ -1,7 +1,7 @@
 ---
 id: B-38
 title: "Default the image's name to the binary's, not the module's"
-status: open
+status: wip
 priority: P2
 size: XS
 stage: stage-9-image-ship
