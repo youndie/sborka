@@ -1,7 +1,7 @@
 ---
 id: B-38
 title: "Default the image's name to the binary's, not the module's"
-status: open
+status: wip
 priority: P2
 size: XS
 stage: stage-9-image-ship
@@ -23,3 +23,13 @@ already knows and which the image's entrypoint is named after.
 - AC: keel's image, built on a sborka carrying this, loads as `keel:<version>` with no `imageName`
   line in keel; the stand's image is named after `stand-service`.
 - Anchors: `build-logic/conventions/src/main/kotlin/io/github/youndie/sborka/native-service.gradle.kts`
+
+## Iteration 1, 2026-09-30 — the convention names the image after the binary; keel's half follows the snapshot
+
+`nativeImage.imageName` now defaults to `<baseName>:<version>`, lazily; the task's report names the
+image it wrote. On a Linux host the stand's image is `stand-service:0.1.0`, `verifyNativeImage` checks
+it, and the configuration cache is stored and then reused. The version is read inside a `run` block
+rather than at script level, so the provider does not capture the script object (#76).
+
+Left for the next step: keel on the snapshot that carries this, loading as `keel:<version>` with no
+`imageName` line.

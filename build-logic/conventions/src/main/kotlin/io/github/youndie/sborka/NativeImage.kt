@@ -42,7 +42,7 @@ public interface NativeImageExtension {
      */
     public val base: Property<String>
 
-    /** The name the tarball's image carries. Defaults to the project name and version. */
+    /** The name the tarball's image carries. Defaults to the binary's `baseName` and the project version. */
     public val imageName: Property<String>
 
     /**
@@ -241,6 +241,6 @@ public abstract class NativeImageWork : WorkAction<NativeImageParameters> {
                             .named(p.imageName.get()),
                     ).setToolName("sborka"),
             )
-        reportFile.appendText("image: ${written.digest} written to $tarFile\n")
+        reportFile.appendText("image: ${p.imageName.get()} ${written.digest} written to $tarFile\n")
     }
 }

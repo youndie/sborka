@@ -236,7 +236,9 @@ val verifyNativeImage =
         val refusedTarball = gateOnBase13.flatMap { it.tarball }
         doLast {
             val ok = passed.get().asFile.readText()
-            check("VERDICT loads" in ok && "image: sha256:" in ok) { "cc-debian13 should load and write an image:\n$ok" }
+            check("VERDICT loads" in ok && "image: stand-service:" in ok && " sha256:" in ok) {
+                "cc-debian13 should load and write an image named after the binary (B-38):\n$ok"
+            }
             check(tarball.get().asFile.length() > 1_000_000) { "no image at ${tarball.get().asFile}" }
             val no = refused.get().asFile.readText()
             check("VERDICT missing-library libgcc_s.so.1 needed by /app/stand-service" in no) {
