@@ -12,6 +12,7 @@ repositories { mavenCentral() }
  *
  *   -PlinkMode=default    what the toolchain does unasked: ten NEEDED entries, libcrypt.so.1 among them
  *   -PlinkMode=asneeded   what sborka.kmp does: --as-needed, seven
+ *   -PlinkMode=runpath    the default ten, plus a RUNPATH of $ORIGIN/lib (B-36)
  *
  * `probe` with no argument prints one line and exits 0: it loaded. `probe iconv` asks glibc for
  * UTF-8 → UTF-16LE, which glibc serves from a gconv module it loads with dlopen — the corpus's blind
@@ -27,7 +28,9 @@ kotlin {
             when (linkMode) {
                 "default" -> Unit
                 "asneeded" -> linkerOpts("-Wl,--as-needed")
-                else -> error("linkMode: default or asneeded; got $linkMode")
+                // A library beside the binary, found only because the binary says where to look.
+                "runpath" -> linkerOpts("-Wl,-rpath,\$ORIGIN/lib")
+                else -> error("linkMode: default, asneeded or runpath; got $linkMode")
             }
         }
     }
