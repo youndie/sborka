@@ -34,10 +34,10 @@ ksp = "2.3.12"
 # in katcher by the time the portfolio started reading the version from here. That is the direction
 # the drift goes on its own: the repository that takes a bump first ends up AHEAD of the shared
 # file, and a catalog that stays behind hands it a downgrade the first time it reads from here.
-agp = "9.4.0"
+agp = "9.4.1"
 
 # Drifted: 1.11.1 in three, 1.12.0 in two.
-composeMultiplatform = "1.12.0"
+composeMultiplatform = "1.12.1"
 
 # NO ktlint HERE, AND THAT IS THE FIX. The portfolio spelled two different things as one catalog key
 # called `ktlint` — the TOOL in nine repositories, the PLUGIN in four — which is why the same key reads

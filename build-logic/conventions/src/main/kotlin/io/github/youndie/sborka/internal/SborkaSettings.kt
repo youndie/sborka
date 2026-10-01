@@ -69,8 +69,15 @@ object SborkaSettings {
         return "0.1.0-SNAPSHOT"
     }
 
-    /** The JDK every module compiles with. One number per repository, in `gradle.properties`. */
-    fun jvmToolchain(project: Project): Int = project.intProperty("sborka.jvmToolchain", default = 21)
+    /**
+     * The JDK every module compiles with. One number per repository, in `gradle.properties`.
+     *
+     * 25 by default, and that moves nothing a consumer sees: the bytecode and the published metadata
+     * follow [jvmFloor], not this. What it decides is which JDK runs the compiler and the tests, and
+     * a portfolio split between 21 and 25 ran each repository's tests on a different runtime than its
+     * neighbour's.
+     */
+    fun jvmToolchain(project: Project): Int = project.intProperty("sborka.jvmToolchain", default = 25)
 
     /**
      * The oldest Java a consumer may be on, said out loud in the published metadata.

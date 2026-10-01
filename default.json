@@ -68,6 +68,39 @@
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "labels": ["dependencies", "major"]
+    },
+    {
+      "description": [
+        "THE STACK IS HELD until Kotlin 2.5.20: the compiler on 2.4.x, KSP on 2.3.x, Compose Multiplatform on 1.12.x, AGP on 9.4.x, Gradle on 9.7.x. Patches still arrive; a new line does not. This rule is the compiler; the four after it are the rest.",
+        "They move together or not at all. A Gradle that KGP has not been tested against, an AGP that asks for a newer Gradle, a Compose built against the next compiler: each is a pull request that is green in one repository and breaks the portfolio's agreement with itself. The portfolio was aligned on 2.4.20 / 2.3.12 / 1.12.1 / 9.4.1 / 9.7.1 on 2026-10-01, and Gradle 9.8.0 was refused on purpose.",
+        "Regexes rather than ranges on purpose: in Maven ordering `1.13.0-alpha01` sorts BELOW `1.13.0`, so `<1.13.0` would let the next line's prereleases through to anything already on a prerelease, and material3 is. One rule per package rather than one shared pattern, so that KSP cannot take 2.4.x by matching the compiler's line.",
+        "LIFTING IT is one deliberate change here when 2.5.20 is out: all five rules at once, not one package at a time."
+      ],
+      "matchPackageNames": ["/^org\\.jetbrains\\.kotlin[:.]/"],
+      "allowedVersions": "/^2\\.4\\./"
+    },
+    {
+      "description": "Held with the compiler, see above.",
+      "matchPackageNames": ["/^com\\.google\\.devtools\\.ksp/"],
+      "allowedVersions": "/^2\\.3\\./"
+    },
+    {
+      "description": "Held with the compiler, see above. Covers the plugin and every `org.jetbrains.compose.*` artefact, material3 included.",
+      "matchPackageNames": ["/^org\\.jetbrains\\.compose[:.]/"],
+      "allowedVersions": "/^1\\.12\\./"
+    },
+    {
+      "description": "Held with the compiler, see above.",
+      "matchPackageNames": [
+        "com.android.tools.build:gradle",
+        "/^com\\.android\\.(application|library|kotlin\\.multiplatform\\.library)[:.]/"
+      ],
+      "allowedVersions": "/^9\\.4\\./"
+    },
+    {
+      "description": "Held with the compiler, see above.",
+      "matchManagers": ["gradle-wrapper"],
+      "allowedVersions": "/^9\\.7\\./"
     }
   ]
 }
