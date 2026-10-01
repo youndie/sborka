@@ -116,4 +116,14 @@ class KspMetadataWiringTest {
         val ordinary = listOf("implementation", "commonMainApi", "ktlintRuleset")
         assertEquals(emptyList<String>(), KspMetadataWiring.processorsOutsideCommonMetadata(ordinary))
     }
+
+    @Test
+    fun `a module named as hand-wired is left alone, and only that module`() {
+        assertTrue(KspMetadataWiring.handWired(":shared-ui", ":shared-ui"))
+        assertTrue(KspMetadataWiring.handWired(":a, :shared-ui ,:b", ":shared-ui"))
+        assertFalse(KspMetadataWiring.handWired(":shared-ui", ":shared"))
+        assertFalse(KspMetadataWiring.handWired(":shared-ui:inner", ":shared-ui"))
+        assertFalse(KspMetadataWiring.handWired(null, ":shared-ui"))
+        assertFalse(KspMetadataWiring.handWired("", ":shared-ui"))
+    }
 }

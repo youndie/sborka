@@ -98,4 +98,30 @@ object KspMetadataWiring {
                     name != "kspPluginClasspath" &&
                     name != "kspPluginClasspathNonEmbeddable"
             }.sorted()
+
+    /** The property naming the modules that wire KSP themselves, as a comma-separated list of paths. */
+    const val HAND_WIRED_PROPERTY: String = "sborka.kspHandWired"
+
+    /**
+     * Whether a module said it wires KSP by hand, which takes it out of this convention entirely.
+     *
+     * The refusal above tells such a module to "wire this module by hand", and until this property there
+     * was no way to do that: the check ran first and failed the build whatever the module had already
+     * written. youndie/shashki found it on its way to a newer sborka — `:shared-ui` runs kompot's
+     * processor over common metadata and viddik's over `desktopTest`, has wired both itself since
+     * before this convention existed, and could not get past the refusal.
+     *
+     * A list of PATHS in the root `gradle.properties`, not a flag: a property a module could set for
+     * itself would be one line that switches the wiring off without saying where, and the point of the
+     * refusal is that the module doing it is named.
+     */
+    fun handWired(
+        declared: String?,
+        path: String,
+    ): Boolean =
+        declared
+            .orEmpty()
+            .split(',')
+            .map { it.trim() }
+            .any { it == path }
 }
