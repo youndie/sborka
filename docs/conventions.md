@@ -223,12 +223,13 @@ ktlint, версия инструмента прибита отсюда, сге�
 той же версии, что и сам плагин. Ручки нет: репозиторий, получивший `sborka.lint`, получил правила.
 
 Каждое правило кодирует **один класс дефекта, найденный в этом стеке**, и несёт ссылку на item.
-Почему их четыре, а не шесть из брифа, и почему правила про `@Test` здесь нет — в
-[kapkan.md](kapkan.md).
+Какие из шести правил брифа написаны, какие пришли после него и почему правила про `@Test` здесь
+нет — в [kapkan.md](kapkan.md).
 
 | правило | что ловит | найдено в |
 |---|---|---|
 | `kapkan:foreign-import-in-common` | `java.*`, `javax.*`, `android.*`, `org.w3c.*` в `common…`-сорс-сете | shashki B-01. Компилятор ловит то же самое — этот ловит на сорок секунд раньше, и ловит в модуле, у которого таргеты только JVM и Android |
+| `kapkan:native-identifier` | имя, которое Kotlin/Native не примет (`Name contains illegal characters`), — на деле запятая в имени теста в обратных кавычках — в сорс-сете, который компилирует натив: `common…`, `native…`, `ios…`, `linux…` и любой незнакомый. JVM-, Android- и веб-сорс-сеты не судятся | telek B-01, B-02 и kompot B-69: JVM-прогон `commonTest` зелёный, CI красный на `compileTestKotlinLinuxX64` / `compileTestKotlinIosArm64`. Правило было записано текстом в двух скиллах и пяти `CLAUDE.md` — и третий раз случился при нём |
 | `kapkan:swallowed-failure` | `runCatching`, чью неудачу **никто не читает** — в цепочке нет ни `onFailure`, ни `getOrElse`, ни `fold`, а то, что осталось, выбрасывает сам язык; `catch (e: Exception\|Throwable)`, чьё тело ни разу не упоминает `e` | shashki B-39: сериализация отчёта падала, и `runCatching` внутри `launch` это глотал |
 | `kapkan:cancellation-swallowed` | в suspend-контексте: `runCatching`, а также `catch (e: Exception\|Throwable)`, из которого отмене не выйти — ни перехвата `CancellationException` с пробросом впереди, ни `throw e` в конце, ни `ensureActive()` | mani (youndie/mani-kotlin-fullstack#164): `UseCase.withTry` заворачивал отмену в `Result`, экран рисовал её как сбой сети, а корутина продолжала работать. Рядом нашлось ещё три, одно — 401 клиенту, который уже ушёл |
 | `kapkan:wall-clock` | `System.currentTimeMillis()`, `Clock.System.now()`, `Instant.now()` и соседи из `java.time` | shashki B-29: клиент вычитал серверный дедлайн из собственных часов, и ноутбук на час вперёд рисовал обратный отсчёт, который не начинается |

@@ -13,10 +13,10 @@ publishes: [io.github.youndie.sborka:kapkan]
 
 ## 1. Responsibility
 
-Five source-level rules, each encoding one class of defect this stack paid a stand run to find:
-`foreign-import-in-common`, `swallowed-failure`, `wall-clock`, `cancellation-swallowed`, and
-`suppression-needs-a-reason`. `sborka.lint` puts the coordinate on the `ktlintRuleset`
-configuration at its own version; there is no switch to turn it off.
+Six source-level rules, each encoding one class of defect this stack paid a stand run to find:
+`foreign-import-in-common`, `native-identifier`, `swallowed-failure`, `wall-clock`,
+`cancellation-swallowed`, and `suppression-needs-a-reason`. `sborka.lint` puts the coordinate on
+the `ktlintRuleset` configuration at its own version; there is no switch to turn it off.
 
 **What it deliberately does not do.** No rule here needs a type, and the one that did — "a `@Test`
 that returns a value" — is not a rule at all: it is `DeclaredTests` in `sborka.test`, which
@@ -58,3 +58,12 @@ the engine matches ids by the class it loaded, not by the name. The jar is loade
 * **A suppression id ktlint did not load is refused**, which is a check for free: a file suppressing
   a kapkan rule only lints while the jar actually arrived. The bytecode rules are the other side of
   the same coin — ktlint never loads them, so their ids carry no `ktlint:` prefix.
+* **Two rules read the source set off the path, and they read it in opposite directions.**
+  `foreign-import-in-common` judges only `common…`; `native-identifier` judges everything except a
+  short list of JVM, Android and web names, so a source set it does not know — bochka's
+  `containerTest` — is judged. The list and why it is that way round:
+  `NativeIdentifierRule.NOT_NATIVE`, and the count it was decided by in `docs/kapkan.md` §12.
+* **A rule fires where ktlint runs, not where the defect would.** `native-identifier` turns a red
+  `compileTestKotlinIosArm64` into a red `ktlintCommonTestSourceSetCheck` — but `jvmTest` alone runs
+  no lint, and a module that does not apply `sborka.lint` runs none at all. kompot applies
+  `sborka.kmp` and not `sborka.lint`, so on 2026-10-01 none of its modules gets this rule.

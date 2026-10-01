@@ -645,3 +645,112 @@ CancellationException) { throw e }` впереди, — и issue спрашив�
 jar-ы для Gradle и для воркера ktlint), и заводить её ради восьми строк дороже, чем скопировать их.
 Это тот же довод, которым §5 отказала `@Kapkan.Allow`. Имя средства правило называет в тексте
 сообщения — на это одного имени и хватает.
+
+---
+
+## 12. Шестое правило — `native-identifier` (01.10.2026)
+
+Брифом не предусмотрено. Пришло из трёх одинаковых случаев: telek B-01 и B-02, kompot B-69
+(30.09.2026, `eefaaea`, `kompot-navigation/src/commonTest`). Тест в `commonTest` с запятой в имени
+в обратных кавычках компилируется на JVM, а Kotlin/Native отказывает:
+`Name contains illegal characters: ","`. Локальный `:module:jvmTest` зелёный, CI красный на
+`compileTestKotlinLinuxX64` / `compileTestKotlinIosArm64`. К третьему разу правило было записано
+текстом в двух скиллах и пяти `CLAUDE.md` — и текст его не остановил. Здесь та же фраза переезжает
+в конвенцию.
+
+### Набор — из исходников компилятора, а не по памяти
+
+Kotlin `v2.4.20` (тег → `890ac1d`) — то, что пинит sborka:
+
+| что | где в JetBrains/kotlin |
+|---|---|
+| набор | `compiler/fir/checkers/checkers.native/src/org/jetbrains/kotlin/fir/analysis/native/checkers/FirNativeIdentifierChecker.kt`, строки 21–24 |
+| тот же набор в K1 | `native/frontend/src/org/jetbrains/kotlin/resolve/konan/diagnostics/NativeIdentifierChecker.kt`, строки 23–26 |
+| какие декларации | тот же FIR-файл, строки 33–39: класс и объект, функция, параметр типа, свойство, typealias, параметр значения, enum entry; сегменты `package` — `FirNativePackageDirectiveChecker` |
+| текст | строки 53–54: `contains illegal characters: ` и пересечение набора с именем **в порядке набора**, в одних кавычках; шаблон `Name {0}.` — `FirNativeErrorsDefaultMessages.kt`, строка 81 |
+
+Двадцать четыре символа: `. ; , ( ) [ ] { } / < > : \ $ & ~ * ? # | § % @`. Комментарий компилятора
+над набором говорит, что в нём и символы, которыми пользуется IR-манглер, — поэтому он шире
+джавовского и поэтому в нём запятая. Пробел, апостроф и дефис в набор **не** входят.
+
+Правило держит набор строкой `NativeIdentifierRule.ILLEGAL` в том же порядке и печатает его так же,
+поэтому строка в сообщении линтера и строка в логе CI одна и та же. Проверено живьём на стенде
+временной правкой (не закоммичена): `` fun `a greeting names the stand, and nothing else`() `` в
+`stand/kmp-lib/src/commonTest`.
+
+| задача | результат |
+|---|---|
+| `:kmp-lib:jvmTest` | зелёная, 2 теста, имя с запятой среди них |
+| `:kmp-lib:compileTestKotlinLinuxX64` | `e: …/GreetingTest.kt:13:9 Name contains illegal characters: ",".` |
+| `:kmp-lib:ktlintCommonTestSourceSetCheck` | `…/GreetingTest.kt:13:9 Kotlin/Native refuses … Name contains illegal characters: ","` |
+
+Та же строка, та же колонка. Попутно отвечен вопрос, доходит ли ktlint-gradle до `commonTest` вообще:
+доходит — `runKtlintCheckOverCommonTestSourceSet` стоит в графе `check`
+(`./gradlew -p stand :kmp-lib:check --dry-run`) рядом с задачами на `commonMain`, `nativeTest`,
+`linuxX64Test` и остальные сорс-сеты модуля. **Но не в графе `jvmTest`**: кто гоняет перед push
+только `:module:jvmTest`, по-прежнему увидит красное только в CI — дешёвая команда здесь
+`ktlintCheck`.
+
+**Положительный контроль есть**, как у §11: `NavigationGraphTest.kt` kompot на `eefaaea^` — одна
+находка, `80:9`, ровно то имя, которое B-69 переименовал; на `eefaaea` — ноль.
+
+### Все имена, а не только функции
+
+Компилятор проверяет каждое имя, значит и правило: всё, что в PSI `KtNamedDeclaration`, плюс сегменты
+директивы `package`. Тест на это — по одной декларации каждого вида. Имя теста — то место, где на
+это наступают; свойство в фикстуре с обратными кавычками роняет ту же компиляцию.
+
+### Какие сорс-сеты судятся — решено замером
+
+Сорс-сет читается из пути, как в `foreign-import-in-common` (`sourceSetOf`), но конечный список
+здесь с другой стороны — что **не** доходит до натива. Имя режется по camelCase. Есть среди слов
+`native`, `apple`, `ios`, `macos`, `tvos`, `watchos`, `linux` или `mingw` — судится. Иначе не
+судится, если первое слово `jvm`, `android`, `desktop`, `js`, `wasm`, `web`, `main`, `test`,
+`functional`, `integration`, `debug` или `release`. Всё остальное, незнакомое включительно,
+судится: ложное срабатывание стоит переименования теста, промах — красного CI после push.
+
+Замер — само правило через движок ktlint по `**/src/**/*.kt` дефолтной ветки (`origin/HEAD`, иначе
+`origin/main`) каждого репозитория из обоих корней, `~/Documents/GitHub` и `~/IdeaProjects`, дубли
+по `origin` сняты: **61 репозиторий, 8 666 файлов**. Два прогона: правило как есть, и правило,
+которому каждый файл подан как `commonTest`, — чтобы увидеть, где такие имена живут вообще.
+
+| сорс-сет | имён с запрещённым символом | судится |
+|---|---:|---|
+| `test` | 372 | нет |
+| `jvmTest` | 116 | нет |
+| `desktopTest` | 79 | нет |
+| `functionalTest` | 12 | нет |
+| `commonTest` | 25 | **да** |
+| **итого** | **604** | **25** |
+
+Символы: запятая — 584, скобки — 18, `§` — 2. Других нет.
+
+**579 из 604 законны, и правило их не трогает** — эта часть таблицы и решает список. Три его строки
+куплены прямо этим замером:
+
+- **`desktop`** — 79 имён в `desktopTest`, 68 из них у kompot. `jvm("desktop")` — имя JVM-таргета в
+  шаблоне Compose Multiplatform; без этой строки правило объявило бы дефектом 79 законных тестов.
+- **`functional` и `integration`** — у zavarnik 12 имён в `src/functionalTest` Gradle-плагина, все
+  законные. Первая версия правила знала из обычного JVM-проекта только `main`/`test` и судила этот
+  сорс-сет как незнакомый. `functionalTest` генерирует для плагина сам `gradle init`,
+  `integrationTest` — пример из документации JVM Test Suite; добавлены оба.
+- **`native` в любой позиции** — tracy держит `desktopNativeMain`: по первому слову это desktop,
+  компилирует его натив. Мутация: без этой проверки краснеет тест на `androidNativeArm64Main`.
+
+Незнакомые имена, которые остались судимыми: `variants` у xyk (это натив — судится по делу),
+`bench` у screenshot-bench, `containerTest` у bochka (JVM-сьют — судится зря), `nonBrowserMain` и
+`mobileMain` у materialkolor и ещё несколько в репозиториях без sborka. Находок в них — **ноль**.
+
+### Чего стоит включение: 25 находок, все в `commonTest`
+
+| где | находок | таргеты модуля | что это |
+|---|---:|---|---|
+| shashki, `rider` и `driver` | 13 | `wasmJs`, `jvm("desktop")` | законны сегодня — нативного таргета нет; перестанут компилироваться в день, когда он появится. Цена включения — 13 переименований |
+| приватный репозиторий на sborka, один модуль | 3 | `jvm`, `linuxX64` | **настоящие**: `compileTestKotlinLinuxX64` их отвергнет. Workflow-ов в репозитории нет, так что нативную компиляцию тестов там запускает только человек |
+| kompot, `kompot-forms-standard` | 3 | `jvm` | законны сегодня, и **правило до них не дойдёт**: kompot применяет `sborka.kmp`, а `sborka.lint` — нет, ktlint в нём не подключён вовсе |
+| три приватных репозитория без sborka | 6 | — | правило до них не доходит |
+
+Отсюда то, о чём просили с самого начала, — kompot, у которого `linuxX64` нет и единственная
+компиляция, отвергающая имя, — iOS на macOS-раннере, — правило **не** защищает, пока kompot не
+применит `sborka.lint`. Это решение kompot, а не sborka: вместе с этим правилом придут остальные пять
+и форматтер.
