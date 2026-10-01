@@ -92,6 +92,9 @@ plugins.withId("org.jetbrains.kotlin.multiplatform") {
         targets.withType<KotlinJvmTarget>().configureEach {
             compilerOptions {
                 jvmTarget.set(JvmTarget.fromTarget(floor.toString()))
+                // Against the floor's class library as well, not only its class file version: see
+                // `sborka.jvm`, which says why and where this came from.
+                freeCompilerArgs.add("-Xjdk-release=$floor")
             }
         }
 
