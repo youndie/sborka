@@ -33,6 +33,13 @@ plugins.withId("org.jetbrains.kotlin.jvm") {
 
         compilerOptions {
             jvmTarget.set(JvmTarget.fromTarget(floor.toString()))
+            // AND THE API MATCHES IT TOO. `jvmTarget` alone lowers the class file version and still
+            // compiles against the TOOLCHAIN's class library, so with a toolchain of 25 and a floor of
+            // 17 a call into something added in 21 compiles, publishes, and fails on a 17 runtime with
+            // NoSuchMethodError. `-Xjdk-release` compiles against the floor's API, the Kotlin
+            // counterpart of `options.release` on the Java side above. kompot held its whole toolchain
+            // at 17 to get this check; with it here, the toolchain is free to be the newest JDK.
+            freeCompilerArgs.add("-Xjdk-release=$floor")
             if (SborkaSettings.flag(project, "sborka.warningsAsErrors", default = true)) {
                 allWarningsAsErrors.set(true)
             }
