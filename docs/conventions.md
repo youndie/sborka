@@ -41,9 +41,12 @@ settings-плагина — включая этот, который сам че�
 `gradle-wrapper.properties` раньше, чем существует хоть один плагин, поэтому число по-прежнему пишется
 в wrapper каждого репозитория. Плагин настроек знает ключ (он зашит в jar) и **предупреждает**, если
 сборка идёт на другом Gradle; не падает, потому что пин sborka и wrapper часто двигаются разными PR.
-Правило Renovate для wrapper в `default.json` и собственный wrapper sborka сверяются с ключом задачей
+Правило Renovate для Gradle в `default.json` и собственный wrapper sborka сверяются с ключом задачей
 `verifyGradleVersion` в `check` — переезд на новый Gradle это правка ключа, правила и wrapper-а sborka
-одним PR, а потребителей дальше везёт Renovate.
+одним PR, а потребителей дальше везёт Renovate. Правило держит Gradle **дважды** — wrapper (datasource
+`gradle-version`) и официальный образ `gradle:<версия>-jdk25-noble`, в котором собирают Dockerfile-ы
+(datasource `docker`), — и находится проверкой именно по этой форме. Пока оно совпадало по менеджеру
+`gradle-wrapper`, wrapper стоял на 9.7.x, а образ Renovate уже предлагал 9.8.0.
 
 **Проверка `.editorconfig`.** См. `sborka.lint` ниже. Живёт здесь, а не там, потому что
 `.editorconfig` — один файл на репозиторий, значит и проверка одна на репозиторий; проверка, которая

@@ -98,8 +98,12 @@
       "allowedVersions": "/^9\\.4\\./"
     },
     {
-      "description": "Held with the compiler, see above. The line named here has to admit the `gradle` version in catalog/sborka.versions.toml, and `verifyGradleVersion` fails sborka's `check` when it does not: the catalog is where the version is decided, this rule only stops Renovate from proposing a different one.",
-      "matchManagers": ["gradle-wrapper"],
+      "description": [
+        "Held with the compiler, see above. The line named here has to admit the `gradle` version in catalog/sborka.versions.toml, and `verifyGradleVersion` fails sborka's `check` when it does not: the catalog is where the version is decided, this rule only stops Renovate from proposing a different one.",
+        "BY DATASOURCE AND NAME, NOT BY MANAGER. Gradle reaches a repository twice: as the wrapper, and as the official `gradle:<version>-jdk25-noble` image a Dockerfile builds in — and the two are read by different managers. Matched by `matchManagers: [\"gradle-wrapper\"]`, this rule held the wrapper and let the image through: on 2026-10-02, with the wrapper held on 9.7.x, youndie/mostik's dependency dashboard was offering `gradle 9.7.1-jdk25-noble → 9.8.0-jdk25-noble` from its Dockerfile. `gradle-version` is the wrapper's datasource and `docker` is the image's wherever it is named — a Dockerfile, a compose file, a workflow's `container:` — and the name has to be exactly `gradle`, so no other image or artefact is caught. `verifyGradleVersion` finds the rule by this shape and fails if it goes back to matching one manager."
+      ],
+      "matchDatasources": ["gradle-version", "docker"],
+      "matchDepNames": ["gradle"],
       "allowedVersions": "/^9\\.8\\./"
     }
   ]
