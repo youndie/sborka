@@ -58,9 +58,13 @@ import org.jetbrains.kotlin.psi.KtPackageDirective
  * push. The price lands in two places. A plain JVM project's own suite under a name of its own —
  * bochka's `src/containerTest` — is judged although only the JVM compiles it. And `commonTest` of a
  * module with no native target is judged, where the name is legal today and stops compiling the
- * day a native target is added: shashki's two clients (wasmJs and a desktop JVM) carry 13 such
- * names, which is the cost of taking this rule there. Both answer with a rename, or with a
- * suppression that says which case it is. The count over the portfolio is in `docs/kapkan.md` §12.
+ * day a native target is added: shashki's two clients (wasmJs and a desktop JVM) carried 13 such
+ * names when the rule was written, the cost of taking it there, and youndie/shashki#35 (2026-10-02)
+ * paid it with 13 renames on taking 0.5.0. Both answer with a rename, or with a suppression that
+ * says which case it is. The count over the portfolio is in `docs/kapkan.md` §12.
+ *
+ * **The source set is the segment after the module's `src`** — see [sourceSetOf] for which `src`
+ * that is when a path holds more than one.
  *
  * **It runs where ktlint runs**: `ktlintCheck`, and `check` through it — not `jvmTest`. A module
  * that does not apply `sborka.lint` does not get it at all.

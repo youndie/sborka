@@ -164,4 +164,27 @@ class NativeIdentifierRuleTest {
     fun `a file outside any src directory is not judged`() {
         assertEquals(emptyList<String>(), lint(test("a, b"), path = "/repo/module/Scratch.kt").ids())
     }
+
+    @Test
+    fun `a package named src does not become the source set`() {
+        // `src/jvmTest/kotlin/x/src/FooTest.kt`: the last `src` is a package, and reading the source
+        // set after it gave `FooTest.kt` — an unknown name, judged, and a false finding in jvmTest.
+        val inPackageSrc = "/repo/module/src/jvmTest/kotlin/x/src/NavigationGraphTest.kt"
+        assertEquals(emptyList<String>(), lint(test("a, b"), path = inPackageSrc).ids())
+        // The other side of the same path: in commonTest the finding stays, and names commonTest.
+        val inCommon = "/repo/module/src/commonTest/kotlin/x/src/NavigationGraphTest.kt"
+        val errors = lint(test("a, b"), path = inCommon)
+        assertEquals(listOf("kapkan:native-identifier"), errors.ids())
+        assertTrue(errors.single().detail.contains(" in commonTest — "), errors.single().detail)
+    }
+
+    @Test
+    fun `a checkout under a directory named src still reads the module's source set`() {
+        // What taking the LAST `src` was for: `~/src/<repo>/…` must not make `<repo>` the source set.
+        val path = "/home/me/src/repo/module/src/jvmTest/kotlin/NavigationGraphTest.kt"
+        assertEquals(emptyList<String>(), lint(test("a, b"), path = path).ids())
+        assertEquals("jvmTest", sourceSetOf(path))
+        // A layout with no `kotlin/` or `java/` under the set is read the way every path was before.
+        assertEquals("jvmTest", sourceSetOf("/home/me/src/repo/module/src/jvmTest/NavigationGraphTest.kt"))
+    }
 }
