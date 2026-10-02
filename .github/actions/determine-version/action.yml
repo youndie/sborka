@@ -2,7 +2,8 @@ name: Determine version
 description: >
   The head of the version from gradle.properties, with the run number on the tail. Copied word for
   word into three repositories before this existed. Refuses a head ending in -SNAPSHOT, which would
-  publish as X.Y.Z-SNAPSHOT.N.
+  publish as X.Y.Z-SNAPSHOT.N, and warns about a head the repository has already tagged vX.Y.Z,
+  whose X.Y.Z.N would sort above that release.
 
 inputs:
   key:
@@ -18,6 +19,11 @@ outputs:
   version:
     description: The full version, head plus run number.
     value: ${{ steps.read.outputs.version }}
+  tagged:
+    description: >
+      The tag that already names the head (`v<head>`), empty when there is none. Not empty means the
+      version above sorts above a release and reads as a rebuild of it.
+    value: ${{ steps.read.outputs.tagged }}
 
 runs:
   using: composite
@@ -69,5 +75,42 @@ runs:
             exit 1 ;;
         esac
 
+        # A HEAD THAT IS ALREADY TAGGED is warned about. Maven's ordering, which Renovate follows,
+        # puts X.Y.Z.N above X.Y.Z, so a head left on a released number after its tag publishes
+        # builds that outrank the release and read as rebuilds of it. appframe, viddik, chronik and
+        # zavarnik each kept publishing that way after a release until their heads were moved
+        # (appframe#55, viddik#59, chronik#32, zavarnik#22).
+        #
+        # Asked of the remote, not of the checkout: actions/checkout fetches one commit and no tags.
+        # `ls-remote` lists the refs without fetching anything, through the credentials checkout
+        # left in the repository that holds the file — in check.yaml that is a fixture repository.
+        # Only `v<head>`: no repository of the portfolio tags a release without the `v`, and the
+        # numbered tags some of them push per run (`vX.Y.Z.N`) name a different ref.
+        #
+        # A WARNING, NOT A REFUSAL, until no caller's head is tagged. When this was written one still
+        # was — oldge-ui's head stood at its released 0.1.0 — and a refusal would have turned its
+        # next push red before anybody had moved it. A remote that cannot be asked is a warning too:
+        # this step is not the place for a network error to stop a publish.
+        tag="v${head}"
+        tagged=""
+        if refs="$(GIT_TERMINAL_PROMPT=0 git -C "$(dirname "$FILE")" ls-remote --tags --refs origin "refs/tags/${tag}" 2>&1)"; then
+          if printf '%s\n' "$refs" | awk -v ref="refs/tags/${tag}" '$2 == ref { found = 1 } END { exit !found }'; then
+            tagged="$tag"
+            if [[ "$head" =~ ^([0-9]+\.[0-9]+\.)([0-9]+)$ ]]; then
+              next="${BASH_REMATCH[1]}$((BASH_REMATCH[2] + 1))"
+            else
+              next="the next version"
+            fi
+            echo "::warning::${KEY}=${head} in ${FILE} is already tagged ${tag}: ${head}.${RUN} sorts" \
+                 "above the release ${head} and reads as a rebuild of it. Move the head to ${next}" \
+                 "first (kmp-library-release, step 5). This is a warning for now and will become a" \
+                 "refusal."
+          fi
+        else
+          echo "::warning::could not ask origin whether ${tag} exists, so a tagged head was not" \
+               "checked: ${refs//$'\n'/ }"
+        fi
+
         echo "version=${head}.${RUN}" >> "$GITHUB_OUTPUT"
+        echo "tagged=${tagged}" >> "$GITHUB_OUTPUT"
         echo "version is ${head}.${RUN}"
