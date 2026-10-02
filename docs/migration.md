@@ -83,6 +83,10 @@ git diff .editorconfig
 Дальше `./gradlew ktlintFormat` перелопатит форматирование. **Отдельным коммитом**, иначе следующий
 шаг утонет в переносах строк.
 
+После него — компиляция, а не только `ktlintCheck`: форматтер умеет превратить `else -> Unit` в
+неиспользуемое выражение, которое `allWarningsAsErrors` делает ошибкой. Ловушка и лечение
+(`else -> {}`) — в [conventions.md](conventions.md), раздел `sborka.lint`.
+
 ## 4. Модули
 
 ```kotlin

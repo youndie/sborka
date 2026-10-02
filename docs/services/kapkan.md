@@ -65,5 +65,6 @@ the engine matches ids by the class it loaded, not by the name. The jar is loade
   `NativeIdentifierRule.NOT_NATIVE`, and the count it was decided by in `docs/kapkan.md` §12.
 * **A rule fires where ktlint runs, not where the defect would.** `native-identifier` turns a red
   `compileTestKotlinIosArm64` into a red `ktlintCommonTestSourceSetCheck` — but `jvmTest` alone runs
-  no lint, and a module that does not apply `sborka.lint` runs none at all. kompot applies
-  `sborka.kmp` and not `sborka.lint`, so on 2026-10-01 none of its modules gets this rule.
+  no lint, and a module that does not apply `sborka.lint` runs none at all. kompot was that case
+  when the rule shipped — `sborka.kmp` without `sborka.lint` — until youndie/kompot#199
+  (2026-10-02) applied `sborka.lint` to every module.
