@@ -41,7 +41,7 @@ Plus what a repository's CI asks for by name rather than by copy:
 | what | where |
 |---|---|
 | `.github/actions/setup-kotlin` | Java, Gradle and the Kotlin/Native cache in one step and at one version |
-| `.github/actions/determine-version` | the head of the version from `gradle.properties`, run number on the tail; refuses a `-SNAPSHOT` head and warns about a head that is already tagged `v<head>` |
+| `.github/actions/determine-version` | the head of the version from `gradle.properties`, run number on the tail; refuses a `-SNAPSHOT` head and a head that is already tagged `v<head>` |
 | `.github/workflows/publish-wip.yaml` | the whole snapshot publish, called with `uses:` — checkout, setup, version, the publish, and the proba job that asks the server what a consumer would resolve |
 
 The first two are steps, which is all a composite action can be. The third is a workflow because the
