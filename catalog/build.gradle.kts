@@ -60,9 +60,14 @@ publishing {
 // THE GRADLE VERSION IS DECIDED IN ONE PLACE AND CHECKED WHERE IT IS REPEATED.
 //
 // `gradle` in sborka.versions.toml is that place. Two other files have to agree with it and nothing
-// would notice if they stopped: the Renovate preset, whose wrapper rule decides which Gradle every
+// would notice if they stopped: the Renovate preset, whose Gradle rule decides which Gradle every
 // repository is offered, and this repository's own wrapper. A preset still holding the old line would
 // quietly keep the portfolio there while the catalog claimed otherwise.
+//
+// The rule is found by its SHAPE — datasources `gradle-version` and `docker`, name `gradle` — because
+// the shape is half of what it holds. Matched by the `gradle-wrapper` manager, it held the wrapper and
+// let the `gradle:<version>-jdk25-noble` image in every Dockerfile through to the next line; a rule
+// that goes back to one manager is not found here, and the check says why.
 val verifyGradleVersion =
     tasks.register("verifyGradleVersion") {
         val root = rootProject.layout.projectDirectory
@@ -76,17 +81,22 @@ val verifyGradleVersion =
                     ?: error("${catalogFile.name} declares no `gradle` version")
 
             val preset = groovy.json.JsonSlurper().parse(presetFile) as Map<*, *>
-            val wrapperRule =
+            val datasources = listOf("gradle-version", "docker")
+            val gradleRule =
                 (preset["packageRules"] as List<*>)
                     .filterIsInstance<Map<*, *>>()
                     .lastOrNull { rule ->
-                        (rule["matchManagers"] as? List<*>)?.contains("gradle-wrapper") == true &&
+                        (rule["matchDatasources"] as? List<*>)?.containsAll(datasources) == true &&
+                            (rule["matchDepNames"] as? List<*>)?.contains("gradle") == true &&
                             rule["allowedVersions"] != null
                     }
-                    ?: error("${presetFile.name} has no allowedVersions rule for gradle-wrapper")
-            val allowed = (wrapperRule["allowedVersions"] as String).removePrefix("/").removeSuffix("/")
+                    ?: error(
+                        "${presetFile.name} has no allowedVersions rule for depName gradle on datasources " +
+                            "$datasources: a rule that holds only the wrapper lets the build image through",
+                    )
+            val allowed = (gradleRule["allowedVersions"] as String).removePrefix("/").removeSuffix("/")
             check(Regex(allowed).containsMatchIn(declared)) {
-                "${presetFile.name} allows Gradle /$allowed/ for the wrapper, " +
+                "${presetFile.name} allows Gradle /$allowed/ for the wrapper and the image, " +
                     "which does not admit $declared from ${catalogFile.name}"
             }
 
