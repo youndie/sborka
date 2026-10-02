@@ -5,6 +5,8 @@ import io.github.youndie.sborka.internal.Joins
 import io.github.youndie.sborka.internal.MethodSizes
 import io.github.youndie.sborka.internal.SborkaVersion
 import io.github.youndie.sborka.internal.Suppressions
+import org.gradle.api.logging.Logging
+import org.gradle.util.GradleVersion
 
 // The settings-level half of sborka: where dependencies are looked for, which shared versions are in
 // scope, and the one check that is about the repository rather than about a module.
@@ -119,6 +121,25 @@ dependencyResolutionManagement {
             }
         }
     }
+}
+
+// THE GRADLE THIS RELEASE IS FOR, said out loud when it is not the one running.
+//
+// The wrapper is the one version sborka cannot hand over: `gradlew` reads `gradle-wrapper.properties`
+// before any plugin exists, so each repository still writes the number itself. What sborka can do is
+// know the number — `gradle` in its published catalog, generated into this jar — and say so when a
+// repository is on another one. telek once ran a newer Gradle than the rest of the portfolio, and
+// nothing anywhere mentioned it.
+//
+// A warning and not a failure, on purpose: a repository moves its sborka pin and its wrapper in two
+// pull requests as often as in one, and the first of them must not go red for the second not having
+// landed yet.
+if (GradleVersion.current().version != SborkaVersion.GRADLE) {
+    Logging.getLogger("sborka").warn(
+        "sborka ${SborkaVersion.CURRENT} is made for Gradle ${SborkaVersion.GRADLE}, and this build runs on " +
+            "${GradleVersion.current().version}. Move the wrapper: set distributionUrl in " +
+            "gradle/wrapper/gradle-wrapper.properties to gradle-${SborkaVersion.GRADLE}-bin.zip.",
+    )
 }
 
 // THE STYLE FILE ITSELF, checked rather than assumed.

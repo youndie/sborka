@@ -14,6 +14,14 @@
 
 [versions]
 kotlin = "2.4.20"
+
+# The Gradle every repository's wrapper names. Not a version a build resolves anything with: the wrapper
+# is read by `gradlew` before any plugin or catalog exists, so the number still has to be written into
+# each repository's `gradle-wrapper.properties`. What it is here for is to be the ONE place that number
+# is decided. `sborka.settings` warns a build running on any other Gradle, the Renovate preset's
+# wrapper rule is checked against it in this repository's `check` (`verifyGradleVersion`), and so is
+# sborka's own wrapper.
+gradle = "9.8.0"
 coroutines = "1.11.0"
 serialization = "1.11.0"
 datetime = "0.8.0"

@@ -48,7 +48,18 @@ val generateVersionConstant =
         val currentVersion = version.toString()
         val ktlint = libs.versions.ktlintTool.get()
         val jibCore = libs.versions.jibCore.get()
+        // Read out of the PUBLISHED catalog rather than this build's own: that file is where the
+        // portfolio's Gradle is decided, and `libs` is only what builds sborka.
+        val gradle =
+            providers
+                .fileContents(rootProject.layout.projectDirectory.file("../catalog/sborka.versions.toml"))
+                .asText
+                .map { text ->
+                    Regex("""(?m)^gradle\s*=\s*"([^"]+)"""").find(text)?.groupValues?.get(1)
+                        ?: error("catalog/sborka.versions.toml declares no `gradle` version")
+                }.get()
         inputs.property("version", currentVersion)
+        inputs.property("gradle", gradle)
         inputs.property("ktlint", ktlint)
         inputs.property("jibCore", jibCore)
         outputs.dir(outputDir)
@@ -79,6 +90,12 @@ val generateVersionConstant =
                      * buildscript classpath.
                      */
                     public const val JIB_CORE: String = "$jibCore"
+
+                    /**
+                     * The Gradle the portfolio's wrappers name, from `gradle` in the published catalog.
+                     * `sborka.settings` warns a build that runs on anything else.
+                     */
+                    public const val GRADLE: String = "$gradle"
                 }
 
                 """.trimIndent(),
