@@ -55,4 +55,16 @@ class ForeignImportInCommonRuleTest {
         val errors = lint("import java.io.File\n", path = "/repo/module/build.gradle.kts")
         assertEquals(emptyList<String>(), errors.ids())
     }
+
+    @Test
+    fun `a package named src inside commonMain is still common`() {
+        // The source set is the segment after the module's `src`, not after the last `src` in the
+        // path — read that way, this file was in a source set called `Sample.kt` and was skipped.
+        val errors =
+            lint(
+                "import java.io.File\n\nval f: File? = null\n",
+                path = "/repo/module/src/commonMain/kotlin/x/src/Sample.kt",
+            )
+        assertEquals(listOf("kapkan:foreign-import-in-common"), errors.ids())
+    }
 }
