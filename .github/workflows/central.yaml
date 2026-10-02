@@ -21,6 +21,14 @@
 # or taken back. The last step belongs to a person looking at what is about to become permanent.
 name: central
 
+# THE TITLE NAMES THE LIBRARY, because nothing else in the Actions list does. Every run of this
+# workflow belongs to sborka, so its head sha is sborka's too, and a title that was only the
+# workflow's name made seventeen releases of different libraries seventeen identical `central`
+# rows. Finding the run a release note should link to meant guessing by the time of the dispatch.
+# The title comes from the inputs, so it says what was ASKED for; whether it was done is the run's
+# conclusion. (#118)
+run-name: central ${{ inputs.repository }} ${{ inputs.version }} from ${{ inputs.ref }}
+
 on:
   workflow_dispatch:
     inputs:
