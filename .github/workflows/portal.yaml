@@ -17,6 +17,11 @@
 # versions of an approved plugin are live at once. A version, once live, cannot be replaced.
 name: portal
 
+# The title names the plugin's repository and version, for the reason central.yaml gives: the run is
+# sborka's, and without this every run in the list is called `portal`. It is built from the inputs,
+# so it says what was asked for, and the conclusion says whether it happened.
+run-name: portal ${{ inputs.repository }} ${{ inputs.version }} from ${{ inputs.ref }}
+
 on:
   workflow_dispatch:
     inputs:
