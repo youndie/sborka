@@ -91,3 +91,42 @@ jobs:
           ./gradlew -p stand check --no-daemon \
             -Psborka.catalog=on \
             -Psborka.catalogRepository="file://$PWD/build/local-repo"
+
+  # THE VERSION ACTION, ASKED BOTH OF ITS QUESTIONS ON EVERY PULL REQUEST. Nine repositories compute
+  # their published version with it through `@main`, so a change here reaches them on merge, before
+  # any of their builds has run it (#123). This is the one place it runs first.
+  #
+  # Two fixtures: a plain head gets the run number, and a -SNAPSHOT head is refused (#119), the way
+  # kontainer's `0.1.0-SNAPSHOT` should have been. The refusal is the step that is ALLOWED to fail.
+  # The step after it fails the job if it did not, or if it still wrote a version.
+  determine-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: plain
+        uses: ./.github/actions/determine-version
+        with:
+          file: .github/actions/determine-version/test/plain-head.properties
+
+      - id: snapshot
+        continue-on-error: true
+        uses: ./.github/actions/determine-version
+        with:
+          file: .github/actions/determine-version/test/snapshot-head.properties
+
+      - name: A plain head is numbered, a -SNAPSHOT head is refused
+        env:
+          PLAIN: ${{ steps.plain.outputs.version }}
+          SNAPSHOT_OUTCOME: ${{ steps.snapshot.outcome }}
+          SNAPSHOT_VERSION: ${{ steps.snapshot.outputs.version }}
+          RUN: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          [ "$PLAIN" = "0.1.0.$RUN" ] ||
+            { echo "::error::the plain head gave '$PLAIN', expected 0.1.0.$RUN"; exit 1; }
+          [ "$SNAPSHOT_OUTCOME" = failure ] ||
+            { echo "::error::a -SNAPSHOT head was not refused: the step's outcome was $SNAPSHOT_OUTCOME"; exit 1; }
+          [ -z "$SNAPSHOT_VERSION" ] ||
+            { echo "::error::the refused head still wrote a version: $SNAPSHOT_VERSION"; exit 1; }
+          echo "plain head -> $PLAIN; -SNAPSHOT head refused, no version written"

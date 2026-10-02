@@ -142,6 +142,11 @@ curl -s https://reposilite.kotlin.website/snapshots/<group-путь>/<модул
 ```
 
 Заменяет `setup-java` + `setup-gradle` + кэш `~/.konan` + скопированный шаг «Determine version».
+`determine-version` приписывает к голове номер прогона, поэтому голова `version` в
+`gradle.properties` должна быть простым `X.Y.Z` следующего релиза. `-SNAPSHOT` он отвергает: иначе
+вышло бы `0.1.0-SNAPSHOT.1`, как у первой публикации kontainer (#119). Из семи репозиториев с
+головой `-SNAPSHOT` (bochka, booblik, kachok, mongkn, s3kn, smtpkn, tracy) переезд на него каждому
+начнётся с этой строки.
 Заодно приводит `setup-gradle` к одной версии: сейчас в портфеле одновременно живут v4 (22 вызова),
 v5 (18) и v6 (41).
 

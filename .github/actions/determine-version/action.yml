@@ -1,7 +1,8 @@
 name: Determine version
 description: >
   The head of the version from gradle.properties, with the run number on the tail. Copied word for
-  word into three repositories before this existed.
+  word into three repositories before this existed. Refuses a head ending in -SNAPSHOT, which would
+  publish as X.Y.Z-SNAPSHOT.N.
 
 inputs:
   key:
@@ -23,6 +24,10 @@ runs:
   steps:
     - id: read
       shell: bash
+      env:
+        KEY: ${{ inputs.key }}
+        FILE: ${{ inputs.file }}
+        RUN: ${{ github.run_number }}
       run: |
         set -euo pipefail
         # The run number goes on the tail: two publishes in a row must not produce the same
@@ -30,10 +35,39 @@ runs:
         #
         # `grep -E "^key="` and not `grep key`: a substring match picks up a commented-out line or a
         # neighbouring key, and the version it then reports is a version nobody set.
-        head="$(grep -E "^${{ inputs.key }}=" "${{ inputs.file }}" | head -1 | cut -d= -f2- | tr -d '[:space:]')"
-        if [ -z "$head" ]; then
-          echo "::error::${{ inputs.key }} is not set in ${{ inputs.file }}" >&2
+        #
+        # `|| true` because the message below is the point. Under `pipefail` a grep that matches
+        # nothing fails the assignment, `set -e` ends the step there, and the step went red with no
+        # line saying which key or which file. A file that is not there is said separately.
+        if [ ! -f "$FILE" ]; then
+          echo "::error::${FILE} does not exist, so there is no ${KEY} to read" >&2
           exit 1
         fi
-        echo "version=${head}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-        echo "version is ${head}.${{ github.run_number }}"
+        head="$(grep -E "^${KEY}=" "$FILE" | head -1 | cut -d= -f2- | tr -d '[:space:]' || true)"
+        if [ -z "$head" ]; then
+          echo "::error::${KEY} is not set in ${FILE}" >&2
+          exit 1
+        fi
+
+        # A -SNAPSHOT HEAD IS REFUSED, not passed through. The run number goes on whatever the head
+        # is, so `0.1.0-SNAPSHOT` becomes `0.1.0-SNAPSHOT.1`. That is neither of the two shapes the
+        # portfolio publishes (`X.Y.Z.N` for a snapshot, `X.Y.Z` for a release), and it is not a
+        # Maven snapshot either: a repository treats a version as one only when it ENDS in
+        # -SNAPSHOT. So it goes out as a fixed version whose name says snapshot. kontainer's first
+        # publish did exactly that (kontainer e18d6bb), on a green run (#119).
+        #
+        # The head itself is legitimate elsewhere. It is sborka.publish's fallback for a build that
+        # is never given -PVERSION. It is wrong only here, where a number is put on its tail.
+        # Compared without regard to case: a lower-case head is the same mistake.
+        case "$(printf '%s' "$head" | tr '[:lower:]' '[:upper:]')" in
+          *-SNAPSHOT)
+            echo "::error::${KEY}=${head} in ${FILE} ends in -SNAPSHOT, and this action puts the run" \
+                 "number on the tail: it would publish ${head}.${RUN}, which is neither a numbered" \
+                 "snapshot nor a release. Set ${KEY}=${head%-*} (the plain X.Y.Z of the next" \
+                 "release), or pass the whole version instead (the version input of" \
+                 "publish-wip.yaml)." >&2
+            exit 1 ;;
+        esac
+
+        echo "version=${head}.${RUN}" >> "$GITHUB_OUTPUT"
+        echo "version is ${head}.${RUN}"
