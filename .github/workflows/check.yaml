@@ -92,13 +92,15 @@ jobs:
             -Psborka.catalog=on \
             -Psborka.catalogRepository="file://$PWD/build/local-repo"
 
-  # THE VERSION ACTION, ASKED BOTH OF ITS QUESTIONS ON EVERY PULL REQUEST. Nine repositories compute
-  # their published version with it through `@main`, so a change here reaches them on merge, before
-  # any of their builds has run it (#123). This is the one place it runs first.
+  # THE VERSION ACTION, ASKED EACH OF ITS QUESTIONS ON EVERY PULL REQUEST. Ten repositories
+  # compute their published version with it through `@main`, so a change here reaches them on merge,
+  # before any of their builds has run it (#123). This is the one place it runs first.
   #
-  # Two fixtures: a plain head gets the run number, and a -SNAPSHOT head is refused (#119), the way
-  # kontainer's `0.1.0-SNAPSHOT` should have been. The refusal is the step that is ALLOWED to fail.
-  # The step after it fails the job if it did not, or if it still wrote a version.
+  # A plain head gets the run number, and a -SNAPSHOT head is refused (#119), the way kontainer's
+  # `0.1.0-SNAPSHOT` should have been. The refusal is the step that is ALLOWED to fail. A head the
+  # remote has already tagged `v<head>` is numbered with a warning and named in the `tagged` output,
+  # and a head that only a numbered tag (`v<head>.N`) starts with is not tagged. The last step fails
+  # the job if any of the four answered otherwise.
   determine-version:
     runs-on: ubuntu-latest
     steps:
@@ -115,11 +117,48 @@ jobs:
         with:
           file: .github/actions/determine-version/test/snapshot-head.properties
 
-      - name: A plain head is numbered, a -SNAPSHOT head is refused
+      # A remote with a release tag, built here rather than borrowed: sborka has no release tags of
+      # its own, and a test leaning on another repository's would change when that repository did.
+      # The bare remote holds `v0.1.0` and a numbered `v0.1.1.3`; its clone has two heads, 0.1.0
+      # (tagged) and 0.1.1 (only the numbered tag starts with it). The clone's own tags are deleted,
+      # so that only the remote can answer — a checkout fetches none.
+      - name: A remote whose release is tagged
+        run: |
+          set -euo pipefail
+          remote="$RUNNER_TEMP/tagged.git"
+          work="$RUNNER_TEMP/tagged"
+          git init -q --bare "$remote"
+          git init -q "$work"
+          cd "$work"
+          printf 'version=0.1.0\n' > tagged.properties
+          printf 'version=0.1.1\n' > next.properties
+          git add .
+          git -c user.name=fixture -c user.email=fixture@localhost commit -q -m fixture
+          git tag v0.1.0
+          git tag v0.1.1.3
+          git remote add origin "$remote"
+          git push -q origin HEAD:refs/heads/main v0.1.0 v0.1.1.3
+          git tag -d v0.1.0 v0.1.1.3
+
+      - id: tagged
+        uses: ./.github/actions/determine-version
+        with:
+          file: ${{ runner.temp }}/tagged/tagged.properties
+
+      - id: next
+        uses: ./.github/actions/determine-version
+        with:
+          file: ${{ runner.temp }}/tagged/next.properties
+
+      - name: A plain head is numbered, a -SNAPSHOT head is refused, a tagged head is named
         env:
           PLAIN: ${{ steps.plain.outputs.version }}
           SNAPSHOT_OUTCOME: ${{ steps.snapshot.outcome }}
           SNAPSHOT_VERSION: ${{ steps.snapshot.outputs.version }}
+          TAGGED_VERSION: ${{ steps.tagged.outputs.version }}
+          TAGGED_TAG: ${{ steps.tagged.outputs.tagged }}
+          NEXT_VERSION: ${{ steps.next.outputs.version }}
+          NEXT_TAG: ${{ steps.next.outputs.tagged }}
           RUN: ${{ github.run_number }}
         run: |
           set -euo pipefail
@@ -129,4 +168,13 @@ jobs:
             { echo "::error::a -SNAPSHOT head was not refused: the step's outcome was $SNAPSHOT_OUTCOME"; exit 1; }
           [ -z "$SNAPSHOT_VERSION" ] ||
             { echo "::error::the refused head still wrote a version: $SNAPSHOT_VERSION"; exit 1; }
-          echo "plain head -> $PLAIN; -SNAPSHOT head refused, no version written"
+          [ "$TAGGED_TAG" = v0.1.0 ] ||
+            { echo "::error::a head tagged v0.1.0 was not named: tagged='$TAGGED_TAG'"; exit 1; }
+          [ "$TAGGED_VERSION" = "0.1.0.$RUN" ] ||
+            { echo "::error::a tagged head is a warning, yet it gave '$TAGGED_VERSION', expected 0.1.0.$RUN"; exit 1; }
+          [ -z "$NEXT_TAG" ] ||
+            { echo "::error::a head only v0.1.1.3 starts with was named as tagged: '$NEXT_TAG'"; exit 1; }
+          [ "$NEXT_VERSION" = "0.1.1.$RUN" ] ||
+            { echo "::error::the untagged head gave '$NEXT_VERSION', expected 0.1.1.$RUN"; exit 1; }
+          echo "plain head -> $PLAIN; -SNAPSHOT head refused, no version written;" \
+               "tagged head -> $TAGGED_VERSION, named $TAGGED_TAG; untagged head -> $NEXT_VERSION"
