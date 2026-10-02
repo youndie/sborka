@@ -44,11 +44,11 @@ no equivalent anywhere else — [research-parity §1.5](../research/research-par
   each was measured at, and whose lead is the platform layer rather than the table.
 - Anchors: `docs/research/parity-probe/results/`, `docs/research/research-parity.md`,
   `metrik/docs/research/research-architecture.md`,
-  `kotlin-website/site/src/jsMain/resources/markdown/blog`
+  the blog directory of the portfolio's landing-page repository (private)
 
 ## Drafted, 2026-09-12 — written, registered by the build, and not published
 
-`kotlin-website`, branch `feat/jvm-native-differences` (`363e53d`):
+The portfolio's landing-page repository (private), branch `feat/jvm-native-differences` (`363e53d`):
 `site/src/jsMain/resources/markdown/blog/JvmAndNativeDifferences.md`, 115 lines. The repository's
 own check passes — `./gradlew :site:jsProcessResources` prints
 `blog post: blog/JvmAndNativeDifferences.md -> /blog/jvm-and-native-differences`, which is what says
@@ -59,8 +59,8 @@ which builds an image and deploys; putting something under the owner's name on a
 theirs to do, not something to finish inside a loop.
 
 **The framing in this item did not survive contact with the repository's own rules.** It said to
-structure the page around the four cases with their cost. `kotlin-website`'s `blog-post` skill
-rejects exactly that: *"это не жанр «история одного бага»… драматургия вокруг находки не нужна"*.
+structure the page around the four cases with their cost. The site's own `blog-post` skill rejects
+exactly that: a page is not the story of one bug, and it needs no drama around the finding.
 So the page is a reference page in that register — what was measured, what agrees, what differs, the
 JDK as a variable, the platform layer, limits — and the cases appear as facts in the section they
 belong to rather than as the plot. The substance is unchanged; the shape is the site's.
@@ -78,9 +78,9 @@ day an entry stops being true.
 
 ## Published, 2026-09-12
 
-[kotlin-website#20](https://github.com/vedutsya-raboty/kotlin-website/pull/20), merged as `d7179c2`,
-at `/blog/jvm-and-native-differences`. That repository publishes on a push to `main`, so the merge is
-the publication.
+A pull request to the landing page's private repository, merged as `d7179c2`, at
+[`/blog/jvm-and-native-differences`](https://kotlin.website/blog/jvm-and-native-differences).
+That repository publishes on a push to `main`, so the merge is the publication.
 
 **Not published as written.** Between drafting and merging, two more platform-layer facts turned up
 and a page that omitted them would have been out of date on the day it went out:

@@ -14,7 +14,7 @@ compiles one class into several output directories.
 | petich | 192 | 1791 | 0 | 3 | 19 |
 | chronik | 84 | 777 | 0 | 7 | 14 |
 | proba | 175 | 1768 | 2 | 35 | 51 |
-| boulab | 89 | 1089 | 0 | 11 | 36 |
+| a private app | 89 | 1089 | 0 | 11 | 36 |
 | kmp-smtp-client | 749 | 3543 | 0 | 14 | 15 |
 | **total** | **6503** | **53423** | **8** | **325** | **1058** |
 

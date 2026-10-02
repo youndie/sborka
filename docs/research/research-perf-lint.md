@@ -87,7 +87,7 @@ directory. Counts are of distinct methods; the full output is
 | petich | 192 | 1 791 | 0 | 3 | 19 |
 | chronik | 84 | 777 | 0 | 7 | 14 |
 | proba | 175 | 1 768 | 2 | 35 | 51 |
-| boulab | 89 | 1 089 | 0 | 11 | 36 |
+| a private app | 89 | 1 089 | 0 | 11 | 36 |
 | kmp-smtp-client | 749 | 3 543 | 0 | 14 | 15 |
 | **total** | **6 503** | **53 423** | **8** | **325** | **1 058** |
 
@@ -102,10 +102,10 @@ about.
 **The implementation agrees with the probe where the two read the same files** *(`B-01`, and
 amended by `B-07`, 2026-09-11)*. The questions now live in `MethodSizes`, which was run over the
 same eleven repositories through a small driver. On the three repositories with a single JVM
-output — bochka, proba, boulab — the two readers give **identical** chain counts (90, 35, 11) and
-identical pattern counts (3, 2, 0); bochka's size count differs by one, because the probe uses the
-last instruction's offset as the body size and so understates a body by the length of that
-instruction.
+output — bochka, proba and a private app — the two readers give **identical** chain counts
+(90, 35, 11) and identical pattern counts (3, 2, 0); bochka's size count differs by one, because the
+probe uses the last instruction's offset as the body size and so understates a body by the length
+of that instruction.
 
 Over the whole portfolio the task counts **410 chains, 13 patterns and 1274 bodies** against the
 probe's 325 / 8 / 1058. `B-07` closed the part of that gap that was about counting — the task now
