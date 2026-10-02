@@ -27,7 +27,8 @@ import org.jetbrains.kotlin.psi.KtPackageDirective
  * and five repositories' `CLAUDE.md`. A sentence did not stop the third one; this is the sentence
  * moved into the build. kompot has no `linuxX64` target at all, so there the only compile that
  * refuses the name is iOS's, on a macOS runner — and this rule is the cheaper check only in a module
- * that applies `sborka.lint`, which kompot's do not yet (`docs/kapkan.md` §12).
+ * that applies `sborka.lint`. kompot's modules did not when the rule was written; since
+ * youndie/kompot#199 (2026-10-02) every one of them does (`docs/kapkan.md` §12).
  *
  * **The set is the compiler's, copied rather than remembered.** [ILLEGAL] is
  * `FirNativeIdentifierChecker.invalidChars` in JetBrains/kotlin at `v2.4.20`,
