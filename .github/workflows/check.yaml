@@ -21,6 +21,13 @@ jobs:
       - name: Check
         run: ./gradlew check --no-daemon
 
+      # THE CONTROL FOR THE LINK QUEUE (#132). `check` above includes the stand's `verifyWebLinks`,
+      # which demands that its two wasm links did not overlap. That verdict means something only if
+      # the same observer sees an overlap when nothing queues them — so the switch goes off here, and
+      # `verifyWebLinks` then demands the overlap instead.
+      - name: The link queue's switch, off
+        run: ./gradlew -p stand verifyWebLinks -Psborka.serializeWebLinks=false --no-daemon
+
       # WHAT A CONSUMER CAN NAME, ASKED BEFORE THE MERGE RATHER THAN AFTER IT.
       #
       # This check already existed and ran in the wrong place. `publish-snapshot.yaml` puts proba on

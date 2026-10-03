@@ -1,0 +1,131 @@
+measure-links — a consumer's cold build with its Kotlin/Wasm links in parallel versus one at a time
+(sborka#132). Run 37053522687 of the workflow `measure-links` on the throwaway branch
+`measure/serialize-links` (commit e35ac21), 2026-10-02, GitHub-hosted ubuntu-latest: 4 cores, 16 GB.
+The branch is deleted; what it ran is below, and the job logs are what these lines were cut from.
+
+SUBJECT  youndie/shashki at 6dbaf477f0d42294d8dfe7dc73a47df0c95c6cf1: seven Kotlin/Wasm links per
+         `check` + distribution (five test links in `check`, two production links in the distribution),
+         `kotlin.daemon.jvmargs=-Xmx5g` in its gradle.properties.
+ARMS     parallel-5g  links as the build schedules them, the repository's own 5 GB daemon heap
+         serial-5g    links one at a time through a build service with maxParallelUsages = 1
+                      (an init script doing what `sborka.base` does), 5 GB
+         serial-3g    the same queue, `-Pkotlin.daemon.jvmargs=-Xmx3g` (the heap the daemon had before
+                      shashki raised it; the log does not print the daemon's actual -Xmx)
+REPS     3 per arm, all nine jobs started together, each on its own fresh runner.
+COLD     `--no-daemon --no-build-cache`, gradle/actions/setup-gradle with `cache-disabled: true`.
+STEPS    check_s: `./gradlew check`; dist_s: `./gradlew :server:installDist
+         :rider:wasmJsBrowserDistribution :driver:wasmJsBrowserDistribution` right after, same runner.
+STAMPS   every KotlinJsIrLink stamps System.currentTimeMillis() in doFirst and doLast; links= is the
+         count, overlapping_pairs= how many pairs of intervals intersect, link_busy_s= the sum of the
+         link durations (not wall clock).
+OOM      oom_*= lines matching "Java heap space|GC overhead|OutOfMemoryError" in that step's log.
+
+SUMMARY (seconds; median of three, then the three)
+  arm           check_s            dist_s             link_busy_s in check
+  parallel-5g   413 (410 413 418)  199 (197 211 199)  394 (394 430 377)
+  serial-5g     401 (424 401 390)  206 (206 208 203)  240 (240 244 240)
+  serial-3g     398 (412 346 398)  207 (207 178 208)  236 (238 201 236)
+  Every job green, no OOM line in any of the eighteen steps. The queue made the links take ~40 %
+  less summed time (they stop competing for four cores) and the wall clock did not move beyond the
+  spread between runners of one arm.
+
+PER RUN
+cold (parallel-5g, 1)
+  RESULT arm=parallel-5g rep=1 check_s=410 dist_s=197 oom_check=0 oom_dist=0
+  links=5 overlapping_pairs=4 link_busy_s=394
+    :auth-client:compileTestDevelopmentExecutableKotlinWasmJs 37.6s
+    :crash-client:compileTestDevelopmentExecutableKotlinWasmJs 28.5s
+    :driver:compileTestDevelopmentExecutableKotlinWasmJs 127.4s
+    :rider:compileTestDevelopmentExecutableKotlinWasmJs 123.5s
+    :shared-ui:compileTestDevelopmentExecutableKotlinWasmJs 77.0s
+  links=2 overlapping_pairs=1 link_busy_s=121
+    :driver:compileProductionExecutableKotlinWasmJs 60.3s
+    :rider:compileProductionExecutableKotlinWasmJs 60.3s
+cold (parallel-5g, 2)
+  RESULT arm=parallel-5g rep=2 check_s=413 dist_s=211 oom_check=0 oom_dist=0
+  links=5 overlapping_pairs=4 link_busy_s=430
+    :auth-client:compileTestDevelopmentExecutableKotlinWasmJs 41.5s
+    :crash-client:compileTestDevelopmentExecutableKotlinWasmJs 32.2s
+    :driver:compileTestDevelopmentExecutableKotlinWasmJs 138.3s
+    :rider:compileTestDevelopmentExecutableKotlinWasmJs 135.3s
+    :shared-ui:compileTestDevelopmentExecutableKotlinWasmJs 83.0s
+  links=2 overlapping_pairs=1 link_busy_s=129
+    :driver:compileProductionExecutableKotlinWasmJs 64.3s
+    :rider:compileProductionExecutableKotlinWasmJs 64.4s
+cold (parallel-5g, 3)
+  RESULT arm=parallel-5g rep=3 check_s=418 dist_s=199 oom_check=0 oom_dist=0
+  links=5 overlapping_pairs=4 link_busy_s=377
+    :auth-client:compileTestDevelopmentExecutableKotlinWasmJs 39.6s
+    :crash-client:compileTestDevelopmentExecutableKotlinWasmJs 29.6s
+    :driver:compileTestDevelopmentExecutableKotlinWasmJs 120.7s
+    :rider:compileTestDevelopmentExecutableKotlinWasmJs 112.7s
+    :shared-ui:compileTestDevelopmentExecutableKotlinWasmJs 74.5s
+  links=2 overlapping_pairs=1 link_busy_s=118
+    :driver:compileProductionExecutableKotlinWasmJs 58.8s
+    :rider:compileProductionExecutableKotlinWasmJs 58.8s
+cold (serial-3g, 1)
+  RESULT arm=serial-3g rep=1 check_s=412 dist_s=207 oom_check=0 oom_dist=0
+  links=5 overlapping_pairs=0 link_busy_s=238
+    :auth-client:compileTestDevelopmentExecutableKotlinWasmJs 42.9s
+    :crash-client:compileTestDevelopmentExecutableKotlinWasmJs 29.5s
+    :driver:compileTestDevelopmentExecutableKotlinWasmJs 95.9s
+    :rider:compileTestDevelopmentExecutableKotlinWasmJs 37.1s
+    :shared-ui:compileTestDevelopmentExecutableKotlinWasmJs 32.3s
+  links=2 overlapping_pairs=0 link_busy_s=94
+    :driver:compileProductionExecutableKotlinWasmJs 45.4s
+    :rider:compileProductionExecutableKotlinWasmJs 48.5s
+cold (serial-3g, 2)
+  RESULT arm=serial-3g rep=2 check_s=346 dist_s=178 oom_check=0 oom_dist=0
+  links=5 overlapping_pairs=0 link_busy_s=201
+    :auth-client:compileTestDevelopmentExecutableKotlinWasmJs 31.3s
+    :crash-client:compileTestDevelopmentExecutableKotlinWasmJs 26.0s
+    :driver:compileTestDevelopmentExecutableKotlinWasmJs 82.1s
+    :rider:compileTestDevelopmentExecutableKotlinWasmJs 33.0s
+    :shared-ui:compileTestDevelopmentExecutableKotlinWasmJs 28.5s
+  links=2 overlapping_pairs=0 link_busy_s=84
+    :rider:compileProductionExecutableKotlinWasmJs 41.1s
+    :driver:compileProductionExecutableKotlinWasmJs 43.4s
+cold (serial-3g, 3)
+  RESULT arm=serial-3g rep=3 check_s=398 dist_s=208 oom_check=0 oom_dist=0
+  links=5 overlapping_pairs=0 link_busy_s=236
+    :auth-client:compileTestDevelopmentExecutableKotlinWasmJs 43.0s
+    :crash-client:compileTestDevelopmentExecutableKotlinWasmJs 30.7s
+    :driver:compileTestDevelopmentExecutableKotlinWasmJs 95.1s
+    :rider:compileTestDevelopmentExecutableKotlinWasmJs 35.9s
+    :shared-ui:compileTestDevelopmentExecutableKotlinWasmJs 31.3s
+  links=2 overlapping_pairs=0 link_busy_s=97
+    :driver:compileProductionExecutableKotlinWasmJs 47.6s
+    :rider:compileProductionExecutableKotlinWasmJs 49.3s
+cold (serial-5g, 1)
+  RESULT arm=serial-5g rep=1 check_s=424 dist_s=206 oom_check=0 oom_dist=0
+  links=5 overlapping_pairs=0 link_busy_s=240
+    :auth-client:compileTestDevelopmentExecutableKotlinWasmJs 40.1s
+    :crash-client:compileTestDevelopmentExecutableKotlinWasmJs 29.0s
+    :driver:compileTestDevelopmentExecutableKotlinWasmJs 101.8s
+    :rider:compileTestDevelopmentExecutableKotlinWasmJs 38.7s
+    :shared-ui:compileTestDevelopmentExecutableKotlinWasmJs 30.5s
+  links=2 overlapping_pairs=0 link_busy_s=95
+    :rider:compileProductionExecutableKotlinWasmJs 47.0s
+    :driver:compileProductionExecutableKotlinWasmJs 48.1s
+cold (serial-5g, 2)
+  RESULT arm=serial-5g rep=2 check_s=401 dist_s=208 oom_check=0 oom_dist=0
+  links=5 overlapping_pairs=0 link_busy_s=244
+    :auth-client:compileTestDevelopmentExecutableKotlinWasmJs 43.2s
+    :crash-client:compileTestDevelopmentExecutableKotlinWasmJs 29.9s
+    :driver:compileTestDevelopmentExecutableKotlinWasmJs 101.7s
+    :rider:compileTestDevelopmentExecutableKotlinWasmJs 37.8s
+    :shared-ui:compileTestDevelopmentExecutableKotlinWasmJs 31.6s
+  links=2 overlapping_pairs=0 link_busy_s=95
+    :driver:compileProductionExecutableKotlinWasmJs 47.5s
+    :rider:compileProductionExecutableKotlinWasmJs 47.2s
+cold (serial-5g, 3)
+  RESULT arm=serial-5g rep=3 check_s=390 dist_s=203 oom_check=0 oom_dist=0
+  links=5 overlapping_pairs=0 link_busy_s=240
+    :auth-client:compileTestDevelopmentExecutableKotlinWasmJs 42.1s
+    :crash-client:compileTestDevelopmentExecutableKotlinWasmJs 32.4s
+    :driver:compileTestDevelopmentExecutableKotlinWasmJs 100.3s
+    :rider:compileTestDevelopmentExecutableKotlinWasmJs 35.5s
+    :shared-ui:compileTestDevelopmentExecutableKotlinWasmJs 30.1s
+  links=2 overlapping_pairs=0 link_busy_s=92
+    :driver:compileProductionExecutableKotlinWasmJs 45.2s
+    :rider:compileProductionExecutableKotlinWasmJs 46.3s
