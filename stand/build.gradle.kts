@@ -260,6 +260,99 @@ val verifyPublications =
         }
     }
 
+/**
+ * WHEN EACH WASM LINK RAN, written down by the links themselves (sborka#132).
+ *
+ * A link also MEETS the other one before it starts: it waits until both have arrived, or until
+ * [MEETING_MILLIS] has passed. Without the meeting, two small links on a fast machine could finish
+ * one before the other started even with nothing queuing them, and the check below would pass for
+ * the wrong reason. With it, two links that MAY run together DO: the queue in `sborka.base` is then
+ * the only thing that can keep them apart, and the run with the switch off proves the observer sees
+ * an overlap when there is one.
+ *
+ * The price is one wait per queued run: the first link holds the slot while it waits for a second
+ * that cannot arrive. 20 s rather than less because the control has to hold on a loaded runner — the
+ * two links start within milliseconds of each other on a quiet machine, and a meeting missed by a
+ * slow compile would be a red control on a correct queue.
+ */
+abstract class WebLinkTimeline : BuildService<BuildServiceParameters.None> {
+    private val starts = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val ends = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val arrivals = java.util.concurrent.CountDownLatch(LINKS)
+
+    fun started(path: String) {
+        starts[path] = System.nanoTime()
+        arrivals.countDown()
+        arrivals.await(MEETING_MILLIS, java.util.concurrent.TimeUnit.MILLISECONDS)
+    }
+
+    fun finished(path: String) {
+        ends[path] = System.nanoTime()
+    }
+
+    fun intervals(): Map<String, LongRange> = starts.mapValues { (path, start) -> start..(ends[path] ?: start) }
+
+    companion object {
+        const val LINKS = 2
+        const val MEETING_MILLIS = 20_000L
+    }
+}
+
+val webLinkTimeline = gradle.sharedServices.registerIfAbsent("standWebLinkTimeline", WebLinkTimeline::class) {}
+val webLinks = listOf(":wasm-one", ":wasm-two").map { "$it:compileDevelopmentExecutableKotlinWasmJs" }
+
+subprojects {
+    tasks.matching { it.path in webLinks }.configureEach {
+        usesService(webLinkTimeline)
+        // Always run, never from the cache: a link that did not run leaves nothing on the timeline.
+        outputs.cacheIf { false }
+        outputs.upToDateWhen { false }
+        val timeline = webLinkTimeline
+        doFirst { timeline.get().started(path) }
+        doLast { timeline.get().finished(path) }
+    }
+}
+
+// THE QUEUE, CHECKED BY WHAT HAPPENED RATHER THAN BY HOW IT IS WIRED. With the switch on (the
+// default) the two links must not overlap; with `-Psborka.serializeWebLinks=false` they must — CI
+// runs both, and the second is what says this check can see an overlap at all.
+val verifyWebLinks =
+    tasks.register("verifyWebLinks") {
+        group = "verification"
+        description = "Checks that sborka.base ran the two wasm links one at a time"
+        dependsOn(webLinks)
+        usesService(webLinkTimeline)
+        outputs.upToDateWhen { false }
+        val timeline = webLinkTimeline
+        val serialized = providers.gradleProperty("sborka.serializeWebLinks").orNull?.toBooleanStrictOrNull() ?: true
+        doLast {
+            val intervals = timeline.get().intervals()
+            check(intervals.size == WebLinkTimeline.LINKS) {
+                "expected ${WebLinkTimeline.LINKS} wasm links to have run, the timeline has ${intervals.keys} — " +
+                    "a link that did not run proves nothing about the queue"
+            }
+            val (a, b) = intervals.values.toList()
+            // In nanoseconds for the verdict, so that an overlap under a millisecond is still one.
+            val overlapNanos = minOf(a.last, b.last) - maxOf(a.first, b.first)
+            val overlapMillis = overlapNanos / 1_000_000
+            if (serialized) {
+                check(overlapNanos <= 0) {
+                    "the two wasm links ran at the same time for $overlapMillis ms although " +
+                        "sborka.serializeWebLinks is on: $intervals"
+                }
+            } else {
+                check(overlapNanos > 0) {
+                    "the two wasm links did not overlap with sborka.serializeWebLinks=false, so this check " +
+                        "cannot tell a queue from luck: $intervals"
+                }
+            }
+            logger.lifecycle(
+                "verifyWebLinks: serializeWebLinks=$serialized, overlap ${maxOf(overlapMillis, 0)} ms " +
+                    "(gap ${maxOf(-overlapMillis, 0)} ms)",
+            )
+        }
+    }
+
 tasks.register("check") {
     group = "verification"
     description = "Runs every module's checks and reads what the publish produced"
@@ -271,4 +364,5 @@ tasks.register("check") {
     dependsOn(":jvm-lib:mutationTest")
     dependsOn(":gradle-plugin:verifyPublicationShape")
     dependsOn(verifyPublications)
+    dependsOn(verifyWebLinks)
 }
