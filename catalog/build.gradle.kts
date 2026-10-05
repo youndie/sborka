@@ -106,4 +106,58 @@ val verifyGradleVersion =
         }
     }
 
-tasks.named("check") { dependsOn(verifyGradleVersion) }
+// A RUNNER LABEL IS NOT HARNESS, AND THE HARNESS PRESET HAS TO KEEP SAYING SO.
+//
+// `automerge-harness.json` merges whatever the `github-actions` manager finds, and that manager reads
+// the `runs-on:` labels too (datasource `github-runners`). A label decides the OS and the system
+// packages a workflow builds against, and the workflow it matters to most — publish — is one no pull
+// request runs: mongkn#17 moved its publish runner to a libmongoc floor no consumer had, green (#126).
+//
+// Renovate applies package rules in order and the last match wins, so this replays that order for a
+// runner label: the last rule that could match one and says anything about `automerge` has to say
+// `false`. A rule could match when every matcher it has admits the label — no `matchDatasources` or
+// one naming `github-runners`, no `matchManagers` or one naming `github-actions`. And the held label
+// has to sit in a group of its own: Renovate merges a grouped pull request only when every update in
+// it may merge, so a label left in `ci actions` would hold every action major beside it.
+val verifyHarnessPreset =
+    tasks.register("verifyHarnessPreset") {
+        val root = rootProject.layout.projectDirectory
+        val presetFile = root.file("automerge-harness.json").asFile
+        inputs.file(presetFile)
+        doLast {
+            val preset = groovy.json.JsonSlurper().parse(presetFile) as Map<*, *>
+            val rules = preset["packageRules"] as List<*>
+
+            fun Map<*, *>.admits(
+                key: String,
+                value: String,
+            ): Boolean = (this[key] as? List<*>)?.contains(value) ?: true
+
+            val runnerRules =
+                rules.filterIsInstance<Map<*, *>>().filter { rule ->
+                    rule.admits("matchDatasources", "github-runners") && rule.admits("matchManagers", "github-actions")
+                }
+            check(runnerRules.any { it["automerge"] == true }) {
+                "${presetFile.name} no longer automerges the `github-actions` manager at all, " +
+                    "so this check has nothing to hold the runner label against — re-read it"
+            }
+            val decisive =
+                runnerRules.lastOrNull { "automerge" in it }
+                    ?: error("${presetFile.name}: no rule decides automerge for a `github-runners` update")
+            check(decisive["automerge"] == false) {
+                "${presetFile.name} lets a runner label (datasource `github-runners`) merge itself: the last rule " +
+                    "that matches one sets automerge=${decisive["automerge"]}. No pull request runs the workflow " +
+                    "a runner label matters to most (youndie/sborka#126)."
+            }
+            val group = decisive["groupName"] as? String
+            check(group != null && group != "ci actions") {
+                "${presetFile.name} holds the runner label without a group of its own (groupName=$group): in " +
+                    "`ci actions` it would hold every action major grouped beside it"
+            }
+        }
+    }
+
+tasks.named("check") {
+    dependsOn(verifyGradleVersion)
+    dependsOn(verifyHarnessPreset)
+}
