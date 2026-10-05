@@ -1,0 +1,44 @@
+// Measurement harness for youndie/sborka#121. Two things, both off unless asked:
+//  * M121_TIMES=<file>: every task's duration and outcome, appended as tab-separated lines;
+//  * -Pm121.module=<path>: the release test binary and its run on that module's linuxX64 target,
+//    the shape sborka.kmp adds, unless the module already declares them (mani does).
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
+import org.gradle.build.event.BuildEventsListenerRegistry
+import org.gradle.tooling.events.FinishEvent
+import org.gradle.tooling.events.OperationCompletionListener
+import org.gradle.tooling.events.task.TaskFinishEvent
+
+abstract class M121Timer implements BuildService<BuildServiceParameters.None>, OperationCompletionListener {
+    void onFinish(FinishEvent e) {
+        if (!(e instanceof TaskFinishEvent)) return
+        def r = e.result
+        new File(System.getenv('M121_TIMES')) << "${e.descriptor.taskPath}\t${r.endTime - r.startTime}\t${r.getClass().simpleName}\n"
+    }
+}
+
+if (System.getenv('M121_TIMES')) {
+    def timer = gradle.sharedServices.registerIfAbsent('m121timer', M121Timer) {}
+    gradle.services.get(BuildEventsListenerRegistry).onTaskCompletion(timer)
+}
+
+def module = gradle.startParameter.projectProperties['m121.module']
+allprojects { p ->
+    if (module == null || p.path != module) return
+    p.pluginManager.withPlugin('org.jetbrains.kotlin.multiplatform') {
+        p.afterEvaluate {
+            def t = p.kotlin.targets.findByName('linuxX64')
+            def type = t.binaries.getClass().classLoader
+                .loadClass('org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType')
+            def release = Enum.valueOf(type, 'RELEASE')
+            if (t.binaries.findTest(release) == null) {
+                t.binaries.test([release])
+                println "m121: release test binary added to ${p.path}"
+            }
+            if (t.testRuns.findByName('release') == null) {
+                t.testRuns.create('release') { it.setExecutionSourceFrom(t.binaries.getTest(release)) }
+                println "m121: release test run added to ${p.path}"
+            }
+        }
+    }
+}

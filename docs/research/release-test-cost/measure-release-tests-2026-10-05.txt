@@ -1,0 +1,101 @@
+measure-release-tests - what the release test run of sborka#121 adds to a native `check`: the
+release link of the test binary and a second run of the same suite, on the two subjects the issue
+names. 2026-10-05.
+
+SUBJECTS mani `:server-native` at youndie/mani 000289955cb4b05798bc43a81b35d69cdee4756d: wires the
+         release run by hand (server-native/build.gradle.kts), tests against a real mongod.
+         kafkakn `:kafkakn-core` at youndie/kafkakn 22a9876de3ad0e84b4db28a698090e154856b7f0: no
+         release run of its own; `release-run.init.gradle` adds the one `sborka.kmp` adds
+         (`binaries.test(RELEASE)` + `testRuns.create("release")`, only if absent). Tests against
+         the fixture broker `ci/harness/broker.sh up` starts, as `ci/suite/run.sh` does.
+HOSTS    GitHub-hosted: run 37283956462 of the workflow `measure-121` on the throwaway branch
+         `measure/121-release-test-cost` (commit 9889ae3, which carried these two files as
+         measure-121/measure.sh and measure-121/m121.init.gradle; the workflow checked out the
+         subjects at the SHAs above). mani on ubuntu-24.04 with a mongo:8 service, kafkakn on
+         ubuntu-latest with its C bundle built by ci/librdkafka/build.sh; both 4 cores. The job
+         logs and the uploaded artefacts `mani-times`/`kafkakn-times` are what the hosted lines
+         below were cut from.
+         Linux box: Ubuntu 24.04 under WSL2, 20 cores, 16 GB, copies of the same trees in /tmp,
+         each run in `systemd-run --user --scope -p MemoryMax=8G`, nothing else building.
+METHOD   `measure.sh` here. A warm-up invocation links both test binaries once (toolchain, caches,
+         compilation). Then N iterations, the arm order alternating (odd: debug then release; even:
+         release then debug). An arm is ONE Gradle invocation that reruns exactly two tasks -
+         `link<Arm>TestLinuxX64 --rerun` and the test task `--rerun` - with `--no-build-cache`,
+         `--no-daemon`. Durations are the task's own start-to-end from the build event API
+         (`release-run.init.gradle`, M121_TIMES), not the invocation's wall clock.
+         N = 5 hosted, 3 on the Linux box.
+NOTE     The "exit N" the harness printed on these runs was the exit code of `date`, not of Gradle
+         (`$?` read after a command substitution); the committed measure.sh records Gradle's. The
+         outcome below is the task's own result from the event API.
+
+SUMMARY (seconds; median, then every run in iteration order)
+  mani :server-native, GitHub ubuntu-24.04 (4 cores), run 37283956462 job mani
+    debug    link_s 12.0 (11.4 11.8 12.0 12.2 12.3)
+             run_s  9.1 (9.1 9.1 9.1 9.0 9.0)  runs: green green green green green
+    release  link_s 132.0 (126.8 132.0 131.0 134.9 132.2)
+             run_s  8.9 (8.9 8.9 8.9 8.9 9.0)  runs: green green green green green
+    extra on check (release link + release run, medians): 141 s
+  mani :server-native, Linux box (20 cores)
+    debug    link_s 8.0 (12.8 8.0 7.0)
+             run_s  9.4 (9.4 9.3 9.4)  runs: green green green
+    release  link_s 105.6 (131.6 105.6 94.8)
+             run_s  9.2 (9.4 9.2 9.2)  runs: green green green
+    extra on check (release link + release run, medians): 115 s
+  kafkakn :kafkakn-core, GitHub ubuntu-latest (4 cores), run 37283956462 job kafkakn
+    debug    link_s 15.3 (15.3 16.8 15.5 15.2 14.9)
+             run_s  492.1 (540.0 489.5 492.3 487.1 492.1)  runs: green green green green green
+    release  link_s 84.8 (82.7 89.7 86.6 84.8 82.2)
+             run_s  475.3 (471.7 472.5 475.3 476.1 478.8)  runs: red red red red red
+    extra on check (release link + release run, medians): 560 s
+  kafkakn :kafkakn-core, Linux box (20 cores)
+    debug    link_s 13.1 (11.6 13.1 14.9)
+             run_s  501.7 (501.7 499.6 507.0)  runs: green green green
+    release  link_s 77.0 (76.7 78.4 77.0)
+             run_s  483.0 (482.1 483.0 485.3)  runs: red red red
+    extra on check (release link + release run, medians): 560 s
+
+READING
+  The release link is 6-13 times the debug link and barely moves with cores: mani 132 s on four,
+  106 s on twenty. For mani it is the whole cost, about two minutes per `check`. For kafkakn the
+  suite itself is the cost - a broker, eight minutes a run - and the release run doubles the native
+  part of `check`.
+  kafkakn's release run is RED in every run on both hosts, its debug run green in every run:
+  EnqueueTest.a_record_the_queue_has_no_room_for_within_max_block_ms_is_not_queued[linuxX64],
+  169 tests, 1 failed, `kotlin.RuntimeException: Unexpected receiver type: kotlin.String` from the
+  test's coroutine body - an interface call reaching a value of another type. The stand's first
+  draft of the trap, a missing generic cast check and nothing else, failed in release with the same
+  message; what kafkakn's cause is was not investigated here.
+
+RAW (task, duration in ms, outcome; one line per arm invocation)
+  mani-times     debug-1.tsv    linkDebugTestLinuxX64      11408 ms   linuxX64Test            9092 ms  DefaultTaskSuccessResult
+  mani-times     debug-2.tsv    linkDebugTestLinuxX64      11773 ms   linuxX64Test            9074 ms  DefaultTaskSuccessResult
+  mani-times     debug-3.tsv    linkDebugTestLinuxX64      12037 ms   linuxX64Test            9058 ms  DefaultTaskSuccessResult
+  mani-times     debug-4.tsv    linkDebugTestLinuxX64      12155 ms   linuxX64Test            9029 ms  DefaultTaskSuccessResult
+  mani-times     debug-5.tsv    linkDebugTestLinuxX64      12334 ms   linuxX64Test            9046 ms  DefaultTaskSuccessResult
+  mani-times     release-1.tsv  linkReleaseTestLinuxX64   126812 ms   linuxX64ReleaseTest     8894 ms  DefaultTaskSuccessResult
+  mani-times     release-2.tsv  linkReleaseTestLinuxX64   131973 ms   linuxX64ReleaseTest     8926 ms  DefaultTaskSuccessResult
+  mani-times     release-3.tsv  linkReleaseTestLinuxX64   131022 ms   linuxX64ReleaseTest     8920 ms  DefaultTaskSuccessResult
+  mani-times     release-4.tsv  linkReleaseTestLinuxX64   134944 ms   linuxX64ReleaseTest     8897 ms  DefaultTaskSuccessResult
+  mani-times     release-5.tsv  linkReleaseTestLinuxX64   132220 ms   linuxX64ReleaseTest     8975 ms  DefaultTaskSuccessResult
+  out-mani-wsl   debug-1.tsv    linkDebugTestLinuxX64      12843 ms   linuxX64Test            9445 ms  DefaultTaskSuccessResult
+  out-mani-wsl   debug-2.tsv    linkDebugTestLinuxX64       7973 ms   linuxX64Test            9327 ms  DefaultTaskSuccessResult
+  out-mani-wsl   debug-3.tsv    linkDebugTestLinuxX64       7030 ms   linuxX64Test            9353 ms  DefaultTaskSuccessResult
+  out-mani-wsl   release-1.tsv  linkReleaseTestLinuxX64   131550 ms   linuxX64ReleaseTest     9404 ms  DefaultTaskSuccessResult
+  out-mani-wsl   release-2.tsv  linkReleaseTestLinuxX64   105610 ms   linuxX64ReleaseTest     9203 ms  DefaultTaskSuccessResult
+  out-mani-wsl   release-3.tsv  linkReleaseTestLinuxX64    94808 ms   linuxX64ReleaseTest     9225 ms  DefaultTaskSuccessResult
+  kafkakn-times  debug-1.tsv    linkDebugTestLinuxX64      15340 ms   linuxX64Test          539958 ms  DefaultTaskSuccessResult
+  kafkakn-times  debug-2.tsv    linkDebugTestLinuxX64      16848 ms   linuxX64Test          489546 ms  DefaultTaskSuccessResult
+  kafkakn-times  debug-3.tsv    linkDebugTestLinuxX64      15493 ms   linuxX64Test          492278 ms  DefaultTaskSuccessResult
+  kafkakn-times  debug-4.tsv    linkDebugTestLinuxX64      15173 ms   linuxX64Test          487102 ms  DefaultTaskSuccessResult
+  kafkakn-times  debug-5.tsv    linkDebugTestLinuxX64      14867 ms   linuxX64Test          492147 ms  DefaultTaskSuccessResult
+  kafkakn-times  release-1.tsv  linkReleaseTestLinuxX64    82686 ms   linuxX64ReleaseTest   471710 ms  DefaultTaskFailureResult
+  kafkakn-times  release-2.tsv  linkReleaseTestLinuxX64    89652 ms   linuxX64ReleaseTest   472541 ms  DefaultTaskFailureResult
+  kafkakn-times  release-3.tsv  linkReleaseTestLinuxX64    86554 ms   linuxX64ReleaseTest   475346 ms  DefaultTaskFailureResult
+  kafkakn-times  release-4.tsv  linkReleaseTestLinuxX64    84769 ms   linuxX64ReleaseTest   476133 ms  DefaultTaskFailureResult
+  kafkakn-times  release-5.tsv  linkReleaseTestLinuxX64    82189 ms   linuxX64ReleaseTest   478785 ms  DefaultTaskFailureResult
+  out-kafkakn-wsl debug-1.tsv    linkDebugTestLinuxX64      11594 ms   linuxX64Test          501671 ms  DefaultTaskSuccessResult
+  out-kafkakn-wsl debug-2.tsv    linkDebugTestLinuxX64      13080 ms   linuxX64Test          499617 ms  DefaultTaskSuccessResult
+  out-kafkakn-wsl debug-3.tsv    linkDebugTestLinuxX64      14871 ms   linuxX64Test          507016 ms  DefaultTaskSuccessResult
+  out-kafkakn-wsl release-1.tsv  linkReleaseTestLinuxX64    76743 ms   linuxX64ReleaseTest   482088 ms  DefaultTaskFailureResult
+  out-kafkakn-wsl release-2.tsv  linkReleaseTestLinuxX64    78405 ms   linuxX64ReleaseTest   482951 ms  DefaultTaskFailureResult
+  out-kafkakn-wsl release-3.tsv  linkReleaseTestLinuxX64    77004 ms   linuxX64ReleaseTest   485304 ms  DefaultTaskFailureResult
