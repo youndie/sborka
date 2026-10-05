@@ -27,13 +27,13 @@ plugins {
 |---|---|
 | `io.github.youndie.sborka.settings` | repositories with content filters, the `wip` catalog, the `.editorconfig` check, and two reports read by a person rather than a build — `kapkanJoins`, what this repository built and never called, and `kapkanMethodSizes`, the bodies C2 is being asked to inline — applied in `settings.gradle.kts` |
 | `…sborka.base` | group, version, toolchain |
-| `…sborka.lint` | ktlint at a pinned version, generated sources excluded, and **kapkan** — four rules that each encode one defect this stack paid a stand run to find |
+| `…sborka.lint` | ktlint at a pinned version, generated sources excluded, and **kapkan** — six rules that each encode one defect this stack paid a stand run to find |
 | `…sborka.test` | JUnit Platform, a failure readable in the run log, an enforced BOM — the check that **every declared `@Test` was executed**, and, for the native and browser suites the comparison cannot reach, the one that **a suite which ran nothing does not pass** |
 | `…sborka.jvm` | `base` + `test` + `explicitApi`, `-Werror`, `jvmTarget` taken from the floor |
 | `…sborka.kmp` | the same for multiplatform — **except the target list**, which is a repository's argument rather than a convention |
 | `…sborka.publish` | the publication, a pom derived from one property, a sources jar, the floor attribute, an `.aar` named with its version |
 | `…sborka.mutation` | `mutationTest` on pitest; deliberately not wired into `check` |
-| `…sborka.native-service` | the binary's name, the allocator page size (16 KiB for many threads and a small heap; set 256 for a heap of gigabytes and few threads), staging under `build/native`, `writeNativeDockerfile` |
+| `…sborka.native-service` | the binary's name, the allocator page size (16 KiB for many threads and a small heap; set 256 for a heap of gigabytes and few threads), staging under `build/native`, `writeNativeDockerfile`, `nativeImageTar` (an OCI image with no Docker daemon, refused when the base cannot load the binary) |
 | `…sborka.jvm-distribution` | the module a KMP service needs for `installDist` and an AOT cache, because `application` and zavarnik are `kotlinJvm`-only: the main class, zavarnik's readiness URL, and a refusal of the module name that puts two jars of one name in `lib/` |
 
 Plus what a repository's CI asks for by name rather than by copy:
@@ -41,7 +41,7 @@ Plus what a repository's CI asks for by name rather than by copy:
 | what | where |
 |---|---|
 | `.github/actions/setup-kotlin` | Java, Gradle and the Kotlin/Native cache in one step and at one version |
-| `.github/actions/determine-version` | the head of the version from `gradle.properties`, run number on the tail |
+| `.github/actions/determine-version` | the head of the version from `gradle.properties`, run number on the tail; refuses a `-SNAPSHOT` head and a head that is already tagged `v<head>` |
 | `.github/workflows/publish-wip.yaml` | the whole snapshot publish, called with `uses:` — checkout, setup, version, the publish, and the proba job that asks the server what a consumer would resolve |
 
 The first two are steps, which is all a composite action can be. The third is a workflow because the

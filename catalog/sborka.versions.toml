@@ -14,6 +14,14 @@
 
 [versions]
 kotlin = "2.4.20"
+
+# The Gradle every repository's wrapper names. Not a version a build resolves anything with: the wrapper
+# is read by `gradlew` before any plugin or catalog exists, so the number still has to be written into
+# each repository's `gradle-wrapper.properties`. What it is here for is to be the ONE place that number
+# is decided. `sborka.settings` warns a build running on any other Gradle, the Renovate preset's
+# Gradle rule (the wrapper and the `gradle:*` build image) is checked against it in this repository's
+# `check` (`verifyGradleVersion`), and so is sborka's own wrapper.
+gradle = "9.8.0"
 coroutines = "1.11.0"
 serialization = "1.11.0"
 datetime = "0.8.0"
@@ -34,10 +42,10 @@ ksp = "2.3.12"
 # in katcher by the time the portfolio started reading the version from here. That is the direction
 # the drift goes on its own: the repository that takes a bump first ends up AHEAD of the shared
 # file, and a catalog that stays behind hands it a downgrade the first time it reads from here.
-agp = "9.4.0"
+agp = "9.4.1"
 
 # Drifted: 1.11.1 in three, 1.12.0 in two.
-composeMultiplatform = "1.12.0"
+composeMultiplatform = "1.12.1"
 
 # NO ktlint HERE, AND THAT IS THE FIX. The portfolio spelled two different things as one catalog key
 # called `ktlint` — the TOOL in nine repositories, the PLUGIN in four — which is why the same key reads

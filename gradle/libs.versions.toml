@@ -9,7 +9,7 @@ kotlin = "2.4.20"
 # KSP, for the stand module that proves `sborka.kmp` wires a common-metadata processor. Not in
 # `catalog/sborka.versions.toml`'s company by accident: that file already names a KSP version for
 # the repositories that agree on one, and this line is what sborka itself builds the fixture with.
-ksp = "2.3.11"
+ksp = "2.3.12"
 ktlintPlugin = "14.2.0"
 
 # razves, whose Gradle plugin carries the size gate. `compileOnly` in the conventions, so this
@@ -56,7 +56,26 @@ kotlinxIo = "0.9.0"
 # `NoClassDefFoundError: org/slf4j/LoggerFactory`, which names the class and not the missing artefact.
 slf4j = "2.0.18"
 
+# WHAT `:image` READS IMAGES WITH — the two libraries jib-core brings, so the image task (B-33), built
+# on jib-core, adds nothing to a consumer's classpath the check had not brought already.
+#
+# commons-compress is NEWER than jib-core's 1.26.0, and that is not taste: 1.26.0's tar writer needs
+# commons-codec and does not declare it (`NoClassDefFoundError: org/apache/commons/codec/Charsets`,
+# the first run of `:image`'s tests). jib-core only works on it because google-http-client happens to
+# bring codec along. Gradle resolves the higher version for both.
+commonsCompress = "1.28.0"
+jackson = "2.21.1"
+
+# THE LIBRARY UNDER JIB, and not the Jib Gradle plugin: B-29 measured the plugin needing a `main`
+# source set, shipping two JVM files in a native image and failing under the configuration cache.
+# `sborka.native-service` loads it in an isolated worker, so it is generated into `:core` as a number
+# the convention resolves at run time rather than a jar on every consumer's buildscript classpath.
+jibCore = "0.28.2"
+
 [libraries]
+commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
+jib-core = { module = "com.google.cloud.tools:jib-core", version.ref = "jibCore" }
 ksp-symbol-processing-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 ktlint-gradle-plugin = { module = "org.jlleitschuh.gradle:ktlint-gradle", version.ref = "ktlintPlugin" }

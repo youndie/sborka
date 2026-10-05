@@ -1,0 +1,61 @@
+# B-29, 2026-09-29: keel's native binary into an image with Jib, on macOS arm64 with NO docker on
+# PATH (arm.sh removes every PATH directory holding one, and aborts if `docker` still resolves).
+# keel at f79f22d in throwaway clones; base cc-debian13 by the digest in ../bases.lock.
+# Loaded and run on a Linux x86_64 host with Docker: `docker load`, then /health/ready and SIGTERM.
+
+## arm 1 — Jib 3.5.4 on keel's KMP :server, as is
+FAILED at configuration:
+  A problem occurred configuring project ':server'.
+  > SourceSet with name 'main' not found.
+(what reading JibPlugin.afterEvaluate predicted; now also run)
+
+## arm 1b — the same, plus `sourceSets.maybeCreate("main")`
+jibBuildTar with --no-configuration-cache: BUILT, 14 013 952 bytes, sha256:f393a9df…
+(not loaded: the image is arm 2's with a different binary, see "digests across arms")
+
+## arm 2 — Jib 3.5.4 on a new empty :image module, `java` applied only for Jib
+with the configuration cache (keel's default): FAILED at execution
+  Invocation of 'Task.project' by task ':image:jibBuildTar' at execution time is unsupported
+  with the configuration cache.
+with --no-configuration-cache: BUILT in 8 s (binary already linked), 14 013 952 bytes
+  digest run 1  sha256:c971f8957fe9ef7d9f184fd27386bbdeb8a5ff49fcb8d9f9f3aa2261af4c2d28
+  digest run 2  sha256:c971f8957fe9ef7d9f184fd27386bbdeb8a5ff49fcb8d9f9f3aa2261af4c2d28   (--rerun)
+  config: created 1970-01-01T00:00:00Z, entrypoint [/app/keel], env adds MALLOC_ARENA_MAX=2, user 0
+  every entry of Jib's own layers: mtime 1, and PAX atime/ctime/LIBARCHIVE.creationtime all 1
+  layers Jib added on top of the base's 21:
+    "jvm arg files"  /app/jib-classpath-file   = "/app/resources:/app/classes"
+                     /app/jib-main-class-file  = "could-not-infer-a-main-class"
+    "extra files"    /app/keel (0755), /app/keel.needed.txt   (stageNativeImage's report, because
+                                                                the whole directory was given)
+  no .class, .jar or resources/ path anywhere
+  build log: "No classes files were found - did you compile your project?"
+  on Linux: /health/ready=200, exit after SIGTERM=0
+
+## arm 3 — jib-core 0.28.2 from one ordinary task (jib/core-image.gradle.kts), no plugin, no `java`
+first version: image built, but the configuration cache refused the task — "cannot serialize
+  Gradle script object references": the base reference was a script-level val (sborka #76's defect)
+fixed (everything the action reads is a local of the task block):
+  run 1  sha256:cf52f28df65223b08ac10760fbb8e45266865a70db372cc952a9bcb8f9223b37   CC entry stored
+  run 2  sha256:cf52f28df65223b08ac10760fbb8e45266865a70db372cc952a9bcb8f9223b37   CC entry reused
+  14 011 904 bytes; one layer on top of the base's 21: app/ and app/keel (0755), nothing else
+  on Linux: /health/ready=200, exit after SIGTERM=0; created 1970-01-01T00:00:00Z
+  control, metadata: same bytes with mtime 2020-01-01 and mode 0644 on disk, --rerun
+                     -> sha256:cf52f28d… (unchanged; the layer takes content and the declared mode)
+                     note: without --rerun the task is UP-TO-DATE — Gradle hashes content too
+  control, content:  arm 1b's binary (another builtAt) in its place, --rerun
+                     -> sha256:97a0ee6f… (moved)
+
+## digests across arms
+arm 1b and arm 2 differ because their binaries differ: editing build.gradle.kts makes the tree
+dirty, kore-build then takes a new builtAt (B-28), and the relink is a different binary
+(5eba7a26… vs ed94d0ff…). Not a property of the layers.
+
+## arms not reached
+Jib CLI and crane: each is a separate binary to install on the build host, outside Gradle. The
+question they would answer — can an image be built with no daemon — is answered twice above, and
+the brief wants the image described in Gradle, which neither is.
+
+## lines of Gradle
+arm 1b  1 plugin line + 13 lines of `jib { }` + 1 dependsOn + 1 maybeCreate, in :server
+arm 2   a module: 4 lines of plugins + the same 13 + 1 dependsOn, and one `include` in settings
+arm 3   a module: 37 lines, no plugin but jib-core on the buildscript classpath

@@ -92,6 +92,9 @@ plugins.withId("org.jetbrains.kotlin.multiplatform") {
         targets.withType<KotlinJvmTarget>().configureEach {
             compilerOptions {
                 jvmTarget.set(JvmTarget.fromTarget(floor.toString()))
+                // Against the floor's class library as well, not only its class file version: see
+                // `sborka.jvm`, which says why and where this came from.
+                freeCompilerArgs.add("-Xjdk-release=$floor")
             }
         }
 
@@ -164,6 +167,10 @@ plugins.withId("org.jetbrains.kotlin.multiplatform") {
             if (processors == null || processors.dependencies.isEmpty()) {
                 return@afterEvaluate
             }
+            val handWired = providers.gradleProperty(KspMetadataWiring.HAND_WIRED_PROPERTY).orNull
+            if (KspMetadataWiring.handWired(handWired, path)) {
+                return@afterEvaluate
+            }
 
             // LOUD RATHER THAN HALF-WIRED. Switching off the per-target KSP tasks is right exactly
             // while there is nothing for them to do. A module that processes common metadata AND a
@@ -176,7 +183,8 @@ plugins.withId("org.jetbrains.kotlin.multiplatform") {
             require(elsewhere.isEmpty()) {
                 "$path declares KSP processors on $elsewhere beside ${KspMetadataWiring.PROCESSOR_CONFIGURATION}. " +
                     "sborka.kmp wires the common-metadata case only, and wiring it here would switch off the " +
-                    "per-target tasks those processors need. Wire this module by hand."
+                    "per-target tasks those processors need. Wire this module by hand and name it in " +
+                    "${KspMetadataWiring.HAND_WIRED_PROPERTY} in the root gradle.properties."
             }
 
             extensions.configure<KotlinMultiplatformExtension> {

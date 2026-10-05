@@ -47,8 +47,21 @@ val generateVersionConstant =
         val outputDir = layout.buildDirectory.dir("generated/sborka/kotlin")
         val currentVersion = version.toString()
         val ktlint = libs.versions.ktlintTool.get()
+        val jibCore = libs.versions.jibCore.get()
+        // Read out of the PUBLISHED catalog rather than this build's own: that file is where the
+        // portfolio's Gradle is decided, and `libs` is only what builds sborka.
+        val gradle =
+            providers
+                .fileContents(rootProject.layout.projectDirectory.file("../catalog/sborka.versions.toml"))
+                .asText
+                .map { text ->
+                    Regex("""(?m)^gradle\s*=\s*"([^"]+)"""").find(text)?.groupValues?.get(1)
+                        ?: error("catalog/sborka.versions.toml declares no `gradle` version")
+                }.get()
         inputs.property("version", currentVersion)
+        inputs.property("gradle", gradle)
         inputs.property("ktlint", ktlint)
+        inputs.property("jibCore", jibCore)
         outputs.dir(outputDir)
         doLast {
             val target = outputDir.get().asFile.resolve("io/github/youndie/sborka/internal/SborkaVersion.kt")
@@ -70,6 +83,19 @@ val generateVersionConstant =
                      * number in the same file.
                      */
                     public const val DEFAULT_KTLINT: String = "$ktlint"
+
+                    /**
+                     * The jib-core `sborka.native-service` builds images with — resolved when the image
+                     * task runs, into a worker of its own, rather than carried on every consumer's
+                     * buildscript classpath.
+                     */
+                    public const val JIB_CORE: String = "$jibCore"
+
+                    /**
+                     * The Gradle the portfolio's wrappers name, from `gradle` in the published catalog.
+                     * `sborka.settings` warns a build that runs on anything else.
+                     */
+                    public const val GRADLE: String = "$gradle"
                 }
 
                 """.trimIndent(),

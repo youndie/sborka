@@ -50,9 +50,9 @@ The walk now records `new` as well as the invokes (`Bytecode.NEW`), the pool can
 fourth section and names the count in its summary line.
 
 - **Verified against the probe where both read the same files.** On the three single-output
-  repositories — bochka, proba, boulab — the task and the probe give identical chain counts
-  (90, 35, 11) and identical pattern counts (3, 2, 0). bochka's size count differs by one: the
-  probe takes the last instruction's offset as the body size, which understates a body by the
+  repositories — bochka, proba and a private app — the task and the probe give identical chain
+  counts (90, 35, 11) and identical pattern counts (3, 2, 0). bochka's size count differs by one:
+  the probe takes the last instruction's offset as the body size, which understates a body by the
   length of that instruction.
 - **Elsewhere the task reports more, and it is not the rule.** A multiplatform build writes one
   class into several output directories; the task counts every copy, the probe counted distinct

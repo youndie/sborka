@@ -30,7 +30,7 @@ internal fun ruleId(name: String): RuleId = RuleId("$KAPKAN:$name")
  * kapkan's rules, as ktlint loads them.
  *
  * Found through `META-INF/services`, which is why the class is public and its name is in a file
- * nobody reads twice. Five rules, and the set is the whole configuration surface: a rule is here or
+ * nobody reads twice. Six rules, and the set is the whole configuration surface: a rule is here or
  * it is not.
  */
 public class KapkanRuleSetProvider : RuleSetProviderV3(RuleSetId(KAPKAN)) {
@@ -38,6 +38,7 @@ public class KapkanRuleSetProvider : RuleSetProviderV3(RuleSetId(KAPKAN)) {
         setOf(
             RuleProvider { CancellationSwallowedRule() },
             RuleProvider { ForeignImportInCommonRule() },
+            RuleProvider { NativeIdentifierRule() },
             RuleProvider { SwallowedFailureRule() },
             RuleProvider { WallClockRule() },
             RuleProvider { SuppressionNeedsAReasonRule() },
@@ -59,9 +60,20 @@ internal fun ASTNode.filePath(): String? = (psi.containingFile as? KtFile)?.virt
  * `…/src/commonMain/kotlin/…` — the segment after `src`. ktlint-gradle also knows the source set,
  * because it registers one task per source set, but that knowledge does not reach a `Rule`: what
  * reaches a rule is the file.
+ *
+ * **Which `src`.** A path can hold more than one. A checkout under `~/src/` puts one in front of the
+ * module's, which is why the search runs from the end; a package named `src` puts one behind it, and
+ * the last `src` in `src/jvmTest/kotlin/x/src/FooTest.kt` made `FooTest.kt` the source set — unknown,
+ * so judged, and a false finding in a JVM test. So the last `src` that has the layout around it wins:
+ * `src/<set>/kotlin/` or `src/<set>/java/`. A layout without that directory falls back to the last
+ * `src`, which is what every path got before.
  */
 internal fun sourceSetOf(path: String): String? {
     val segments = path.replace('\\', '/').split('/')
-    val src = segments.lastIndexOf("src")
-    return if (src == -1 || src + 1 >= segments.size) null else segments[src + 1]
+    val roots = segments.indices.filter { segments[it] == "src" && it + 1 < segments.size }
+    val src = roots.lastOrNull { segments.getOrNull(it + 2) in SOURCE_ROOTS } ?: roots.lastOrNull()
+    return src?.let { segments[it + 1] }
 }
+
+/** The directory a Gradle source set keeps its Kotlin in, right below the set's own name. */
+private val SOURCE_ROOTS: Set<String> = setOf("kotlin", "java")

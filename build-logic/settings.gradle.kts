@@ -52,3 +52,6 @@ include(":settings")
 // `sborka.lint` names it by coordinate rather than depending on it, which is how ktlint-gradle's
 // `ktlintRuleset` configuration expects to be handed a rule set.
 include(":kapkan")
+// The load check: can a base image load a native binary. Its own module, because what it reads
+// images with (commons-compress, Jackson) would otherwise ride on every convention's classpath.
+include(":image")

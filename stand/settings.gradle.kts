@@ -71,3 +71,8 @@ include(":native-service-multi")
 // The JVM half of a service, the module `application` and zavarnik need because neither applies to
 // a multiplatform one.
 include(":distribution")
+
+// Two wasm executables, for the one-link-at-a-time queue in `sborka.base` (#132): the root's
+// `verifyWebLinks` reads whether their links ran one after the other.
+include(":wasm-one")
+include(":wasm-two")

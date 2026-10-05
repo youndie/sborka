@@ -80,9 +80,9 @@ source and used in anger. Transcript:
 
 **A real service, on the tag it actually uses.** Our projects are on Kotlin 2.4.10, and none of them
 compiles against a 2.5 snapshot at all: the `kotlinx.serialization` plugin shipped with Gradle plugin
-2.4.10 fails in `SerializerClassPreLowering` against a 2.5 back-end, and `hub-backend` dies the same
-way on a ktor `@Resource`. Both failures reproduce with the **unpatched** 2.5 build and neither
-happens on stock 2.4.10, so that is the version jump and not this change.
+2.4.10 fails in `SerializerClassPreLowering` against a 2.5 back-end, and a private service of ours
+dies the same way on a ktor `@Resource`. Both failures reproduce with the **unpatched** 2.5 build
+and neither happens on stock 2.4.10, so that is the version jump and not this change.
 
 So the patch was applied to `v2.4.10` as well — the same three lines, same anchor, no adjustment —
 and the distribution built from the tag (8m16s). With it,

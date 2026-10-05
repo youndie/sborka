@@ -1,7 +1,9 @@
 name: Determine version
 description: >
   The head of the version from gradle.properties, with the run number on the tail. Copied word for
-  word into three repositories before this existed.
+  word into three repositories before this existed. Refuses a head ending in -SNAPSHOT, which would
+  publish as X.Y.Z-SNAPSHOT.N, and a head the repository has already tagged vX.Y.Z, whose X.Y.Z.N
+  would sort above that release.
 
 inputs:
   key:
@@ -17,12 +19,23 @@ outputs:
   version:
     description: The full version, head plus run number.
     value: ${{ steps.read.outputs.version }}
+  tagged:
+    description: >
+      The tag that already names the head (`v<head>`). Written only when the step refuses the head
+      for it, so a caller that lets the step fail can tell this refusal from any other; empty
+      whenever a version is written.
+    value: ${{ steps.read.outputs.tagged }}
 
 runs:
   using: composite
   steps:
     - id: read
       shell: bash
+      env:
+        KEY: ${{ inputs.key }}
+        FILE: ${{ inputs.file }}
+        RUN: ${{ github.run_number }}
+        SKILL: https://github.com/youndie/kotlin-skills/blob/main/plugins/kotlin-fullstack/skills/kmp-library-release/SKILL.md
       run: |
         set -euo pipefail
         # The run number goes on the tail: two publishes in a row must not produce the same
@@ -30,10 +43,80 @@ runs:
         #
         # `grep -E "^key="` and not `grep key`: a substring match picks up a commented-out line or a
         # neighbouring key, and the version it then reports is a version nobody set.
-        head="$(grep -E "^${{ inputs.key }}=" "${{ inputs.file }}" | head -1 | cut -d= -f2- | tr -d '[:space:]')"
-        if [ -z "$head" ]; then
-          echo "::error::${{ inputs.key }} is not set in ${{ inputs.file }}" >&2
+        #
+        # `|| true` because the message below is the point. Under `pipefail` a grep that matches
+        # nothing fails the assignment, `set -e` ends the step there, and the step went red with no
+        # line saying which key or which file. A file that is not there is said separately.
+        if [ ! -f "$FILE" ]; then
+          echo "::error::${FILE} does not exist, so there is no ${KEY} to read" >&2
           exit 1
         fi
-        echo "version=${head}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-        echo "version is ${head}.${{ github.run_number }}"
+        head="$(grep -E "^${KEY}=" "$FILE" | head -1 | cut -d= -f2- | tr -d '[:space:]' || true)"
+        if [ -z "$head" ]; then
+          echo "::error::${KEY} is not set in ${FILE}" >&2
+          exit 1
+        fi
+
+        # A -SNAPSHOT HEAD IS REFUSED, not passed through. The run number goes on whatever the head
+        # is, so `0.1.0-SNAPSHOT` becomes `0.1.0-SNAPSHOT.1`. That is neither of the two shapes the
+        # portfolio publishes (`X.Y.Z.N` for a snapshot, `X.Y.Z` for a release), and it is not a
+        # Maven snapshot either: a repository treats a version as one only when it ENDS in
+        # -SNAPSHOT. So it goes out as a fixed version whose name says snapshot. kontainer's first
+        # publish did exactly that (kontainer e18d6bb), on a green run (#119).
+        #
+        # The head itself is legitimate elsewhere. It is sborka.publish's fallback for a build that
+        # is never given -PVERSION. It is wrong only here, where a number is put on its tail.
+        # Compared without regard to case: a lower-case head is the same mistake.
+        case "$(printf '%s' "$head" | tr '[:lower:]' '[:upper:]')" in
+          *-SNAPSHOT)
+            echo "::error::${KEY}=${head} in ${FILE} ends in -SNAPSHOT, and this action puts the run" \
+                 "number on the tail: it would publish ${head}.${RUN}, which is neither a numbered" \
+                 "snapshot nor a release. Set ${KEY}=${head%-*} (the plain X.Y.Z of the next" \
+                 "release), or pass the whole version instead (the version input of" \
+                 "publish-wip.yaml)." >&2
+            exit 1 ;;
+        esac
+
+        # A HEAD THAT IS ALREADY TAGGED IS REFUSED. Maven's ordering, which Renovate follows, puts
+        # X.Y.Z.N above X.Y.Z, so a head left on a released number after its tag publishes builds
+        # that outrank the release and read as rebuilds of it. appframe, viddik, chronik, zavarnik
+        # and oldge-ui each kept publishing that way after a release until their heads were moved
+        # (appframe#55, viddik#59, chronik#32, zavarnik#22, oldge-ui#14).
+        #
+        # Asked of the remote, not of the checkout: actions/checkout fetches one commit and no tags.
+        # `ls-remote` lists the refs without fetching anything, through the credentials checkout
+        # left in the repository that holds the file — in check.yaml that is a fixture repository.
+        # Only `v<head>`: no repository of the portfolio tags a release without the `v`, and the
+        # numbered tags some of them push per run (`vX.Y.Z.N`) name a different ref.
+        #
+        # It was a warning first (#131), while one caller's head still stood on its release
+        # (oldge-ui, 0.1.0 at v0.1.0) and a refusal would have turned its next push red before anybody
+        # had moved it. It became a refusal once no caller's head was tagged. Nothing is written
+        # except `tagged`, so a caller that lets this step fail cannot publish the version by
+        # accident, and can still tell why the step failed.
+        #
+        # A remote that cannot be asked stays a warning: this step is not the place for a network
+        # error to stop a publish.
+        tag="v${head}"
+        if refs="$(GIT_TERMINAL_PROMPT=0 git -C "$(dirname "$FILE")" ls-remote --tags --refs origin "refs/tags/${tag}" 2>&1)"; then
+          if printf '%s\n' "$refs" | awk -v ref="refs/tags/${tag}" '$2 == ref { found = 1 } END { exit !found }'; then
+            if [[ "$head" =~ ^([0-9]+\.[0-9]+\.)([0-9]+)$ ]]; then
+              next="the next patch, ${BASH_REMATCH[1]}$((BASH_REMATCH[2] + 1)),"
+            else
+              next="the next release"
+            fi
+            echo "::error::${KEY}=${head} in ${FILE} is already released: the tag ${tag} exists, and" \
+                 "${head}.${RUN} would sort above that release and read as a rebuild of it. Move" \
+                 "the head to ${next} before publishing again: kmp-library-release, step 5," \
+                 "${SKILL}" >&2
+            echo "tagged=${tag}" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+        else
+          echo "::warning::could not ask origin whether ${tag} exists, so a tagged head was not" \
+               "checked: ${refs//$'\n'/ }"
+        fi
+
+        echo "version=${head}.${RUN}" >> "$GITHUB_OUTPUT"
+        echo "tagged=" >> "$GITHUB_OUTPUT"
+        echo "version is ${head}.${RUN}"

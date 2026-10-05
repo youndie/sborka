@@ -1,7 +1,7 @@
 # Backlog: the two strands of research this repository owns
 
 > Role of this document: the backlog of sborka's research work — the perf-lint, the JVM/native
-> parity gate, and the static-binary question. **One file per item in
+> parity gate, the static-binary question, and the native image. **One file per item in
 > [`docs/backlog/`](docs/backlog/)** — `B-NN-<slug>.md`. What lives here is the index (generated)
 > and everything that is not an item: the goal, the stages, and the decisions.
 >
@@ -51,6 +51,19 @@ instead ships on its own — of the ten shared libraries a Kotlin/Native binary 
 no symbol it imports, and one of those six is why two Dockerfiles here copy a file out of the
 builder image by hand and carry a paragraph about matching glibc versions. B-18 deletes all of it.
 
+## Goal — the native image
+
+A Kotlin/Native service's image built from Gradle alone, with no Docker daemon, and a build that
+fails before push when the base image cannot load the binary. The brief is
+[source-brief-native-image](docs/research/source-brief-native-image.md); the research is
+[research-native-image](docs/research/research-native-image.md).
+
+The order is set by what must not be decided by the code under test: the corpus of images that do
+and do not start comes first, with `docker run` as the verdict, and the static check is scored
+against it. Two things the brief took for granted are items of their own — whether the binary is
+byte-reproducible at all (B-28), and whether Jib needs a Java source set (it does, by reading; B-29
+finds out what that costs). The spike ends at B-32; shipping anything is the owner's call on it.
+
 ## Stages
 
 A stage is a field on the item, not a directory. Items are cited by id from the research and the
@@ -64,6 +77,9 @@ feature document, so re-prioritising must never move a file.
 | `stage-4-parity-evidence` | Find out which claimed divergences are real | One is already gone — `Dispatchers.IO` on native was a misread compiler message — and the biggest open question is why two subjects run no JVM tests. Cheap items, and everything below depends on their answers. |
 | `stage-5-parity-gate` | A gate at the layer that has actually broken | The native link is already inside the pull-request build, so a dozen platform assertions cost seconds. What needs deciding is what they assert and how the task reports the scope it did *not* cover. |
 | `stage-6-static-binary` | Take the win that does not depend on `scratch`, then decide about `scratch` | One item ships a smaller, safer image today and is independent of the rest; one decides whether the brief ends in a recipe or an upstream ticket; two are things the measurements turned up on the way. |
+| `stage-7-image-ground-truth` | Seven images, each with a `docker run` verdict | Nothing that checks images is written until the images it will be judged on exist and have been run. |
+| `stage-8-image-spike` | RQ0–RQ2 answered, verdict written | Reproducibility, Jib without a daemon, and the load check scored on the corpus; the research names where the check lives. |
+| `stage-9-image-ship` | Ship what the verdict chose | Answered 2026-09-30: the gate goes into `sborka.native-service` and keel loses its Dockerfile. Rows before the gate (B-36), the check into build-logic (B-37), the task (B-33), keel (B-34). |
 
 ## Marks
 
@@ -71,13 +87,14 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (1)
+## Open (2)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
 | [B-24](docs/backlog/B-24-file-what-the-musl-route-found.md) `[ ]` | File the two hardcoded sources upstream, with a reproduction that reaches main | P2 | XS | B-19 |
+| [B-35](docs/backlog/B-35-the-brief-the-readme-lists-is-not-in-the-tree.md) `[?]` | The README lists a memory-limit brief the tree does not have, and the documentation gate is red on main | P2 | XS | - |
 
-## Closed (25)
+## Closed (36)
 
 **The detectors match what was measured**
 
@@ -122,9 +139,35 @@ feature document, so re-prioritising must never move a file.
 - [B-21](docs/backlog/B-21-print-what-the-binary-declares.md) `[x]` - Print the binary's NEEDED list into the build log, so a new dependency shows up in a diff
 - [B-22](docs/backlog/B-22-take-the-flag-into-the-two-images.md) `[x]` - Release the flag and take the COPY line out of the two images that carry it
 
+**Seven images, each with a `docker run` verdict**
+
+- [B-27](docs/backlog/B-27-build-the-corpus-before-the-check.md) `[x]` - Build the corpus of images that do and do not start, before a line of the check exists
+
+**RQ0–RQ2 answered, verdict written**
+
+- [B-28](docs/backlog/B-28-ask-whether-the-binary-is-reproducible.md) `[x]` - Find out whether the same commit links to the same bytes, on one host and across two
+- [B-29](docs/backlog/B-29-put-keel-into-an-image-with-jib.md) `[x]` - Put keel's native binary into an image with Jib, with no Docker daemon, and see what else comes along
+- [B-30](docs/backlog/B-30-resolve-the-binary-against-the-base.md) `[x]` - Resolve the binary's loader, libraries and symbol versions against the base's layers, and score it on the corpus
+- [B-31](docs/backlog/B-31-read-the-prior-art.md) `[x]` - Read melange's SCA and container-structure-test against the corpus: does anything already fail this build?
+- [B-32](docs/backlog/B-32-write-the-verdict-and-name-the-home.md) `[x]` - Write the verdict: which of RQ0–RQ2 held, and where the check lives
+
+**Ship what the verdict chose**
+
+- [B-33](docs/backlog/B-33-make-the-load-check-a-gate.md) `[x]` - Give sborka.native-service an image task on jib-core that fails before push when the base cannot load the binary
+- [B-34](docs/backlog/B-34-build-keels-image-without-docker-build.md) `[x]` - Build keel's image without docker build: a jib-core task, and the Dockerfile's prose moved where it still means something
+- [B-36](docs/backlog/B-36-exercise-the-paths-the-corpus-never-reached.md) `[x]` - Add the four corpus rows that exercise what the check implements and the corpus never reached
+- [B-37](docs/backlog/B-37-move-the-check-into-build-logic.md) `[x]` - Move the load check out of docs/research into build-logic, with the corpus as its test suite
+- [B-38](docs/backlog/B-38-name-the-image-after-the-binary.md) `[x]` - Default the image's name to the binary's, not the module's
+
 <!-- END INDEX -->
 
 ## Decisions that are not items
+
+- **NEEDED becomes a gate — against the base's files, never against a list** (owner, 2026-09-30).
+  [B-21](docs/backlog/B-21-print-what-the-binary-declares.md) kept it a log line because a gate on an
+  expected list becomes a rubber stamp; the load check has no list, and scored 15 of 15 against
+  `docker run` ([research-native-image](docs/research/research-native-image.md)). B-21's log line
+  stays; B-33 adds the gate beside it.
 
 - **The 2 % line.** A shape becomes a rule only where a profile charged it more than 2 % of
   something. Boxing (1.26 %) and lazy logging (≤ 1.57 %) were dropped by this line and are in every
