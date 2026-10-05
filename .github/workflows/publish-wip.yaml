@@ -95,6 +95,21 @@ on:
         required: false
         default: https://reposilite.kotlin.website/snapshots
         type: string
+      apt-packages:
+        description: >
+          Debian packages the build needs before Gradle, space-separated — for example
+          `libmongoc-dev libbson-dev`. Bare names only; refused on a runner that is not Linux. A job
+          that calls a workflow cannot add steps of its own, so this is the only place for them.
+        required: false
+        default: ""
+        type: string
+      prepare:
+        description: >
+          A path to a script in the caller's own tree, run with bash before Gradle — for example
+          `ci/librdkafka/build.sh`. A path, not a command; one that leaves the checkout is refused.
+        required: false
+        default: ""
+        type: string
 
     secrets:
       REPOSILITE_USER:
@@ -123,6 +138,15 @@ jobs:
       - uses: youndie/sborka/.github/actions/setup-kotlin@main
         with:
           konan-cache: ${{ inputs.konan-cache }}
+
+      # Before any Gradle run, beside no secret: the reposilite credentials live only in the steps
+      # that read or use them, below (#117).
+      - name: Prepare the tree
+        if: inputs.apt-packages != '' || inputs.prepare != ''
+        uses: youndie/sborka/.github/actions/prepare-tree@main
+        with:
+          apt-packages: ${{ inputs.apt-packages }}
+          prepare: ${{ inputs.prepare }}
 
       - id: ver
         if: inputs.version == ''
