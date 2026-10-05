@@ -1,5 +1,6 @@
 package io.github.youndie.sborka
 
+import io.github.youndie.sborka.internal.LocalRepository
 import io.github.youndie.sborka.internal.SborkaSettings
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.tasks.bundling.AbstractArchiveTask
@@ -119,6 +120,49 @@ if (providers.gradleProperty("sborka.central").orNull.toBoolean()) {
         // is, rather than by a flag here that can be set wrong.
         if (providers.environmentVariable("ORG_GRADLE_PROJECT_signingInMemoryKey").isPresent) {
             signAllPublications()
+        }
+    }
+}
+
+// A DIRECTORY REPOSITORY, `local`, AT THE ROOT BUILD'S `build/local-repo`.
+//
+// A pre-flight before a publish and a read-back after it both need the full list of coordinates the
+// publish writes, and nothing gave it to them: `~/.m2` does not start empty, and a hand-typed list is
+// how kore 0.1.0 shipped without one of its modules. Three repositories built their own directory,
+// under three names, so no shared script could count on any of them (#120). Now every module has the
+// same one: `publishAllPublicationsToLocalRepository` puts a multi-module publish in one tree, at
+// the project's version, with no credentials, so a pull request can run it. Readers walk
+// `*/<version>/` rather than the whole tree; the directory is not emptied between runs.
+//
+// IN afterEvaluate, because a module may already declare `local` itself (kafkakn does, at this same
+// path) and Gradle does not refuse a second one — it renames it `local2` without a word. Waiting for
+// the build script lets [LocalRepository.decide] see the module's own: the same directory is kept as
+// it is, another one stops the build with what to delete.
+val localRepositoryDir = rootProject.layout.buildDirectory.dir(LocalRepository.DIRECTORY)
+afterEvaluate {
+    val repositories = extensions.getByType<PublishingExtension>().repositories
+    val declared = repositories.findByName(LocalRepository.NAME)
+    val expected = localRepositoryDir.get().asFile
+    // A `local` that is not a Maven repository has no URL to compare and is refused as somewhere else.
+    val declaredUrl =
+        declared?.let { (it as? MavenArtifactRepository)?.url ?: java.net.URI.create("urn:not-a-maven-repository") }
+    when (val decision = LocalRepository.decide(path, declaredUrl, expected)) {
+        LocalRepository.Decision.Register -> {
+            repositories.maven {
+                name = LocalRepository.NAME
+                url = uri(expected)
+            }
+        }
+
+        LocalRepository.Decision.Adopt -> {
+            logger.lifecycle(
+                "sborka.publish: $path declares `${LocalRepository.NAME}` at the directory sborka.publish " +
+                    "would register; the module's declaration is redundant and can be deleted",
+            )
+        }
+
+        is LocalRepository.Decision.Refuse -> {
+            throw GradleException(decision.message)
         }
     }
 }
