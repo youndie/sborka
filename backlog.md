@@ -87,14 +87,13 @@ feature document, so re-prioritising must never move a file.
 
 <!-- BEGIN INDEX -->
 
-## Open (2)
+## Open (1)
 
 | Task | | Priority | Size | Blocked by |
 |---|---|---|---|---|
 | [B-24](docs/backlog/B-24-file-what-the-musl-route-found.md) `[ ]` | File the two hardcoded sources upstream, with a reproduction that reaches main | P2 | XS | B-19 |
-| [B-35](docs/backlog/B-35-the-brief-the-readme-lists-is-not-in-the-tree.md) `[?]` | The README lists a memory-limit brief the tree does not have, and the documentation gate is red on main | P2 | XS | - |
 
-## Closed (36)
+## Closed (37)
 
 **The detectors match what was measured**
 
@@ -150,6 +149,7 @@ feature document, so re-prioritising must never move a file.
 - [B-30](docs/backlog/B-30-resolve-the-binary-against-the-base.md) `[x]` - Resolve the binary's loader, libraries and symbol versions against the base's layers, and score it on the corpus
 - [B-31](docs/backlog/B-31-read-the-prior-art.md) `[x]` - Read melange's SCA and container-structure-test against the corpus: does anything already fail this build?
 - [B-32](docs/backlog/B-32-write-the-verdict-and-name-the-home.md) `[x]` - Write the verdict: which of RQ0–RQ2 held, and where the check lives
+- [B-35](docs/backlog/B-35-the-brief-the-readme-lists-is-not-in-the-tree.md) `[x]` - The README lists a memory-limit brief the tree does not have, and the documentation gate is red on main
 
 **Ship what the verdict chose**
 
