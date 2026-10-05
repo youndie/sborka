@@ -172,9 +172,21 @@ jobs:
             echo "there is no tag $tag; publishing $VERSION from ${{ inputs.ref }}"
           fi
 
-      # By coordinate rather than `./.github/actions/...`: the workspace holds the library's tree,
-      # not this one's.
-      - uses: youndie/sborka/.github/actions/setup-kotlin@main
+      # Not `./.github/actions/...`: the workspace holds the library's tree, not this one's. And not
+      # `youndie/sborka/...@main` either, which would run `main`'s action under a dispatch of any
+      # other ref. This workflow's own commit (`job.workflow_sha`) is fetched beside the library and
+      # the action is used by path — the same move as publish-wip.yaml, where the reason is longer.
+      - name: sborka's actions, at this workflow's own commit
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .sborka
+          sparse-checkout: .github/actions
+          persist-credentials: false
+      - run: echo '/.sborka/' >> .git/info/exclude
+
+      - uses: ./.sborka/.github/actions/setup-kotlin
         with:
           konan-cache: ${{ inputs.konan-cache }}
 

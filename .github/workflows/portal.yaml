@@ -116,7 +116,18 @@ jobs:
             echo "there is no tag $tag; publishing $VERSION from ${{ inputs.ref }}"
           fi
 
-      - uses: youndie/sborka/.github/actions/setup-kotlin@main
+      # This workflow's own commit beside the library, the action by path: see central.yaml.
+      - name: sborka's actions, at this workflow's own commit
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .sborka
+          sparse-checkout: .github/actions
+          persist-credentials: false
+      - run: echo '/.sborka/' >> .git/info/exclude
+
+      - uses: ./.sborka/.github/actions/setup-kotlin
 
       # Before the gate and the upload, beside no secret: the portal's key and secret live only in
       # the upload step's `env:`. See central.yaml for the longer form.

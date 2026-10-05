@@ -5,6 +5,10 @@ on:
   push:
     branches: [ main ]
 
+# Read everywhere; the one job that writes, `tag` at the bottom, asks for it itself.
+permissions:
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -115,3 +119,37 @@ jobs:
           test -n "$provider"
           unzip -l kapkan.jar | grep -q "${provider//./\/}.class"
           echo "kapkan:$version declares $provider, and the class is in the jar"
+
+  # THE VERSION, NAMED IN GIT: `v<version>` at the commit that was built, so a repository that calls
+  # sborka's actions or `publish-wip.yaml` can pin a release instead of `main`, and Renovate can offer
+  # it the next one as a pull request that runs its build (#123). The plugins and the actions are one
+  # tree, so they carry one version.
+  #
+  # LAST, AND ONLY AFTER EVERYTHING ABOVE IS GREEN: a tag on a publish that did not land, or landed
+  # unreadable, names a version nobody can use. A publish that fails leaves no tag.
+  #
+  # NEVER MOVED. The ref is created, not updated: a tag that already exists is a 422 and a red job,
+  # which is right, because the run number makes every version new and a second tag of the same name
+  # would mean something rewrote one. Through the API rather than `git push`, so this job needs no
+  # checkout and holds the write token for one call. A tag pushed with this token starts no workflow.
+  tag:
+    needs: [ publish, consumer, catalog, ruleset ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Tag the commit that was built
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.publish.outputs.version }}
+        run: |
+          set -euo pipefail
+          # A tag cannot be taken back, so a version that is not `X.Y.Z.N` — an empty output would
+          # make it a bare `v` — is refused before anything is written.
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "::error::'$TAG' is not v<X.Y.Z.N>; nothing was tagged" >&2
+            exit 1
+          }
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${TAG}" -f sha="${GITHUB_SHA}" \
+            --jq '"\(.ref) -> \(.object.sha)"'
