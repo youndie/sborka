@@ -1,16 +1,15 @@
-# Temporary probe for #123: calls probe-called.yaml at an OLDER commit than its own.
+# Temporary probe for #123: calls publish-wip.yaml at the feature branch's commit, which is not this
+# one. `tasks: help` publishes nothing; what is under test is where the inner actions come from.
 name: probe-caller
 on:
   push:
     branches: [ probe/reusable-context-123 ]
 jobs:
-  call:
-    uses: youndie/sborka/.github/workflows/probe-called.yaml@e8b743368629e46aecaa1af2f51f8ec69f079015
-  top:
-    runs-on: ubuntu-latest
-    steps:
-      - env:
-          JOB: ${{ toJSON(job) }}
-          GH_WORKFLOW_SHA: ${{ github.workflow_sha }}
-          GH_SHA: ${{ github.sha }}
-        run: echo "top-level job context $JOB"; echo "github.workflow_sha=$GH_WORKFLOW_SHA github.sha=$GH_SHA"
+  wip:
+    uses: youndie/sborka/.github/workflows/publish-wip.yaml@6f124292ab40f7a836b9adcee46cad9aa1edc0af
+    with:
+      tasks: help
+      version-key: sborka.version
+    secrets:
+      REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
+      REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}
