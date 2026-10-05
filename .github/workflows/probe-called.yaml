@@ -1,0 +1,38 @@
+# Temporary probe for #123: what a called (reusable) workflow can learn about its own revision.
+name: probe-called
+on:
+  workflow_call:
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: contexts
+        env:
+          JOB: ${{ toJSON(job) }}
+          GH_WORKFLOW_REF: ${{ github.workflow_ref }}
+          GH_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          GH_SHA: ${{ github.sha }}
+          GH_REF: ${{ github.ref }}
+          GH_REPO: ${{ github.repository }}
+          JOB_WORKFLOW_REF: ${{ job.workflow_ref }}
+          JOB_WORKFLOW_SHA: ${{ job.workflow_sha }}
+          JOB_WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+          JOB_WORKFLOW_FILE_PATH: ${{ job.workflow_file_path }}
+        run: |
+          echo "job context: $JOB"
+          env | grep -E '^(GH_|JOB_)' | sort
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .sborka
+          sparse-checkout: .github/actions
+      - name: what was checked out
+        run: git -C .sborka log -1 --format='%H %s'; ls .sborka/.github/actions
+      - id: ver
+        uses: ./.sborka/.github/actions/determine-version
+        with:
+          key: sborka.version
+          file: .sborka-missing/gradle.properties
+        continue-on-error: true
+      - run: echo "local-path composite ran, outcome=${{ steps.ver.outcome }}"
