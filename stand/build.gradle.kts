@@ -45,8 +45,12 @@ val publishTasks =
 // before is a check that stops working the moment anyone uses it.
 val cleanStandRepo =
     tasks.register<Delete>("cleanStandRepo") {
-        description = "Empties the stand repository so a run cannot pass on last run's artefacts"
+        description = "Empties the stand repositories so a run cannot pass on last run's artefacts"
         delete(layout.buildDirectory.dir("repo"))
+        // The `local` repository `sborka.publish` registers in every module. The convention does not
+        // empty it — its readers walk `*/<version>/` — but the stand asserts the WHOLE list of what
+        // landed, and a module left over from an earlier run would be counted.
+        delete(layout.buildDirectory.dir("local-repo"))
     }
 
 subprojects {
@@ -260,6 +264,72 @@ val verifyPublications =
         }
     }
 
+// THE `local` REPOSITORY, READ BACK AS ONE TREE (#120).
+//
+// `sborka.publish` registers `local` at the ROOT build's `build/local-repo` in every module, so that a
+// pre-flight before a publish and a read-back after it have the whole list of coordinates in one
+// place, rather than `~/.m2` (never empty) or a list somebody typed (kore 0.1.0 shipped without a
+// module that way). This publishes every module of the stand into it and demands the EXACT list: the
+// multiplatform root and each of its targets, the plain JVM module, the platform, the Gradle plugin
+// and its marker. A module missing is the defect the repository exists for; a module too many is a
+// second writer.
+//
+// `:platform` declares `local` itself, at the same directory, the way kafkakn does — so the list below
+// also says that a module's own declaration is adopted rather than doubled.
+val localPublishTasks =
+    listOf(":jvm-lib", ":kmp-lib", ":platform", ":gradle-plugin")
+        .map { "$it:publishAllPublicationsToLocalRepository" }
+
+val verifyLocalRepository =
+    tasks.register("verifyLocalRepository") {
+        group = "verification"
+        description = "Checks that every module published into the one local repository"
+        dependsOn(localPublishTasks)
+        val repoDir = layout.buildDirectory.dir("local-repo")
+        val expectedVersion = providers.gradleProperty("VERSION").orNull
+        outputs.upToDateWhen { false }
+        doLast {
+            val root = repoDir.get().asFile
+            // A Maven directory repository keeps `maven-metadata.xml` beside the version directories of
+            // each artefact, so that file is what names a coordinate — not a list kept here by hand.
+            val coordinates =
+                root
+                    .walkTopDown()
+                    .filter { it.name == "maven-metadata.xml" }
+                    .map { it.parentFile }
+                    .associate { artefact ->
+                        val group = artefact.parentFile.relativeTo(root).invariantSeparatorsPath.replace('/', '.')
+                        "$group:${artefact.name}" to
+                            artefact.listFiles().orEmpty().filter { it.isDirectory }.map { it.name }.sorted()
+                    }.toSortedMap()
+
+            val expected =
+                sortedSetOf(
+                    "io.github.youndie.stand:gradle-plugin",
+                    "io.github.youndie.stand:jvm-lib",
+                    "io.github.youndie.stand:kmp-lib",
+                    "io.github.youndie.stand:kmp-lib-jvm",
+                    "io.github.youndie.stand:kmp-lib-linuxx64",
+                    "io.github.youndie.stand:platform",
+                    "stand.noop:stand.noop.gradle.plugin",
+                )
+            check(coordinates.keys == expected) {
+                "the local repository at $root holds a different set of coordinates than the stand publishes." +
+                    "\n  missing: ${expected - coordinates.keys}\n  unexpected: ${coordinates.keys - expected}"
+            }
+            val versions = coordinates.values.flatten().toSortedSet()
+            check(versions.size == 1) { "the local repository holds more than one version: $coordinates" }
+            if (expectedVersion != null) {
+                check(versions.single() == expectedVersion) {
+                    "-PVERSION was $expectedVersion and the local repository holds ${versions.single()}"
+                }
+            }
+            logger.lifecycle(
+                "verifyLocalRepository: ${coordinates.size} coordinates at ${versions.single()} in ${root.name}",
+            )
+        }
+    }
+
 /**
  * WHEN EACH WASM LINK RAN, written down by the links themselves (sborka#132).
  *
@@ -364,5 +434,6 @@ tasks.register("check") {
     dependsOn(":jvm-lib:mutationTest")
     dependsOn(":gradle-plugin:verifyPublicationShape")
     dependsOn(verifyPublications)
+    dependsOn(verifyLocalRepository)
     dependsOn(verifyWebLinks)
 }
