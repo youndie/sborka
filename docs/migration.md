@@ -151,13 +151,21 @@ curl -s https://reposilite.kotlin.website/snapshots/<group-путь>/<модул
 ## 7. CI
 
 ```yaml
-      - uses: youndie/sborka/.github/actions/setup-kotlin@main
+      - uses: youndie/sborka/.github/actions/setup-kotlin@v0.5.0.N
         with:
           konan-cache: "true"
 
       - id: ver
-        uses: youndie/sborka/.github/actions/determine-version@main
+        uses: youndie/sborka/.github/actions/determine-version@v0.5.0.N
 ```
+
+**По тегу, а не `@main`.** Каждая публикация sborka оставляет тег `v<версия>` на коммите, который
+собрала (`publish-snapshot.yaml`, job `tag`; тег не двигается), — та же версия, что у плагинов.
+Последний: `git ls-remote --tags --refs https://github.com/youndie/sborka | awk -F/ '{print $3}' | sort -V | tail -1`.
+Вызов `@main` получает каждое влитое в sborka изменение в тот же миг, без пулл-реквеста и без
+прогона своей сборки на нём; вызов по тегу получает следующий тег пулл-реквестом от Renovate
+(группа `ci actions`), и на этом пулл-реквесте идёт своя сборка (#123). Чтобы Renovate прочёл
+четырёхчастный тег, в пресете есть правило, см. [§8](#8-renovate).
 
 Заменяет `setup-java` + `setup-gradle` + кэш `~/.konan` + скопированный шаг «Determine version».
 `determine-version` приписывает к голове номер прогона, поэтому голова `version` в
@@ -182,7 +190,7 @@ v5 (18) и v6 (41).
 ```yaml
 jobs:
   publish:
-    uses: youndie/sborka/.github/workflows/publish-wip.yaml@main
+    uses: youndie/sborka/.github/workflows/publish-wip.yaml@v0.5.0.N
     with:
       tasks: build publishAllPublicationsToWipRepository
       # konan-cache / dokka / test-results / check / runner — по надобности,
@@ -191,6 +199,13 @@ jobs:
       REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}
       REPOSILITE_SECRET: ${{ secrets.REPOSILITE_SECRET }}
 ```
+
+**Свои шаги `publish-wip.yaml` берёт из того же тега.** Строка `uses:` не принимает выражений,
+поэтому внутри он не может написать `setup-kotlin@<тег вызывающего>`; вместо этого он выкачивает
+свой собственный коммит (`job.workflow_sha` — коммит вызванного файла; `github.workflow_sha` внутри
+вызванного воркфлоу называет вызывающий) в `.sborka/` рядом с деревом библиотеки и берёт
+`setup-kotlin` и `determine-version` оттуда по пути. Так же устроены `central.yaml` и `portal.yaml`.
+Каталог `.sborka/` вписан в `.git/info/exclude`, `git status` библиотеки он не трогает.
 
 **Секреты перечислять поимённо, а не `secrets: inherit`.** Вызов передаёт их в воркфлоу, лежащий в
 чужом репозитории; `inherit` передаёт туда все, какие есть в вызывающем, — включая те, к публикации
@@ -214,6 +229,13 @@ read`.
 расписание, группы `kotlin` / `kotlinx` / `sborka` / `ci actions`, запрет на
 `kotlinx-datetime:*-compat` (это новая версия, собранная против СТАРОГО API: сортируется как более
 новая, апгрейдом не является) и мажоры человеку.
+
+**Тег sborka Renovate читает только через пресет.** С апреля 2026 менеджер `github-actions`
+сравнивает теги версионированием `github-actions`: снимает `v` и ждёт строгий SemVer, а
+`0.5.0.124` им не является — без правила следующий тег не предлагался бы вовсе. Правило в
+`default.json` задаёт для `youndie/sborka` (только поиск по тегам, `github-tags`) версионирование
+`regex` с группой `build` на четвёртую часть: она сравнивается после patch, обновление считается
+patch-обновлением. Повторять его у себя не нужно — достаточно `extends`.
 
 **Automerge — вторым пресетом и не везде:**
 

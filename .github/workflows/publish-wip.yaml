@@ -120,13 +120,38 @@ jobs:
       # is the caller's, so this checks out the library, not sborka.
       - uses: actions/checkout@v7
 
-      - uses: youndie/sborka/.github/actions/setup-kotlin@main
+      # SBORKA'S ACTIONS AT THE REVISION THE CALLER PINNED, not at `main` (#123). A caller that
+      # names `publish-wip.yaml@v0.5.0.N` gets this file from that tag, but a `uses:` line cannot
+      # hold an expression, so `youndie/sborka/.github/actions/...@main` here would run whatever is on
+      # `main` for every step. Instead this workflow's own commit is fetched and the actions are used
+      # by path.
+      #
+      # `job.workflow_sha`, NOT `github.workflow_sha`. Inside a called workflow the `github` context
+      # is the caller's: `github.workflow_sha` names the CALLER's workflow file. `job.workflow_*` names
+      # the file this job is defined in. Measured, not read: a caller at one commit calling a
+      # workflow at an older one (sborka run 37283137047) got `github.workflow_sha` = the caller's
+      # commit and `job.workflow_sha` = the called one, and a composite action used by path from that
+      # checkout ran.
+      #
+      # Only `.github/actions`, into a directory git is told to ignore, so the library's tree and its
+      # `git status` stay what they were.
+      - name: sborka's actions, at this workflow's own commit
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .sborka
+          sparse-checkout: .github/actions
+          persist-credentials: false
+      - run: echo '/.sborka/' >> .git/info/exclude
+
+      - uses: ./.sborka/.github/actions/setup-kotlin
         with:
           konan-cache: ${{ inputs.konan-cache }}
 
       - id: ver
         if: inputs.version == ''
-        uses: youndie/sborka/.github/actions/determine-version@main
+        uses: ./.sborka/.github/actions/determine-version
         with:
           key: ${{ inputs.version-key }}
 
