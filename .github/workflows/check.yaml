@@ -55,7 +55,10 @@ jobs:
             "binary 'debugTest' of linuxX64: -lstandc" "standc-bare.def" "Move them into the .def"
           refused bare :cinterop-lib:verifyCinteropKlibs \
             "standc-bare.def" "the klib carries neither an archive"
-          ./gradlew -p stand :cinterop-lib:check -Pstand.cinterop=extraOpts --no-daemon
+          # The two tasks rather than the module's `check`: that one also waits for `kapkanMethodSizes`,
+          # which compiles every module of the stand, and is not what this control is about.
+          ./gradlew -p stand :cinterop-lib:verifyCinteropKlibs :cinterop-lib:linuxX64Test \
+            -Pstand.cinterop=extraOpts --no-daemon
 
       # WHAT A CONSUMER CAN NAME, ASKED BEFORE THE MERGE RATHER THAN AFTER IT.
       #
