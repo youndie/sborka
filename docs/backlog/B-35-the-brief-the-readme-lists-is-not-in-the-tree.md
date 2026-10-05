@@ -1,7 +1,7 @@
 ---
 id: B-35
 title: "The README lists a memory-limit brief the tree does not have, and the documentation gate is red on main"
-status: question
+status: done
 priority: P2
 size: XS
 stage: stage-8-image-spike
@@ -32,3 +32,10 @@ this strand's stage by subject — only by who noticed.
 
 - AC: `make gate` on `main` reports no discrepancies.
 - Anchors: `docs/README.md`
+
+## Resolution (2026-10-05)
+
+The owner chose the second option: the brief is dropped, not committed. The README line is gone, so
+`make gate` on `main` reports no discrepancies. The same change runs `make gate` in CI (a `docs` job in
+`check.yaml`), so a README line naming a file that is not in the tree turns a pull request red instead
+of every branch cut from `main`.

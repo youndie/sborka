@@ -336,3 +336,21 @@ jobs:
             exit 1
           fi
           echo "no self-reference by coordinate"
+
+  # THE DOCUMENTATION GATE, ON EVERY PULL REQUEST. `make gate` was a target a person ran by hand, so
+  # nothing stopped a README line naming a file that was never committed: the gate stayed red on
+  # `main` for weeks and every branch cut from it inherited the failure (B-35). It reads `docs/` and
+  # `backlog.md` only and takes seconds; `make report` stays out of CI on purpose (see the Makefile).
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - run: pip install pyyaml
+
+      - name: make gate
+        run: make gate

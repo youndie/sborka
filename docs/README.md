@@ -82,7 +82,6 @@ no file behind it, fails `coverage_map.py`.
 - [x] [source-brief-parity](research/source-brief-parity.md) — the parity brief as it arrived, kept so the deviations from it stay readable
 - [x] [research-static-binary](research/research-static-binary.md) — why a Kotlin/Native binary does not start in `scratch`, and the one linker option that removes a hand-written `COPY` line and the glibc pairing hazard with it
 - [x] [source-brief-static-binary](research/source-brief-static-binary.md) — the scratch-image brief as it arrived
-- [x] [source-brief-memory-limit](research/source-brief-memory-limit.md) — the brief after the K/N-under-load post: whether 2 000 rps in 256 MiB is the runtime or Ktor, kept as it arrived while the work is still ahead
 - [x] [research-native-image](research/research-native-image.md) — a daemonless image for a native service and a check that fails the build when the base cannot load the binary: 15 of 15 against docker run, and the one blind spot measured
 - [x] [source-brief-native-image](research/source-brief-native-image.md) — the brief for a daemonless image with a load check before push: whether Jib already does it, and whether a base that cannot load the binary is caught before push; kept as it arrived while the spike is ahead
 
