@@ -6,3 +6,11 @@ on:
 jobs:
   call:
     uses: youndie/sborka/.github/workflows/probe-called.yaml@e8b743368629e46aecaa1af2f51f8ec69f079015
+  top:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          JOB: ${{ toJSON(job) }}
+          GH_WORKFLOW_SHA: ${{ github.workflow_sha }}
+          GH_SHA: ${{ github.sha }}
+        run: echo "top-level job context $JOB"; echo "github.workflow_sha=$GH_WORKFLOW_SHA github.sha=$GH_SHA"
