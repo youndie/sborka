@@ -4,6 +4,7 @@
     "Lets the build harness merge itself: `github-actions` and `gradle-wrapper`, majors included. Extend it AFTER the base preset — `\"extends\": [\"github>youndie/sborka\", \"github>youndie/sborka:automerge-harness\"]` — because package rules are concatenated in that order and the last match wins, and this one has to win over the base preset's rule that sends every major to a human.",
     "The argument: a major of actions/checkout is not the same kind of event as a major of a library this repository publishes. The harness ships to nobody, and the check that would catch a bad bump is the build itself, which already ran on the pull request.",
     "WHICH IS THE PRECONDITION, AND IT IS NOT RHETORICAL. This is only safe in a repository where a pull request actually runs that build. Before extending this, look at what runs on `pull_request` in the repository doing the extending — in the workflow, not in a sentence about it. mongkn was the counter-example here for months: its build workflow was `workflow_dispatch` only, so a green-looking pull request meant nobody had run anything. Its triggers went back on, this text did not notice, and the repository kept citing a reason that had expired — which is the second lesson and the reason the first sentence says to go and look.",
+    "EXCEPT THE RUNNER LABEL. The `github-actions` manager also reads every `runs-on:` label (datasource `github-runners`), and a label is not harness in the sense above: it decides the OS, the libc and the system packages a workflow builds against, and the workflows most sensitive to it — publish, release, image — are exactly the ones a pull request does not run. mongkn#17 merged itself on 2026-10-01 and moved its `workflow_dispatch`-only publish.yml from ubuntu-24.04 to 26.04, where libmongoc is 2.x under other library names; the next klib would have linked against a floor no consumer had, and every check on that pull request was green because none of them ran publish.yml. So a runner label falls back to the base preset's human gate, in a group of its own so that it does not hold the actions majors with it (youndie/sborka#126).",
     "GitHub's own auto-merge is deliberately not used (`platformAutomerge: false` in the base preset): it refuses to arm on a branch with no required checks, and adding branch protection to `main` would change how these repositories are worked in. Renovate merges the pull request itself instead."
   ],
   "packageRules": [
@@ -12,6 +13,15 @@
       "matchManagers": ["github-actions", "gradle-wrapper"],
       "automerge": true,
       "automergeType": "pr"
+    },
+    {
+      "description": [
+        "A runner label waits for a person, majors and all: no pull request runs the workflow it matters to most, so the build that would catch it is not the one that ran.",
+        "AFTER the rule above, because the last match wins. Its own group because Renovate merges a grouped pull request only when every update in it may merge: left in `ci actions`, one held label would hold every action major beside it, which is not what this is for. `verifyHarnessPreset` in sborka's `check` fails if a later rule hands the label back to automerge, or if this group goes away."
+      ],
+      "matchDatasources": ["github-runners"],
+      "groupName": "ci runners",
+      "automerge": false
     }
   ]
 }
