@@ -2,6 +2,7 @@ package io.github.youndie.sborka
 
 import io.github.youndie.sborka.internal.DeclaredTests
 import io.github.youndie.sborka.internal.SborkaSettings
+import io.github.youndie.sborka.internal.TestSources
 import org.gradle.api.tasks.testing.AbstractTestTask
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
@@ -71,6 +72,24 @@ if (SborkaSettings.flag(project, "sborka.declaredTests", default = true)) {
         val sourceRoot = layout.projectDirectory.dir("src").asFile
         val taskName = name
 
+        // THE SOURCES OF THE COMPILATION THAT FED THIS TASK, not the module's whole `src`: see
+        // `DeclaredTests.declaredIn` for the red build that reading every source set produced.
+        //
+        // A provider, so it is read once the Kotlin plugin has wired its compilations — at the end of
+        // configuration, where the configuration cache stores its value, or in `doLast` without one.
+        // `kotlin` is looked up by name first, so `TestSources` and the Kotlin types it names are never
+        // loaded in a module that has no Kotlin plugin. The project is taken here rather than inside
+        // the provider, where it would be `Task.project` at execution time.
+        val module = project
+        val compiledSources =
+            provider {
+                if (module.extensions.findByName("kotlin") == null) {
+                    emptyList()
+                } else {
+                    TestSources.of(module, testClassesDirs.files)
+                }
+            }
+
         doLast {
             // A FILTERED TASK IS RUNNING A SUBSET ON PURPOSE, so "declared and not run" is its job
             // rather than a defect. AN INCLUDE SELECTS AND AN EXCLUDE NARROWS, and treating them the
@@ -91,7 +110,25 @@ if (SborkaSettings.flag(project, "sborka.declaredTests", default = true)) {
             // Kotlin plugin has not set the source set's output when this block is configured, and a
             // FileCollection captured then resolves to nothing rather than to the classes — a check
             // that silently sees no test classes and passes.
-            val declared = DeclaredTests.declaredIn(sourceRoot, testClassesDirs, filter.excludePatterns)
+            //
+            // NO COMPILATION TO READ — a module without Kotlin, or a `Test` task some other plugin
+            // registered — falls back to every source set under `src/`. Duplicated names there are set
+            // aside below rather than guessed at, so the fallback may check less; it never checks the
+            // wrong file.
+            val sourceDirs = compiledSources.get().ifEmpty { listOf(sourceRoot) }
+            if (sourceDirs == listOf(sourceRoot)) {
+                logger.info(
+                    "$taskName: no Kotlin compilation matches its classes — reading every source set under $sourceRoot",
+                )
+            }
+            val found = DeclaredTests.declaredIn(sourceDirs, testClassesDirs, filter.excludePatterns)
+            found.ambiguous.forEach { (name, files) ->
+                logger.lifecycle(
+                    "$taskName: $name is declared in ${files.size} files and the results name it without a " +
+                        "package, so it is not checked:\n  " + files.joinToString("\n  "),
+                )
+            }
+            val declared = found.counts
             if (declared.isEmpty()) return@doLast
 
             val reported = DeclaredTests.reportedIn(resultsDir.get().asFile)

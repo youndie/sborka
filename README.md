@@ -27,7 +27,7 @@ plugins {
 |---|---|
 | `io.github.youndie.sborka.settings` | repositories with content filters, the `wip` catalog, the `.editorconfig` check, and two reports read by a person rather than a build — `kapkanJoins`, what this repository built and never called, and `kapkanMethodSizes`, the bodies C2 is being asked to inline — applied in `settings.gradle.kts` |
 | `…sborka.base` | group, version, toolchain |
-| `…sborka.lint` | ktlint at a pinned version, generated sources excluded, and **kapkan** — six rules that each encode one defect this stack paid a stand run to find |
+| `…sborka.lint` | ktlint at a pinned version, generated sources excluded, and **kapkan** — seven rules that each encode one defect this stack paid a stand run to find |
 | `…sborka.test` | JUnit Platform, a failure readable in the run log, an enforced BOM — the check that **every declared `@Test` was executed**, and, for the native and browser suites the comparison cannot reach, the one that **a suite which ran nothing does not pass** |
 | `…sborka.jvm` | `base` + `test` + `explicitApi`, `-Werror`, `jvmTarget` taken from the floor |
 | `…sborka.kmp` | the same for multiplatform — **except the target list**, which is a repository's argument rather than a convention |
@@ -42,9 +42,10 @@ Plus what a repository's CI asks for by name rather than by copy:
 |---|---|
 | `.github/actions/setup-kotlin` | Java, Gradle and the Kotlin/Native cache in one step and at one version |
 | `.github/actions/determine-version` | the head of the version from `gradle.properties`, run number on the tail; refuses a `-SNAPSHOT` head and a head that is already tagged `v<head>` |
+| `.github/actions/prepare-tree` | what a build needs before Gradle — Debian packages and a script from the repository's own tree — both checked before either is acted on; used by `central.yaml`, `portal.yaml` and `publish-wip.yaml` through their `apt-packages` and `prepare` inputs |
 | `.github/workflows/publish-wip.yaml` | the whole snapshot publish, called with `uses:` — checkout, setup, version, the publish, and the proba job that asks the server what a consumer would resolve |
 
-The first two are steps, which is all a composite action can be. The third is a workflow because the
+The first three are steps, which is all a composite action can be. The fourth is a workflow because the
 thing being shared is a job and a second job waiting on it, and neither fits in a step.
 
 And one more thing a repository extends by name rather than copies — its Renovate configuration:

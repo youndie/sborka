@@ -12,9 +12,10 @@
 # what a link in the release notes is for.
 #
 # WHAT A LIBRARY HAS TO DO TO BE PUBLISHABLE FROM HERE: set `sborka.central=true` in its
-# `gradle.properties`. That is the whole contract. `io.github.youndie.sborka.publish` reads it,
-# applies the plugin that produces the javadoc jar and the detached signatures Central requires, and
-# leaves the coordinates alone.
+# `gradle.properties`. `io.github.youndie.sborka.publish` reads it, applies the plugin that produces
+# the javadoc jar and the detached signatures Central requires, and leaves the coordinates alone.
+# A library whose build needs something before Gradle — a system package for a cinterop, a C bundle
+# built in a container — also names it at dispatch: `apt-packages` and `prepare` below (#117).
 #
 # THE RELEASE ITSELF STAYS A CLICK. `publishToMavenCentral` uploads the bundle and leaves it staged;
 # `publishAndReleaseToMavenCentral` would release it, and a version on Central can never be rewritten
@@ -54,7 +55,11 @@ on:
         required: true
         default: ubuntu-latest
         type: choice
-        options: [ubuntu-latest, macos-15]
+        # ubuntu-24.04 BY NAME, for a library whose artefact depends on the host's packages. mongkn's
+        # cinterop bakes the link names of the libmongoc it finds into the klib: 24.04's 1.26 gives
+        # `-lmongoc-1.0`, 26.04's 2.x gives `-lmongoc2`, and a klib built on the newer image links on
+        # no consumer at its floor (youndie/mongkn#29). `ubuntu-latest` moves; that library must not.
+        options: [ubuntu-latest, ubuntu-24.04, macos-15]
       konan-cache:
         description: Cache ~/.konan. Worth it only for a build with Kotlin/Native targets.
         required: false
@@ -65,6 +70,20 @@ on:
         required: false
         default: true
         type: boolean
+      apt-packages:
+        description: >
+          Debian packages the build needs before Gradle, space-separated — for example
+          `libmongoc-dev libbson-dev`. Bare names only; refused on macos-15 rather than ignored.
+        required: false
+        default: ""
+        type: string
+      prepare:
+        description: >
+          A path to a script in the library's own tree, run with bash before Gradle — for example
+          `ci/librdkafka/build.sh`. A path, not a command; one that leaves the checkout is refused.
+        required: false
+        default: ""
+        type: string
 
 # Nothing here writes to a repository. The credentials that matter are the four secrets below, and
 # they are not the token this line is about.
@@ -110,6 +129,10 @@ jobs:
           ref: ${{ inputs.ref }}
           # The tags come too, so the step below can diff against one.
           fetch-depth: 0
+          # No token left in .git/config for what runs next. Nothing below talks to a remote, and
+          # `prepare` and the gate run the library's own code — which should find no credential on
+          # disk any more than in its environment.
+          persist-credentials: false
 
       # REFUSED HERE RATHER THAN BY A MISSING TASK. Without the switch the publish plugin is not
       # applied, `publishToMavenCentral` does not exist, and Gradle's answer is "task not found" —
@@ -149,11 +172,39 @@ jobs:
             echo "there is no tag $tag; publishing $VERSION from ${{ inputs.ref }}"
           fi
 
-      # By coordinate rather than `./.github/actions/...`: the workspace holds the library's tree,
-      # not this one's.
-      - uses: youndie/sborka/.github/actions/setup-kotlin@main
+      # Not `./.github/actions/...`: the workspace holds the library's tree, not this one's. And not
+      # `youndie/sborka/...@main` either, which would run `main`'s action under a dispatch of any
+      # other ref. This workflow's own commit (`job.workflow_sha`) is fetched beside the library and
+      # the action is used by path — the same move as publish-wip.yaml, where the reason is longer.
+      - name: sborka's actions, at this workflow's own commit
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .sborka
+          sparse-checkout: .github/actions
+          persist-credentials: false
+      - run: echo '/.sborka/' >> .git/info/exclude
+
+      - uses: ./.sborka/.github/actions/setup-kotlin
         with:
           konan-cache: ${{ inputs.konan-cache }}
+
+      # WHAT GRADLE CANNOT FETCH FOR ITSELF, before the gate and before the upload — both run the
+      # cinterop, so `gate: false` would not have helped a build that needs a header (#117).
+      #
+      # NO SECRET IN THIS STEP'S ENVIRONMENT, and that is the reason for its place: the signing key
+      # and the portal token live only in the upload step's `env:` below, and this job has none of
+      # its own. What runs here is code from the repository being published, which this job already
+      # trusts by running its Gradle build; the owner guard at the top still applies. Both inputs are
+      # checked before either is acted on, and a bad one stops the run with nothing installed and
+      # nothing run.
+      - name: Prepare the tree
+        if: inputs.apt-packages != '' || inputs.prepare != ''
+        uses: youndie/sborka/.github/actions/prepare-tree@main
+        with:
+          apt-packages: ${{ inputs.apt-packages }}
+          prepare: ${{ inputs.prepare }}
 
       # The gate on the tree being uploaded, not on the tree that was green once. It is a switch
       # because some repositories gate on things a runner here cannot give them — a stand, a
