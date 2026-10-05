@@ -168,7 +168,7 @@ jobs:
       # that read or use them, below (#117).
       - name: Prepare the tree
         if: inputs.apt-packages != '' || inputs.prepare != ''
-        uses: youndie/sborka/.github/actions/prepare-tree@main
+        uses: ./.sborka/.github/actions/prepare-tree
         with:
           apt-packages: ${{ inputs.apt-packages }}
           prepare: ${{ inputs.prepare }}

@@ -248,3 +248,23 @@ jobs:
           [ "$ran" = "ran $(pwd -P)" ] ||
             { echo "::error::the script should have run once, from the root; it wrote: '$ran'"; exit 1; }
           hello
+
+  # SBORKA NEVER CALLS ITSELF BY COORDINATE. A `uses: youndie/sborka/...@<ref>` inside sborka's own
+  # workflows or actions runs that ref's code under whatever tag the caller pinned, which is exactly
+  # what pinning is meant to stop (#123). Inside sborka an action is used by path: `./.github/...` in
+  # a workflow that checks out sborka, `./.sborka/.github/...` in one that checks out a library and
+  # fetches its own commit beside it (publish-wip, central, portal). This was found the hard way:
+  # #139 added `prepare-tree@main` to all three on the day the others were moved off `main`.
+  self-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: No `uses:` names youndie/sborka
+        run: |
+          set -euo pipefail
+          if grep -rnE '^[[:space:]]*(-[[:space:]]*)?uses:[[:space:]]*["'\'']?youndie/sborka/' .github/workflows .github/actions; then
+            echo "::error::sborka uses its own actions or workflows by coordinate (above); use them by path" >&2
+            exit 1
+          fi
+          echo "no self-reference by coordinate"
