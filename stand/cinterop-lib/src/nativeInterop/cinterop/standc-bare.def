@@ -1,0 +1,5 @@
+# The same binding with nothing about what it binds to: the .def the controls in build.gradle.kts use.
+# Through `-staticLibrary` it still carries the archive; with the archive on the module's own binaries,
+# or with nothing at all, it is the klib kafkakn B-15 and smtpkn M-110 published.
+headers = standc.h
+package = stand.cinterop.c

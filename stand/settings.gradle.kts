@@ -76,3 +76,7 @@ include(":distribution")
 // `verifyWebLinks` reads whether their links ran one after the other.
 include(":wasm-one")
 include(":wasm-two")
+
+// A library with a C binding, for the refusal of a cinterop klib that a consumer cannot link
+// (sborka#116). Its default shape is the stand's `check`; CI runs the shapes that must be refused.
+include(":cinterop-lib")

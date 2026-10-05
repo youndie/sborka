@@ -28,6 +28,35 @@ jobs:
       - name: The link queue's switch, off
         run: ./gradlew -p stand verifyWebLinks -Psborka.serializeWebLinks=false --no-daemon
 
+      # THE CONTROLS FOR A CINTEROP KLIB A CONSUMER CANNOT LINK (#116). `check` above builds the stand's
+      # `:cinterop-lib` with its archive named in the .def, and its test links with no options of its
+      # own. These are the other shapes of the same module, and each must come out the way it says:
+      # the archive on the module's own binaries is refused at configuration, naming the binary, the
+      # option and the .def; the archive named nowhere is refused by `verifyCinteropKlibs`; and the
+      # archive passed with `-staticLibrary`, which writes no manifest key, passes - it is in included/.
+      - name: The cinterop klib's controls
+        run: |
+          set -euo pipefail
+          refused() {
+            local shape="$1" task="$2"; shift 2
+            if ./gradlew -p stand "$task" -Pstand.cinterop="$shape" --no-daemon > "$RUNNER_TEMP/$shape.log" 2>&1; then
+              cat "$RUNNER_TEMP/$shape.log"
+              echo "::error::stand.cinterop=$shape passed; it must be refused"; return 1
+            fi
+            for expected in "$@"; do
+              grep -qF -- "$expected" "$RUNNER_TEMP/$shape.log" || {
+                cat "$RUNNER_TEMP/$shape.log"
+                echo "::error::stand.cinterop=$shape failed without saying: $expected"; return 1
+              }
+            done
+            echo "stand.cinterop=$shape refused, as it must be"
+          }
+          refused binary :cinterop-lib:verifyCinteropKlibs \
+            "binary 'debugTest' of linuxX64: -lstandc" "standc-bare.def" "Move them into the .def"
+          refused bare :cinterop-lib:verifyCinteropKlibs \
+            "standc-bare.def" "the klib carries neither an archive"
+          ./gradlew -p stand :cinterop-lib:check -Pstand.cinterop=extraOpts --no-daemon
+
       # WHAT A CONSUMER CAN NAME, ASKED BEFORE THE MERGE RATHER THAN AFTER IT.
       #
       # This check already existed and ran in the wrong place. `publish-snapshot.yaml` puts proba on

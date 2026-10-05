@@ -1,5 +1,6 @@
 package io.github.youndie.sborka
 
+import io.github.youndie.sborka.internal.CinteropLink
 import io.github.youndie.sborka.internal.KspMetadataWiring
 import io.github.youndie.sborka.internal.SborkaSettings
 import org.gradle.api.attributes.Category
@@ -10,6 +11,7 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.plugin.mpp.Executable
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import org.jetbrains.kotlin.gradle.targets.jvm.KotlinJvmTarget
+import org.jetbrains.kotlin.gradle.tasks.CInteropProcess
 import org.jetbrains.kotlin.konan.target.Family
 
 // The mechanics of a multiplatform library — AND DELIBERATELY NOT ITS TARGETS.
@@ -136,6 +138,107 @@ plugins.withId("org.jetbrains.kotlin.multiplatform") {
             }.forEach { configuration ->
                 configuration.attributes.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, floor)
             }
+    }
+}
+
+// A CINTEROP KLIB CARRIES ITS OWN LINK, OR THE BUILD SAYS SO (sborka#116).
+//
+// A library with a binding was published twice in this portfolio in a state where everything inside
+// its own build was green and no consumer could link it. Both times the same way: the archives and
+// `-l` options sat on the library's OWN binaries, through `binaries.all { linkerOpts(…) }`. Its tests
+// linked, `check` passed, the publish succeeded, and the published `…-cinterop-<name>.klib` carried
+// the bindings and nothing they bind to. The first build outside the repository failed with
+// `undefined symbol` on every C function (kafkakn B-15: nine of them; smtpkn M-110). Both were found by
+// a consumer, not by the build that made the artefact.
+//
+// TWO HALVES.
+//
+// REFUSED AT CONFIGURATION: a module that declares a cinterop and names a library (`-l<x>`, `-L<dir>`,
+// `-framework`, a path to `*.a` / `*.so`) on any of its own binaries, or in `cinterops { linkerOpts }`,
+// which cinterop drops with one warning line. With nothing on its own binaries the library's suite links
+// the way a stranger's build does, so its own tests become the consumer check. Options that name no
+// library stay allowed: `-Wl,--as-needed` above is sborka's own.
+//
+// READ FROM THE ARTEFACT IN `check`: `verifyCinteropKlibs` opens every klib the main compilations'
+// cinterops produce, prints what each carries, and fails on a `.def` that declares headers whose klib
+// carries neither an archive nor any library — the B-15 / M-110 signature. The archives are read from
+// `included/`, not from the manifest: `extraOpts("-staticLibrary", …)` puts the archive there and writes
+// no manifest key for it, and a manifest reader would call that good klib empty.
+//
+// In `afterEvaluate` because the cinterops and the binaries are declared in the module's own script,
+// below the `plugins` block that applies this one.
+plugins.withId("org.jetbrains.kotlin.multiplatform") {
+    afterEvaluate {
+        val nativeTargets = extensions.getByType<KotlinMultiplatformExtension>().targets.withType<KotlinNativeTarget>()
+        val interops =
+            nativeTargets.flatMap { target ->
+                target.compilations.flatMap { compilation ->
+                    compilation.cinterops.map { Triple(target, compilation, it) }
+                }
+            }
+        if (interops.isEmpty()) {
+            return@afterEvaluate
+        }
+
+        val misplaced =
+            nativeTargets.flatMap { target ->
+                target.binaries.flatMap { binary ->
+                    val named = CinteropLink.librariesNamed(binary.linkerOpts)
+                    named.map { "binary '${binary.name}' of ${target.name}: $it" }
+                }
+            } +
+                interops.flatMap { (target, _, interop) ->
+                    CinteropLink.librariesNamed(interop.linkerOpts).map {
+                        "cinterops { linkerOpts } of '${interop.name}' on ${target.name}, which cinterop drops: $it"
+                    }
+                }
+        if (misplaced.isNotEmpty()) {
+            val definitions =
+                interops
+                    .mapNotNull { (_, _, interop) ->
+                        interop.definitionFile.orNull
+                            ?.asFile
+                            ?.relativeTo(projectDir)
+                            ?.path
+                    }.distinct()
+                    .ifEmpty { listOf("src/nativeInterop/cinterop/<name>.def") }
+            throw GradleException(
+                "$path declares a cinterop, and names a library to link where a consumer never sees it:\n" +
+                    misplaced.joinToString("\n") { "- $it" } + "\n" +
+                    "Options on this module's own binaries reach only its own binaries: its tests link, the klib it " +
+                    "publishes carries nothing, and a consumer's link fails with `undefined symbol` on every C " +
+                    "function (kafkakn B-15, smtpkn M-110). Move them into the .def the klib is built from " +
+                    "(${definitions.joinToString()}): archives as `staticLibraries = libfoo.a`, their directory " +
+                    "from Gradle as `extraOpts(\"-libraryPath\", dir)`; a shared library as " +
+                    "`linkerOpts = -L<dir> -lfoo`. Options that name no library, such as -Wl,--as-needed, may stay.",
+            )
+        }
+
+        val published = interops.filter { (_, compilation, _) -> compilation.name == "main" }
+        if (published.isEmpty()) {
+            return@afterEvaluate
+        }
+        val verify =
+            tasks.register<VerifyCinteropKlibs>("verifyCinteropKlibs") {
+                group = "verification"
+                description =
+                    "Prints what each cinterop klib carries for a consumer's link, and fails on one that carries nothing"
+                published.forEach { (target, _, interop) ->
+                    val processing = tasks.named<CInteropProcess>(interop.interopProcessingTaskName)
+                    klibs.add(
+                        objects.newInstance<CinteropKlib>().apply {
+                            label.set("${target.name} ${interop.name}")
+                            konanTarget.set(target.konanTarget.name)
+                            val family = target.konanTarget.family
+                            this.family.set(family.name.lowercase())
+                            klib.from(processing.flatMap { it.outputFileProvider }).builtBy(processing)
+                            definitionFile.set(interop.definitionFile)
+                            gradleHeaders.from(interop.headers)
+                        },
+                    )
+                }
+            }
+        tasks.named("check") { dependsOn(verify) }
     }
 }
 
