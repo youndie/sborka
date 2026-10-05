@@ -63,8 +63,8 @@ class DeclaredTestsTest {
         val classes = File(tmp, "classes").apply { mkdirs() }
         File(classes, "CompiledTest.class").writeText("")
 
-        val declared = DeclaredTests.declaredIn(File(tmp, "src"), listOf(classes))
-        assertEquals(mapOf("CompiledTest" to 1), declared)
+        val declared = DeclaredTests.declaredIn(listOf(File(tmp, "src")), listOf(classes))
+        assertEquals(mapOf("CompiledTest" to 1), declared.counts)
     }
 
     @Test
@@ -79,8 +79,85 @@ class DeclaredTestsTest {
         val classes = File(tmp, "classes").apply { mkdirs() }
         File(classes, "SkippedTest.class").writeText("")
 
-        val declared = DeclaredTests.declaredIn(File(tmp, "src"), listOf(classes), excluded = setOf("pkg.*"))
-        assertTrue(declared.isEmpty())
+        val declared = DeclaredTests.declaredIn(listOf(File(tmp, "src")), listOf(classes), excluded = setOf("pkg.*"))
+        assertTrue(declared.counts.isEmpty())
+    }
+
+    @Test
+    fun `a same-named class in another source set is not read`(
+        @TempDir tmp: File,
+    ) {
+        // THE RED BUILD THIS WAS WRITTEN FOR. `jvmTest` and `nativeTest` each hold a
+        // `CreateFileSystemTest`, same package, two tests and three. No compilation sees both, so it is
+        // legal — and read from the whole `src/` the two files shared one name, the map kept whichever
+        // the walk reached last, and `jvmTest` was asked for three on runners whose filesystem listed
+        // `nativeTest` second.
+        val jvmTest = sameNamedTests(tmp)
+
+        val declared =
+            DeclaredTests.declaredIn(
+                sourceDirs = listOf(jvmTest, File(tmp, "src/commonTest/kotlin")),
+                testClassesDirs = listOf(File(tmp, "classes")),
+            )
+        assertEquals(mapOf("CreateFileSystemTest" to 2), declared.counts)
+        assertTrue(declared.ambiguous.isEmpty())
+    }
+
+    @Test
+    fun `a name two files declare is set aside rather than decided by the walk`(
+        @TempDir tmp: File,
+    ) {
+        // The fallback, for a task no Kotlin compilation can be matched to, still reads all of `src/`.
+        // There the same two files cannot be told apart by the results — a multiplatform suite is
+        // named `CreateFileSystemTest[jvm]`, without its package — so neither is checked and both are
+        // named, whatever order the directories come in.
+        sameNamedTests(tmp)
+
+        val declared = DeclaredTests.declaredIn(listOf(File(tmp, "src")), listOf(File(tmp, "classes")))
+        assertTrue(declared.counts.isEmpty())
+        assertEquals(
+            listOf(
+                "src/jvmTest/kotlin/pkg/CreateFileSystemTest.kt",
+                "src/nativeTest/kotlin/pkg/CreateFileSystemTest.kt",
+            ),
+            declared.ambiguous.getValue("CreateFileSystemTest").map { it.relativeTo(tmp).invariantSeparatorsPath },
+        )
+    }
+
+    @Test
+    fun `an exclusion matches the package the file declares`(
+        @TempDir tmp: File,
+    ) {
+        // Not the directory it sits in: Kotlin does not require the two to agree, and a qualified name
+        // is made of the declared one.
+        val src = File(tmp, "src/test/kotlin").apply { mkdirs() }
+        File(src, "FlatTest.kt").writeText("package pkg.deep\n\nclass FlatTest {\n    @Test\n    fun a() {}\n}\n")
+        val classes = File(tmp, "classes").apply { mkdirs() }
+        File(classes, "FlatTest.class").writeText("")
+
+        val declared = DeclaredTests.declaredIn(listOf(src), listOf(classes), excluded = setOf("pkg.deep.*"))
+        assertTrue(declared.counts.isEmpty())
+    }
+
+    // katcher's `client` as it was on the red runs: the JVM file with two tests, the native one with
+    // three, one compiled class between them. Returns the JVM test source directory.
+    private fun sameNamedTests(tmp: File): File {
+        fun write(
+            sourceSet: String,
+            tests: Int,
+        ): File {
+            val root = File(tmp, "src/$sourceSet/kotlin")
+            val body = (1..tests).joinToString("\n") { "    @Test\n    fun t$it() {}\n" }
+            File(root, "pkg").mkdirs()
+            File(root, "pkg/CreateFileSystemTest.kt").writeText("package pkg\n\nclass CreateFileSystemTest {\n$body}\n")
+            return root
+        }
+
+        File(tmp, "src/commonTest/kotlin").mkdirs()
+        File(tmp, "classes/pkg").mkdirs()
+        File(tmp, "classes/pkg/CreateFileSystemTest.class").writeText("")
+        write("nativeTest", tests = 3)
+        return write("jvmTest", tests = 2)
     }
 
     @Test
@@ -128,8 +205,8 @@ class DeclaredTestsTest {
         File(classes, "FirstTest.class").writeText("")
         File(classes, "SecondTest.class").writeText("")
 
-        val declared = DeclaredTests.declaredIn(File(tmp, "src"), listOf(classes))
-        assertEquals(mapOf("SecondTest" to 2, "FirstTest" to 1), declared)
+        val declared = DeclaredTests.declaredIn(listOf(File(tmp, "src")), listOf(classes))
+        assertEquals(mapOf("SecondTest" to 2, "FirstTest" to 1), declared.counts)
     }
 
     @Test
@@ -154,7 +231,10 @@ class DeclaredTestsTest {
         val classes = File(tmp, "classes").apply { mkdirs() }
         File(classes, "OuterTest.class").writeText("")
 
-        assertEquals(mapOf("OuterTest" to 1), DeclaredTests.declaredIn(File(tmp, "src"), listOf(classes)))
+        assertEquals(
+            mapOf("OuterTest" to 1),
+            DeclaredTests.declaredIn(listOf(File(tmp, "src")), listOf(classes)).counts,
+        )
     }
 
     @Test

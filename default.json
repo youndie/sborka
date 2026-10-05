@@ -64,6 +64,16 @@
       "groupName": "ci actions"
     },
     {
+      "description": [
+        "sborka's actions and `publish-wip.yaml` are pinned to the tag every sborka publish writes, `v<X.Y.Z.N>` (youndie/sborka#123), and Renovate cannot read that tag on its own. Since 2026-04 the `github-actions` manager uses `github-actions` versioning, which strips the `v` and then asks for strict SemVer: `0.5.0.124` is not a version to it, so the next tag would never be offered.",
+        "Four numeric parts are what `regex` versioning's `build` group is for: compared after the patch and treated as a patch update. Scoped to the tag lookup (`github-tags`) so that a reference still on `@main`, which Renovate resolves as a digest, is not re-read as an invalid version."
+      ],
+      "matchManagers": ["github-actions"],
+      "matchDatasources": ["github-tags"],
+      "matchDepNames": ["youndie/sborka"],
+      "versioning": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)$"
+    },
+    {
       "description": "A major of anything that ships gets a human. `automerge-harness` deliberately overrides this for the harness, which ships to nobody.",
       "matchUpdateTypes": ["major"],
       "automerge": false,
