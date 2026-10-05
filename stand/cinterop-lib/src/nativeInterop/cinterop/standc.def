@@ -1,0 +1,6 @@
+# The binding the way sborka asks for it (sborka#116): the archive is named HERE, so cinterop copies it
+# into the klib's included/ and a consumer links with no options of its own. Named without a path; the
+# directory comes from build.gradle.kts as `-libraryPath`.
+headers = standc.h
+package = stand.cinterop.c
+staticLibraries = libstandc.a
