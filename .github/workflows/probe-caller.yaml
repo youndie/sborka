@@ -1,0 +1,8 @@
+# Temporary probe for #123: calls probe-called.yaml at an OLDER commit than its own.
+name: probe-caller
+on:
+  push:
+    branches: [ probe/reusable-context-123 ]
+jobs:
+  call:
+    uses: youndie/sborka/.github/workflows/probe-called.yaml@e8b743368629e46aecaa1af2f51f8ec69f079015
