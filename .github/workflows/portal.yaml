@@ -43,6 +43,18 @@ on:
         required: false
         default: true
         type: boolean
+      # The same two as central.yaml, for the same gap (#117): nothing could run between the
+      # checkout and Gradle. Checked and acted on by the same action, in a step with no secret.
+      apt-packages:
+        description: Debian packages the build needs before Gradle, space-separated, bare names only.
+        required: false
+        default: ""
+        type: string
+      prepare:
+        description: A path to a script in the plugin's own tree, run with bash before Gradle.
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -75,6 +87,7 @@ jobs:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+          persist-credentials: false
 
       # REFUSED HERE RATHER THAN BY A MISSING TASK: without the plugin applied, `publishPlugins`
       # does not exist, and Gradle's answer reads as a typo in this file.
@@ -104,6 +117,15 @@ jobs:
           fi
 
       - uses: youndie/sborka/.github/actions/setup-kotlin@main
+
+      # Before the gate and the upload, beside no secret: the portal's key and secret live only in
+      # the upload step's `env:`. See central.yaml for the longer form.
+      - name: Prepare the tree
+        if: inputs.apt-packages != '' || inputs.prepare != ''
+        uses: youndie/sborka/.github/actions/prepare-tree@main
+        with:
+          apt-packages: ${{ inputs.apt-packages }}
+          prepare: ${{ inputs.prepare }}
 
       - name: Gate
         if: inputs.gate

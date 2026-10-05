@@ -186,6 +186,7 @@ jobs:
     with:
       tasks: build publishAllPublicationsToWipRepository
       # konan-cache / dokka / test-results / check / runner — по надобности,
+      # apt-packages / prepare — если сборке до Gradle нужны системные пакеты или скрипт (#117),
       # coordinates: список `group:artifact` (без версии) для job'ы proba
     secrets:
       REPOSILITE_USER: ${{ secrets.REPOSILITE_USER }}

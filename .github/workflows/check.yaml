@@ -204,3 +204,47 @@ jobs:
           echo "plain head -> $PLAIN; -SNAPSHOT head refused, no version written;" \
                "tagged head refused, named $TAGGED_TAG, no version written;" \
                "untagged head -> $NEXT_VERSION; unreachable remote -> $UNREACHABLE_VERSION"
+
+  # THE ACTION central.yaml, portal.yaml and publish-wip.yaml PREPARE A TREE WITH (#117), asked here
+  # because nothing else runs it before a release does. Those workflows take it by `@main`, so a
+  # change to it reaches the next publish on merge, and a publish is the one run that cannot be a
+  # first attempt.
+  #
+  # Two halves. test/run.sh asks the checks every question — names outside the Debian set, paths
+  # that climb, absolute paths, symlinks out — with apt stubbed, and demands that a refusal installed
+  # nothing and ran nothing. Then the action itself, on this runner: once refused, once for real,
+  # with a real apt and a real script.
+  prepare-tree:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Lint the scripts
+        run: shellcheck .github/actions/prepare-tree/prepare-tree.sh .github/actions/prepare-tree/test/run.sh
+
+      - name: Every refusal and every acceptance, with apt stubbed
+        run: bash .github/actions/prepare-tree/test/run.sh
+
+      - id: refused
+        continue-on-error: true
+        uses: ./.github/actions/prepare-tree
+        with:
+          apt-packages: hello hello;id
+          prepare: .github/actions/prepare-tree/test/fixture.sh
+
+      - uses: ./.github/actions/prepare-tree
+        with:
+          apt-packages: hello
+          prepare: .github/actions/prepare-tree/test/fixture.sh
+
+      - name: The refusal did nothing, the real run did both
+        env:
+          REFUSED: ${{ steps.refused.outcome }}
+        run: |
+          set -euo pipefail
+          [ "$REFUSED" = failure ] ||
+            { echo "::error::a name with ';' was not refused: the step's outcome was $REFUSED"; exit 1; }
+          ran=$(cat "$RUNNER_TEMP/prepared")
+          [ "$ran" = "ran $(pwd -P)" ] ||
+            { echo "::error::the script should have run once, from the root; it wrote: '$ran'"; exit 1; }
+          hello

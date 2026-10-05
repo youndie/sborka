@@ -1,0 +1,38 @@
+name: Prepare the tree before Gradle
+description: >
+  System packages and a script of the library's own, after the checkout and before any Gradle run.
+  For a build that needs something Gradle cannot fetch: a header for a cinterop, a C bundle built in
+  a container. Both inputs are checked before either is acted on, and a bad one is refused (exit 3)
+  with nothing installed and nothing run. The checks live in prepare-tree.sh; test/run.sh asks them
+  every question on each pull request (check.yaml, job `prepare-tree`).
+
+inputs:
+  apt-packages:
+    description: >
+      Debian package names, separated by spaces, installed with `apt-get install
+      --no-install-recommends`. Each must be a bare name in the Debian set (a-z, 0-9, '+', '-', '.') —
+      no `=version`, `/release` or `:arch`. Refused on a runner that is not Linux, rather than ignored.
+    required: false
+    default: ""
+  prepare:
+    description: >
+      A PATH to a script inside the checkout, relative to its root — for example
+      `ci/librdkafka/build.sh` — run with bash from the root. A path, not a command line: absolute
+      paths, `..`, and symlinks that lead out of the checkout are refused.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # THE ENVIRONMENT IS THESE THREE AND WHAT THE RUNNER GIVES EVERY STEP. A composite step sees only
+    # the env it is handed and the job's, so a caller that keeps its secrets in the step that needs
+    # them — the publishing workflows do — keeps them out of here. The inputs go in as variables, not
+    # into the script's text: text pasted into a shell body is a command as much as a value.
+    - name: Prepare the tree
+      shell: bash
+      env:
+        APT_PACKAGES: ${{ inputs.apt-packages }}
+        PREPARE: ${{ inputs.prepare }}
+        TREE: ${{ github.workspace }}
+      run: bash "$GITHUB_ACTION_PATH/prepare-tree.sh"
