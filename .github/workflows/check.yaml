@@ -60,6 +60,42 @@ jobs:
           ./gradlew -p stand :cinterop-lib:verifyCinteropKlibs :cinterop-lib:linuxX64Test \
             -Pstand.cinterop=extraOpts --no-daemon
 
+      # THE RELEASE RUN CATCHES WHAT THE DEBUG RUN CANNOT (#121), asked both ways.
+      #
+      # `stand.releaseTrap` adds a test that passes on the debug test binary and fails on the release
+      # one: a `catch (e: ClassCastException)` that a release build never reaches, mongkn M-91 in a
+      # few lines. With the release run switched off the module's `check` must stay green, which is
+      # the world before `sborka.nativeReleaseTests`; with it on, `check` must go red, and the one
+      # failure must be the trap on the release binary. Either answer alone proves nothing: a red
+      # that came from somewhere else, or a green that came from a trap the compiler stopped setting
+      # off.
+      #
+      # READ FROM THE RESULTS, NOT FROM WHICH TASK FAILED. Under `check` KGP lets each test task
+      # finish and fails the aggregate `allTests` instead, so the log names `:kmp-lib:allTests`;
+      # which run the failure was in is what the two XML files say.
+      - name: The release run catches what the debug run cannot
+        run: |
+          set -uo pipefail
+          results=stand/kmp-lib/build/test-results
+          ./gradlew -p stand :kmp-lib:check -Pstand.releaseTrap=true -Psborka.nativeReleaseTests=false \
+              --no-daemon --console=plain > release-off.log 2>&1 ||
+            { tail -40 release-off.log; echo "::error::with the release run off, the trap must pass on the debug binary"; exit 1; }
+          grep -q 'kmp-lib:linuxX64ReleaseTest' release-off.log &&
+            { echo "::error::the release run was switched off and still ran"; exit 1; }
+          debug_xml=$results/linuxX64Test/TEST-linuxX64Test.stand.ReleaseTrapTest.xml
+          grep -q 'tests="1"' "$debug_xml" && grep -q 'failures="0"' "$debug_xml" ||
+            { echo "::error::the debug run did not pass the trap: $debug_xml"; exit 1; }
+          if ./gradlew -p stand :kmp-lib:check -Pstand.releaseTrap=true --continue \
+              --no-daemon --console=plain > release-on.log 2>&1; then
+            tail -40 release-on.log; echo "::error::the release run let the trap through"; exit 1
+          fi
+          release_xml=$results/linuxX64ReleaseTest/TEST-linuxX64ReleaseTest.stand.ReleaseTrapTest.xml
+          grep -q 'failures="1"' "$release_xml" ||
+            { tail -60 release-on.log; echo "::error::red, but not on the trap in the release run: $release_xml"; exit 1; }
+          others=$(grep -l '<failure' "$results"/*/TEST-*.xml | grep -v "$release_xml" || true)
+          [ -z "$others" ] || { echo "::error::other failures besides the trap: $others"; exit 1; }
+          echo "release run off: green, the trap passes in debug; on: red, the trap fails in linuxX64ReleaseTest and nothing else does"
+
       # WHAT A CONSUMER CAN NAME, ASKED BEFORE THE MERGE RATHER THAN AFTER IT.
       #
       # This check already existed and ran in the wrong place. `publish-snapshot.yaml` puts proba on

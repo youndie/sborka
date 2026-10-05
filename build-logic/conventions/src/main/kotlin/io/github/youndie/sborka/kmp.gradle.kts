@@ -10,9 +10,12 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.plugin.mpp.Executable
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTargetWithHostTests
+import org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType
 import org.jetbrains.kotlin.gradle.targets.jvm.KotlinJvmTarget
 import org.jetbrains.kotlin.gradle.tasks.CInteropProcess
 import org.jetbrains.kotlin.konan.target.Family
+import org.jetbrains.kotlin.konan.target.HostManager
 
 // The mechanics of a multiplatform library — AND DELIBERATELY NOT ITS TARGETS.
 //
@@ -104,6 +107,60 @@ plugins.withId("org.jetbrains.kotlin.multiplatform") {
             dependencies {
                 implementation(kotlin("test"))
             }
+        }
+    }
+}
+
+// THE SUITE AGAIN, ON THE BINARY THAT SHIPS (#121).
+//
+// KGP registers one test binary per native target, in DEBUG, and one task to run it. What ships is
+// the release binary — the service's image, the binary a library's consumer links — and the two are
+// not the same program: a release build leaves out the checks on casts out of a generic type
+// (`genericSafeCasts` is off there), so a `catch (e: ClassCastException)` that is reached in debug
+// is never reached in release, and the value goes on into code that was written for another type.
+// That is mongkn M-91: one request, 200 from the debug binary and 500 from the release one, with the
+// consumer's suite green. The stand holds it in a few lines (`stand/kmp-lib/src/releaseTrap`).
+//
+// So the same suite runs a second time, linked in release: a test binary and a test run for it,
+// because the binary alone is not enough — no task runs it until a run is created for it — and
+// `check` waits for that run.
+//
+// ONLY THE TARGET THIS HOST RUNS. A release link is the slow kind, and on a host that cannot execute
+// the binary it would be paid for nothing: a Mac does not run `linuxX64` and a Linux runner does not
+// run `macosArm64`. `macosX64` under Rosetta is left out as well; its debug run is still there.
+//
+// IN `afterEvaluate`, AND ONLY WHERE THE MODULE DID NOT DO IT ITSELF. Three repositories wrote this
+// by hand before it was a convention, and KGP refuses a second test binary of the same build type:
+// done in `configureEach`, it would come first and break every one of those scripts at configuration.
+//
+// OFF BY DEFAULT, `sborka.nativeReleaseTests=true` to opt in, and that was measured rather than
+// guessed: the release link is 6–13 times the debug one (about two minutes on mani's server), an
+// integration-heavy suite runs twice (kafkakn: nine more minutes), and kafkakn's release run is red
+// where its debug run is green — on by default, its next sborka bump would have gone red unasked.
+// The numbers and where they came from: docs/conventions.md, `sborka.kmp`.
+plugins.withId("org.jetbrains.kotlin.multiplatform") {
+    if (SborkaSettings.flag(project, "sborka.nativeReleaseTests", default = false)) {
+        afterEvaluate {
+            extensions
+                .getByType<KotlinMultiplatformExtension>()
+                .targets
+                .withType<KotlinNativeTargetWithHostTests>()
+                .filter { it.konanTarget == HostManager.host }
+                .forEach { target ->
+                    if (target.binaries.findTest(NativeBuildType.RELEASE) == null) {
+                        target.binaries.test(listOf(NativeBuildType.RELEASE))
+                    }
+                    if (target.testRuns.findByName("release") == null) {
+                        target.testRuns.create("release") {
+                            setExecutionSourceFrom(target.binaries.getTest(NativeBuildType.RELEASE))
+                        }
+                    }
+                    // SAID OUT LOUD, although KGP's `allTests` already picks the run up: `check`
+                    // reaching it through an aggregate is a property of KGP's version, not of this
+                    // convention. BY NAME, because the run's public type does not expose its task;
+                    // KGP names the task of a run other than the default `<target><Run>Test`.
+                    tasks.named("check") { dependsOn("${target.name}ReleaseTest") }
+                }
         }
     }
 }

@@ -158,6 +158,9 @@ if (SborkaSettings.flag(project, "sborka.declaredTests", default = true)) {
     // `AbstractTestTask`s of the Kotlin plugin's own kinds rather than `Test` tasks, so nothing above
     // sees them. This file used to say so and stop there.
     //
+    // The release run `sborka.kmp` adds (`linuxX64ReleaseTest`, #121) is one of them, so a release
+    // test binary that ran nothing fails here exactly as a debug one does.
+    //
     // What can be asked of them is smaller and still worth asking. THE PER-CLASS SHORTFALL STAYS A
     // JVM THING because it needs the classes the task compiled, and a Kotlin/Native test binary is
     // one executable with no class files to read declarations out of. A count needs none.
