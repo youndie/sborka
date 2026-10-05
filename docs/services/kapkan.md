@@ -13,9 +13,9 @@ publishes: [io.github.youndie.sborka:kapkan]
 
 ## 1. Responsibility
 
-Six source-level rules, each encoding one class of defect this stack paid a stand run to find:
-`foreign-import-in-common`, `native-identifier`, `swallowed-failure`, `wall-clock`,
-`cancellation-swallowed`, and `suppression-needs-a-reason`. `sborka.lint` puts the coordinate on
+Seven source-level rules, each encoding one class of defect this stack paid a stand run to find:
+`foreign-import-in-common`, `native-identifier`, `signal-handler-in-kotlin`, `swallowed-failure`,
+`wall-clock`, `cancellation-swallowed`, and `suppression-needs-a-reason`. `sborka.lint` puts the coordinate on
 the `ktlintRuleset` configuration at its own version; there is no switch to turn it off.
 
 **What it deliberately does not do.** No rule here needs a type, and the one that did — "a `@Test`
@@ -68,3 +68,9 @@ the engine matches ids by the class it loaded, not by the name. The jar is loade
   no lint, and a module that does not apply `sborka.lint` runs none at all. kompot was that case
   when the rule shipped — `sborka.kmp` without `sborka.lint` — until youndie/kompot#199
   (2026-10-02) applied `sborka.lint` to every module.
+* **`signal-handler-in-kotlin` reads a file only when it imports POSIX's `signal`.** The gate is
+  `platform.posix.signal`, `platform.posix.sigaction` or `platform.posix.*` among the imports;
+  without one, `signal` is somebody else's function and the file is not walked. Its two known
+  findings — kore's macOS handler and metrik's CLI — sit in modules that do not apply `sborka.lint`
+  (2026-10-05), so the rule changes no consumer's verdict yet and did not move the version head;
+  the count is in `docs/kapkan.md` §13.
