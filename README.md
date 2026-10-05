@@ -42,9 +42,10 @@ Plus what a repository's CI asks for by name rather than by copy:
 |---|---|
 | `.github/actions/setup-kotlin` | Java, Gradle and the Kotlin/Native cache in one step and at one version |
 | `.github/actions/determine-version` | the head of the version from `gradle.properties`, run number on the tail; refuses a `-SNAPSHOT` head and a head that is already tagged `v<head>` |
+| `.github/actions/prepare-tree` | what a build needs before Gradle — Debian packages and a script from the repository's own tree — both checked before either is acted on; used by `central.yaml`, `portal.yaml` and `publish-wip.yaml` through their `apt-packages` and `prepare` inputs |
 | `.github/workflows/publish-wip.yaml` | the whole snapshot publish, called with `uses:` — checkout, setup, version, the publish, and the proba job that asks the server what a consumer would resolve |
 
-The first two are steps, which is all a composite action can be. The third is a workflow because the
+The first three are steps, which is all a composite action can be. The fourth is a workflow because the
 thing being shared is a job and a second job waiting on it, and neither fits in a step.
 
 And one more thing a repository extends by name rather than copies — its Renovate configuration:
