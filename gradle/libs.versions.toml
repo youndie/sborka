@@ -4,7 +4,7 @@
 # former a release of the latter.
 
 [versions]
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 
 # KSP, for the stand module that proves `sborka.kmp` wires a common-metadata processor. Not in
 # `catalog/sborka.versions.toml`'s company by accident: that file already names a KSP version for
