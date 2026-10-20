@@ -23,7 +23,7 @@ kotlin = "2.4.20"
 # `check` (`verifyGradleVersion`), and so is sborka's own wrapper.
 gradle = "9.8.0"
 coroutines = "1.11.0"
-serialization = "1.11.0"
+serialization = "1.12.0"
 datetime = "0.8.0"
 
 # Drifted: 3.5.2 in seven repositories, 3.4.0 in one, when this file was written.
