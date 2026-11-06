@@ -12,6 +12,9 @@ name: parity probe
 # The JDK is on that list and is the one that moves the most rows: five of 129 between JDK 17 and
 # JDK 25, and `\bé` is not a JVM/native difference at all on 17. It is not in the catalog, so the
 # setup action and gradle.properties are watched as well as the versions file.
+#
+# This file is on the list too: an edit to it would otherwise merge without the job ever having run,
+# which is how a runner label can rot unnoticed.
 
 on:
   pull_request:
@@ -20,6 +23,7 @@ on:
       - 'gradle.properties'
       - '.github/actions/setup-kotlin/**'
       - 'docs/research/parity-probe/**'
+      - '.github/workflows/parity-probe.yaml'
 
 permissions:
   contents: read
@@ -35,7 +39,7 @@ jobs:
         include:
           - os: ubuntu-latest
             native: linuxX64
-          - os: macos-14
+          - os: macos-15
             native: macosArm64
     runs-on: ${{ matrix.os }}
     steps:
