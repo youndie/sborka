@@ -1,7 +1,9 @@
 package io.github.youndie.sborka.internal
 
+import java.io.File
+
 /**
- * The three decisions behind wiring a KSP processor that runs **once, over common metadata**.
+ * The decisions behind wiring a KSP processor that runs **once, over common metadata**.
  *
  * A multiplatform module whose annotated types live in `commonMain` has exactly one sensible place
  * to run a processor: `kspCommonMainMetadata`. Per-target output lands in a platform source set,
@@ -59,6 +61,26 @@ object KspMetadataWiring {
                     taskName.startsWith("runKtlint") ||
                     taskName.lowercase().endsWith("sourcesjar")
             )
+
+    /**
+     * Whether [file] is something the generator itself wrote, and so has no place among its inputs.
+     *
+     * The source directory that lets every target compile the generated code is also what KSP
+     * collects its `commonSourceRoots` from, so without this filter the generator's second run finds
+     * its own output as a new source file and runs again with nothing changed. What that costs depends
+     * on the processor, both measured:
+     *
+     * - one that names its sources in `Dependencies` (`:kompot-forms` in youndie/kompot) keeps its file,
+     *   and the only cost is the extra run;
+     * - one that does not (`Dependencies(aggregating = true)`, the stand's `:kmp-ksp`) has nothing dirty
+     *   to process and KSP removes the file. The first build is green and every build after it is red
+     *   until a `clean`, because the now-empty output is up to date. With the build cache on, the empty
+     *   output is stored and handed back, and builds alternate instead (youndie/sborka#144).
+     */
+    fun writtenByGenerator(
+        file: File,
+        moduleDir: File,
+    ): Boolean = file.startsWith(moduleDir.resolve(GENERATED_SOURCES))
 
     /**
      * Whether a KSP task is one of the per-target ones the plugin registers for every target and
