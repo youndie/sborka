@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.io.File
 
 /**
  * The string matching the wiring stands on, against task and configuration names taken from a real
@@ -20,6 +21,39 @@ import org.junit.jupiter.api.Test
  * green build with nothing generated.
  */
 class KspMetadataWiringTest {
+    @Test
+    fun `the generator's own output is not one of its inputs`() {
+        val module = File("/work/stand/kmp-ksp")
+
+        assertTrue(
+            KspMetadataWiring.writtenByGenerator(
+                module.resolve("build/generated/ksp/metadata/commonMain/kotlin/stand/ksp/StandRegistry.kt"),
+                module,
+            ),
+        )
+    }
+
+    @Test
+    fun `sources and other modules' output stay inputs`() {
+        val module = File("/work/stand/kmp-ksp")
+
+        // The file that carries the annotations: filtering this one out would generate nothing.
+        assertFalse(
+            KspMetadataWiring.writtenByGenerator(module.resolve("src/commonMain/kotlin/stand/ksp/Marked.kt"), module),
+        )
+        // A per-target directory of the same module is not this generator's.
+        assertFalse(
+            KspMetadataWiring.writtenByGenerator(module.resolve("build/generated/ksp/jvm/jvmMain/kotlin/A.kt"), module),
+        )
+        // The same relative path under a sibling module, and a name that merely starts the same way.
+        assertFalse(
+            KspMetadataWiring.writtenByGenerator(
+                File("/work/stand/kmp-ksp-platform/build/generated/ksp/metadata/commonMain/kotlin/A.kt"),
+                module,
+            ),
+        )
+    }
+
     @Test
     fun `what reads the generated sources waits for them`() {
         listOf(

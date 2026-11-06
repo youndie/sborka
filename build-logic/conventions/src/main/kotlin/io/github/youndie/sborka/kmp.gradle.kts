@@ -6,6 +6,7 @@ import io.github.youndie.sborka.internal.SborkaSettings
 import org.gradle.api.attributes.Category
 import org.gradle.api.attributes.Usage
 import org.gradle.api.attributes.java.TargetJvmVersion
+import org.gradle.api.file.ConfigurableFileCollection
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.plugin.mpp.Executable
@@ -359,6 +360,29 @@ plugins.withId("org.jetbrains.kotlin.multiplatform") {
 
             tasks.matching { KspMetadataWiring.disabledAsRedundant(it.name) }.configureEach {
                 enabled = false
+            }
+
+            // THE GENERATOR MUST NOT READ WHAT IT WROTE. `srcDir` above is what lets every target compile
+            // the output, and it is also where KSP collects its source roots from, so a second run takes
+            // its own file for a new source: an extra run at best, the file deleted at worst. See
+            // `KspMetadataWiring.writtenByGenerator`.
+            //
+            // `projectsEvaluated` because the plugin adds its roots later than this `afterEvaluate`, and
+            // what it adds lands beside a filter that has already been set, carrying the same file in.
+            // A plain `configureEach` here compiled, configured, and changed nothing.
+            //
+            // By property name and not through `KspAATask`: this script can be loaded by a classloader
+            // that cannot see the KSP plugin's classes, while `withId` has already established that the
+            // plugin is here. A property KSP renames fails this build out loud.
+            val moduleDir = layout.projectDirectory.asFile
+            gradle.projectsEvaluated {
+                tasks.named(KspMetadataWiring.GENERATOR) {
+                    val kspConfig = withGroovyBuilder { getProperty("kspConfig") }
+                    val roots =
+                        kspConfig.withGroovyBuilder { getProperty("commonSourceRoots") } as ConfigurableFileCollection
+                    val declared = objects.fileCollection().from(roots.from.toList())
+                    roots.setFrom(declared.filter { !KspMetadataWiring.writtenByGenerator(it, moduleDir) })
+                }
             }
         }
     }

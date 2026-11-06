@@ -60,6 +60,32 @@ jobs:
           ./gradlew -p stand :cinterop-lib:verifyCinteropKlibs :cinterop-lib:linuxX64Test \
             -Pstand.cinterop=extraOpts --no-daemon
 
+      # KSP KEEPS WHAT IT GENERATED ON THE SECOND BUILD (#144). `sborka.kmp` puts the generator's output
+      # into `commonMain`, and KSP collects its source roots from there. Left alone, the second run takes
+      # its own file for a new source. The stand's processor names no sources in `Dependencies`, so it
+      # then has nothing to process and KSP deletes the file: the first build is green, the next is red
+      # until a `clean`. That processor stays as it is on purpose, because one that names its sources
+      # only pays for an extra run, and the difference would be easy to miss. `check` above cannot see
+      # any of this, because it generates once.
+      #
+      # `--no-build-cache` because the cache hides the failure: it hands back an output from a run that
+      # may have been either one. UP-TO-DATE is asserted as well as a green build, which is what catches
+      # the extra run on its own.
+      - name: A second build keeps what KSP generated
+        run: |
+          set -uo pipefail
+          generated=stand/kmp-ksp/build/generated/ksp/metadata/commonMain/kotlin/stand/ksp/StandRegistry.kt
+          rm -rf stand/kmp-ksp/build
+          for run in first second; do
+            ./gradlew -p stand :kmp-ksp:compileTestKotlinJvm --no-daemon --no-build-cache --console=plain > "ksp-$run.log" 2>&1 ||
+              { tail -40 "ksp-$run.log"; echo "::error::the $run build of :kmp-ksp failed: KSP lost its output"; exit 1; }
+            [ -f "$generated" ] ||
+              { echo "::error::the $run build of :kmp-ksp left no generated file: $generated"; exit 1; }
+          done
+          grep -q '^> Task :kmp-ksp:kspCommonMainKotlinMetadata UP-TO-DATE' ksp-second.log ||
+            { grep ':kmp-ksp:ksp' ksp-second.log; echo "::error::KSP ran again with nothing changed: its output is among its inputs"; exit 1; }
+          echo "two builds, one generation: the second found KSP up to date and the file still there"
+
       # THE RELEASE RUN CATCHES WHAT THE DEBUG RUN CANNOT (#121), asked both ways.
       #
       # `stand.releaseTrap` adds a test that passes on the debug test binary and fails on the release
