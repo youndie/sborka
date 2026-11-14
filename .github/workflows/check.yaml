@@ -122,6 +122,54 @@ jobs:
           [ -z "$others" ] || { echo "::error::other failures besides the trap: $others"; exit 1; }
           echo "release run off: green, the trap passes in debug; on: red, the trap fails in linuxX64ReleaseTest and nothing else does"
 
+      # A FAILED TEST RUN IS NOT HANDED BACK AS A PASS, from the build cache or as up to date.
+      #
+      # Under `allTests` KGP lets `jvmTest` finish green and fails the aggregate instead, so a failed run
+      # is stored like a good one, and the next build that skips the task skips the failure: FROM-CACHE
+      # on a fresh checkout with the cache restored, which is every CI run here, or UP-TO-DATE in the
+      # same tree. mutant-ui's gate was green for eight runs that way (mutant-ui B-71). `stand.cacheTrap`
+      # adds a test that fails every time; the results are deleted between builds, which is what a
+      # fresh checkout looks like to this task.
+      #
+      # GUARD ON: all three builds red, and each one ran the test. GUARD OFF, the control: the build
+      # after the deletion green from the cache, which is the defect, so the step is known to see it.
+      #
+      # The native test tasks are left out: this is about the cache, and the release link is minutes.
+      # `stand.cacheTrapRun` makes the cache key this run's, so the replay the control sees is one it
+      # stored itself rather than an earlier run's.
+      - name: A failed test run is not replayed as a pass
+        run: |
+          set -uo pipefail
+          module=stand/kmp-lib/build
+          trap_build() {
+            local name="$1"; shift
+            ./gradlew -p stand :kmp-lib:allTests -x :kmp-lib:linuxX64Test -x :kmp-lib:linuxX64ReleaseTest \
+                -Pstand.cacheTrap=true -Pstand.cacheTrapRun="$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT" "$@" \
+                --no-daemon --console=plain > "cache-$name.log" 2>&1
+          }
+          red_and_ran() {
+            local name="$1"; shift
+            if trap_build "$name" "$@"; then
+              tail -40 "cache-$name.log"; echo "::error::the $name build is green, and its suite has a failing test"; exit 1
+            fi
+            grep -q '^> Task :kmp-lib:jvmTest$' "cache-$name.log" ||
+              { grep ':kmp-lib:jvmTest' "cache-$name.log"; echo "::error::the $name build did not run jvmTest"; exit 1; }
+            grep -q 'failures="1"' "$module/test-results/jvmTest/TEST-stand.CacheTrapTest.xml" ||
+              { echo "::error::the $name build is red, but not on the trap"; exit 1; }
+          }
+          red_and_ran first
+          rm -rf "$module/test-results" "$module/reports"
+          red_and_ran after-deletion
+          red_and_ran unchanged
+          red_and_ran control-first -Psborka.testCacheGuard=false
+          rm -rf "$module/test-results" "$module/reports"
+          trap_build control-after-deletion -Psborka.testCacheGuard=false ||
+            { tail -40 cache-control-after-deletion.log; echo "::error::with the guard off the cached failure was not replayed: this step cannot see the defect"; exit 1; }
+          grep -q '^> Task :kmp-lib:jvmTest FROM-CACHE$' cache-control-after-deletion.log ||
+            { grep ':kmp-lib:jvmTest' cache-control-after-deletion.log; echo "::error::the control is green without loading jvmTest from the cache"; exit 1; }
+          rm -rf "$module/test-results" "$module/reports"
+          echo "guard on: red three times, the trap run each time; guard off: the failure came back FROM-CACHE as BUILD SUCCESSFUL"
+
       # WHAT A CONSUMER CAN NAME, ASKED BEFORE THE MERGE RATHER THAN AFTER IT.
       #
       # This check already existed and ran in the wrong place. `publish-snapshot.yaml` puts proba on
