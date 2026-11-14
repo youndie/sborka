@@ -3,10 +3,12 @@ package io.github.youndie.sborka
 import io.github.youndie.sborka.internal.CinteropLink
 import io.github.youndie.sborka.internal.KspMetadataWiring
 import io.github.youndie.sborka.internal.SborkaSettings
+import io.github.youndie.sborka.internal.TestReplay
 import org.gradle.api.attributes.Category
 import org.gradle.api.attributes.Usage
 import org.gradle.api.attributes.java.TargetJvmVersion
 import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.tasks.testing.AbstractTestTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.plugin.mpp.Executable
@@ -108,6 +110,43 @@ plugins.withId("org.jetbrains.kotlin.multiplatform") {
             dependencies {
                 implementation(kotlin("test"))
             }
+        }
+    }
+}
+
+// A FAILED TEST RUN IS NEVER HANDED BACK AS A PASS.
+//
+// Under `allTests` — and so under `check` — KGP sets `ignoreFailures` on every test task the aggregate
+// collects: each task finishes green, and the aggregate fails afterwards from what a listener heard
+// during the run. A run that was not executed is heard by nobody. So the failed task's outputs are
+// stored like any successful task's, and the next build that skips the task skips the failure with it:
+//
+//  * FROM-CACHE, on a fresh checkout with the build cache restored — which is what `setup-kotlin` does
+//    on every CI run. mutant-ui's gate was green for eight runs this way while every run that executed
+//    the tests was red (mutant-ui B-71: `:mutant-core:desktopTest FROM-CACHE`, BUILD SUCCESSFUL).
+//  * UP-TO-DATE, in the same checkout: run `check`, see it fail, run it again, and it passes.
+//
+// Hence two rules, both keyed to `ignoreFailures` and nothing else, because that is the one state in
+// which a stored run may hold a failure. A task that fails its own build on a failed test is never
+// stored in that state, so a module's `:jvmTest` run on its own keeps both caches.
+//
+//  * NOT STORED IN THE BUILD CACHE while failures are ignored. Gradle decides that before the task
+//    runs, so the run's outcome cannot be asked; under the aggregate the suite therefore executes on
+//    every CI run. That is the price of a gate that can go red, and the reason this is not opt-in.
+//  * NOT UP TO DATE while failures are ignored AND the previous run's JUnit XML records a failure or an
+//    error. A suite that passed stays up to date; one that failed runs again until it passes. Where the
+//    XML report is switched off there is nothing to read, and the task is never up to date instead.
+//
+// `sborka.testCacheGuard=false` restores Gradle's behaviour, and exists for the control in
+// `.github/workflows/check.yaml`: the step that proves the guard works has to see the replay happen
+// with it off, or it proves nothing about the stand.
+plugins.withId("org.jetbrains.kotlin.multiplatform") {
+    if (SborkaSettings.flag(project, "sborka.testCacheGuard", default = true)) {
+        tasks.withType<AbstractTestTask>().configureEach {
+            outputs.cacheIf("a test run whose failures are ignored is replayed as a pass") {
+                !(it as AbstractTestTask).ignoreFailures
+            }
+            outputs.upToDateWhen { TestReplay.mayBeSkipped(it as AbstractTestTask) }
         }
     }
 }
