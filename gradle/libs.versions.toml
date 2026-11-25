@@ -54,7 +54,7 @@ kotlinxIo = "0.9.0"
 # A binding for the tests only. ktlint's engine logs through slf4j, and without a binding on the
 # test runtime every call into it dies in a static initialiser — 36 tests failing on
 # `NoClassDefFoundError: org/slf4j/LoggerFactory`, which names the class and not the missing artefact.
-slf4j = "2.0.18"
+slf4j = "2.0.20"
 
 # WHAT `:image` READS IMAGES WITH — the two libraries jib-core brings, so the image task (B-33), built
 # on jib-core, adds nothing to a consumer's classpath the check had not brought already.
