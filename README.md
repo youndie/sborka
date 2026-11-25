@@ -58,7 +58,10 @@ And one more thing a repository extends by name rather than copies — its Renov
 Monday batch, the kotlin / kotlinx / sborka / ci-actions groups, the guard against
 `kotlinx-datetime`'s `-compat` builds (which are the new version compiled against an OLD API, and
 Renovate reads them as upgrades), and majors going to a human. `automerge-harness.json` is separate because
-it has a precondition — it is only safe where a pull request actually runs the build.
+it has a precondition — it is only safe where a pull request actually runs the build. `automerge-own.json`
+is a third, for the portfolio's own artefacts (`io.github.youndie.*`, short of a major), with that
+precondition and one more: a merge to `main` must not deploy anything by itself
+([migration.md](docs/migration.md) §8).
 
 ## Quick start
 
