@@ -157,7 +157,91 @@ val verifyHarnessPreset =
         }
     }
 
+// OUR OWN ARTEFACTS MERGE THEMSELVES, AND ONLY THEY, AND NEVER A MAJOR.
+//
+// `automerge-own.json` lets a bump of the portfolio's own libraries and plugins merge on green, because
+// the consumer's pull request has already run the consumer's build. That argument covers exactly three
+// things, and each is checked here against the rules that set `automerge: true`:
+//
+// - the names: every pattern is a regex anchored at the start, and it has to admit the portfolio's names
+//   in the form Renovate matches them (a plugin is `<id>:<id>.gradle.plugin`) and none of the neighbours'.
+//   The names are tried, not read: a pattern that matches nothing looks exactly like one that works, and
+//   `io.github.youndie` without a boundary also admits `io.github.youndiefan`;
+// - the update types: named, and never `major`, so a major falls back to the base preset's human;
+// - the checks: no `ignoreTests`, which would merge without the build that is the whole argument, and no
+//   `allowedVersions`, which would let this preset widen what the base preset holds back.
+val verifyOwnPreset =
+    tasks.register("verifyOwnPreset") {
+        val root = rootProject.layout.projectDirectory
+        val presetFile = root.file("automerge-own.json").asFile
+        inputs.file(presetFile)
+        doLast {
+            val preset = groovy.json.JsonSlurper().parse(presetFile) as Map<*, *>
+            val merging =
+                (preset["packageRules"] as List<*>)
+                    .filterIsInstance<Map<*, *>>()
+                    .filter { it["automerge"] == true }
+            check(merging.isNotEmpty()) {
+                "${presetFile.name} has no rule that sets automerge=true, so there is nothing left to check — re-read it"
+            }
+
+            val own =
+                listOf(
+                    "io.github.youndie.sborka.settings:io.github.youndie.sborka.settings.gradle.plugin",
+                    "io.github.youndie:oldge-core",
+                    "io.github.youndie.kore.build:io.github.youndie.kore.build.gradle.plugin",
+                    "ru.workinprogress.sborka.settings:ru.workinprogress.sborka.settings.gradle.plugin",
+                )
+            val foreign =
+                listOf(
+                    "io.ktor:ktor-server-core",
+                    "org.jetbrains.kotlinx:kotlinx-serialization-json",
+                    "io.github.youndiefan:library",
+                    "io.github.someone:youndie",
+                    "ghcr.io/youndie/tracy",
+                    "youndie/sborka",
+                )
+
+            fun patterns(rule: Map<*, *>): List<Regex> {
+                val names = rule["matchPackageNames"] as? List<*>
+                check(!names.isNullOrEmpty()) {
+                    "${presetFile.name}: a rule that sets automerge=true names no packages, so it would merge anything"
+                }
+                return names.map { name ->
+                    val text = name as String
+                    check(text.length > 2 && text.startsWith("/^") && text.endsWith("/")) {
+                        "${presetFile.name}: `$text` is not an anchored regex — only `/^.../` patterns are tried here"
+                    }
+                    Regex(text.substring(1, text.length - 1))
+                }
+            }
+
+            for (rule in merging) {
+                val types = rule["matchUpdateTypes"] as? List<*>
+                check(!types.isNullOrEmpty() && "major" !in types) {
+                    "${presetFile.name}: a rule that sets automerge=true has matchUpdateTypes=$types; it has to name " +
+                        "its update types and leave `major` to the base preset's human"
+                }
+                for (key in listOf("ignoreTests", "allowedVersions")) {
+                    check(key !in rule) {
+                        "${presetFile.name}: a rule that sets automerge=true sets `$key`, which this preset must not touch"
+                    }
+                }
+                val regexes = patterns(rule)
+                val leaked = foreign.filter { name -> regexes.any { it.containsMatchIn(name) } }
+                check(leaked.isEmpty()) {
+                    "${presetFile.name} would merge $leaked, which are not the portfolio's own artefacts"
+                }
+            }
+            val missed = own.filter { name -> merging.none { rule -> patterns(rule).any { it.containsMatchIn(name) } } }
+            check(missed.isEmpty()) {
+                "${presetFile.name} no longer matches $missed: the rule reads as working and merges nothing"
+            }
+        }
+    }
+
 tasks.named("check") {
     dependsOn(verifyGradleVersion)
     dependsOn(verifyHarnessPreset)
+    dependsOn(verifyOwnPreset)
 }

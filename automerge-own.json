@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Lets the portfolio's own artefacts merge themselves on green, short of a major: every Maven coordinate and Gradle plugin under `io.github.youndie` (and the old `ru.workinprogress.sborka` plugin ids). Extend it AFTER the base preset, next to `automerge-harness`: `\"extends\": [\"github>youndie/sborka\", \"github>youndie/sborka:automerge-harness\", \"github>youndie/sborka:automerge-own\"]`.",
+    "Why it exists: the queue that keeps filling is not the harness. On 2026-11-25, 90 Renovate pull requests were open across youndie/*, 83 of them green; 41 were the portfolio's own artefacts and 22 of those were ONE sborka publish (0.5.0.135 → 0.5.0.136) opened in every consumer. Ten repositories sat at the five-pull-request limit with green pull requests that nobody was going to read: a bump of a library this portfolio wrote, built and tested in its own repository, and then built again by the consumer's own pull request.",
+    "The argument is the harness one, one step further. A bump of our own library is not a decision the consumer makes — the decision was the change in the library, and that had its review there. What the consumer can add is its build, and the pull request already ran it. A head bump that changes a verdict (a new kapkan rule, an API that moved) turns the consumer's pull request red, and a red pull request does not merge itself: it waits for a person, as now.",
+    "A MAJOR still waits for a person, and so does anything that is not on Maven under these groups — the images (`ghcr.io/youndie/*`) a stand or a chart names, and sborka's own actions, which are harness and belong to `automerge-harness`.",
+    "THE PRECONDITION IS TWO-FOLD, AND NEITHER HALF IS RHETORICAL. First the harness one: a pull request has to run the build — look at what runs on `pull_request` in the workflow, not in a sentence about it. Second: a merge to `main` must not ship anything to people by itself. Where `main` deploys a production service (mani), a library bump that merges itself is a release nobody decided on. A stand that deploys from `main` is the owner's call per repository; this preset does not make it. sborka itself does not extend this: every merge there publishes a new version and re-opens a bump in every consumer.",
+    "`verifyOwnPreset` in sborka's `check` fails if a rule here that sets `automerge` could reach a major, a coordinate outside the portfolio, or skip the pull request's checks — and if the patterns stop matching the portfolio's own names, because a rule that matches nothing reads exactly like one that works."
+  ],
+  "packageRules": [
+    {
+      "description": "The portfolio's own Maven artefacts and Gradle plugins merge themselves on green, short of a major: their review was in their own repository, and the consumer's pull request has already run the consumer's build.",
+      "matchPackageNames": [
+        "/^io\\.github\\.youndie[:.]/",
+        "/^ru\\.workinprogress\\.sborka[:.]/"
+      ],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    }
+  ]
+}
